@@ -136,14 +136,55 @@ export const userService = {
     return data
   },
 
-  // Récupérer les spécialités uniques des médecins
+  // Récupérer uniquement les spécialités réellement pratiquées par au moins un médecin actif
+  // (spécialité principale ou additionnelle), en incluant le parent si un enfant est pratiqué
   async getUniqueDoctorSpecialties() {
     console.log(`[SPECIALITY_CONFIG] userService.getUniqueDoctorSpecialties() appelé`)
-    // Utiliser ignoreSpecialityFilter = true pour obtenir tous les médecins sans restriction de spécialité
-    const doctors = await this.getDoctors({ ignoreSpecialityFilter: true }); 
-    const specialitesUniques = [...new Set(doctors.map(m => m.specialite).filter(Boolean))]; // Filter out null/undefined specialties
-    console.log(`[SPECIALITY_CONFIG] Spécialités uniques récupérées`, { specialitesUniques })
-    return specialitesUniques;
+    try {
+      const { data: allSpecialites, error: specError } = await supabase
+        .from('specialites')
+        .select('id, nom, parent_id')
+        .eq('actif', true)
+        .order('nom', { ascending: true })
+      if (specError) throw specError
+
+      const { data: doctorsPrimary, error: docError } = await supabase
+        .from('users')
+        .select('specialite_id')
+        .eq('role', 'doctor')
+        .eq('actif', true)
+      if (docError) throw docError
+
+      const { data: doctorsAdditional, error: addError } = await supabase
+        .from('medecin_specialites')
+        .select('specialite_id, users:medecin_id(actif, role)')
+      if (addError) throw addError
+
+      const practicedIds = new Set()
+      ;(doctorsPrimary || []).forEach((d) => {
+        if (d.specialite_id) practicedIds.add(d.specialite_id)
+      })
+      ;(doctorsAdditional || []).forEach((d) => {
+        if (d.specialite_id && d.users?.actif && d.users?.role === 'doctor') {
+          practicedIds.add(d.specialite_id)
+        }
+      })
+
+      const byId = Object.fromEntries((allSpecialites || []).map((s) => [s.id, s]))
+      const visibleIds = new Set()
+      practicedIds.forEach((id) => {
+        visibleIds.add(id)
+        const spec = byId[id]
+        if (spec?.parent_id) visibleIds.add(spec.parent_id)
+      })
+
+      const result = (allSpecialites || []).filter((s) => visibleIds.has(s.id))
+      console.log(`[SPECIALITY_CONFIG] Spécialités pratiquées récupérées`, { specialites: result })
+      return result
+    } catch (error) {
+      console.error(`[SPECIALITY_CONFIG] Erreur lors de la récupération des spécialités pratiquées:`, error)
+      return []
+    }
   }
 }
 
@@ -962,7 +1003,7 @@ export const appointmentService = {
       if (doctorIds.length > 0) {
         const { data: dRows } = await supabase
           .from('users')
-          .select('id, nom, prenom, specialite')
+          .select('id, nom, prenom, specialite, specialite_id')
           .in('id', doctorIds);
         if (dRows) doctorMap = Object.fromEntries(dRows.map(d => [d.id, d]));
       }
@@ -1024,9 +1065,10 @@ export const appointmentService = {
         console.log("Nombre de rendez-vous après filtrage par médecin :", appointments.length);
         console.table(appointments);
       } else if (specialite) {
+        const idsAvecEnfants = await getSpecialiteIdsWithChildren(specialite);
         appointments = appointments.filter(apt => {
-          const doctorSpecialite = apt.medecin?.specialite;
-          return doctorSpecialite === specialite;
+          const doctorSpecialiteId = apt.medecin?.specialite_id;
+          return doctorSpecialiteId != null && idsAvecEnfants.includes(doctorSpecialiteId);
         });
 
         console.log("Nombre de rendez-vous après filtrage par spécialité :", appointments.length);

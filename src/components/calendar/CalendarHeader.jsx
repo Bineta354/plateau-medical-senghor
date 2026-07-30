@@ -278,7 +278,7 @@ const CalendarHeader = ({
         </div>
 
         <div className="flex items-center space-x-3 flex-wrap">
-          {onToggleHidePastAppointments && (
+          {/*{onToggleHidePastAppointments && (
             <button
               type="button"
               onClick={onToggleHidePastAppointments}
@@ -296,7 +296,7 @@ const CalendarHeader = ({
               {hidePastAppointments ? <EyeOff size={16} /> : <Eye size={16} />}
               {hidePastAppointments ? 'RDV passés masqués' : 'RDV passés visibles'}
             </button>
-          )}
+          )}*/}
 
           <div className="bg-slate-100 p-1 rounded-lg border border-slate-200">
             <div className="flex gap-1">

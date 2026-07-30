@@ -112,7 +112,11 @@ const generatePDF = async (supabase, certificats, patient, medecin, tenantId = n
       
       if (settings.certificat_texte_introduction) {
           doc.setFont(undefined, 'normal');
-          const introLines = doc.splitTextToSize(settings.certificat_texte_introduction, 170);
+          const nomMedecinComplet = `${medecin?.prenom || ''} ${medecin?.nom || ''}`.trim();
+          const introTexte = settings.certificat_texte_introduction
+            .replace(/\[NOM_MEDECIN\]/g, nomMedecinComplet)
+            .replace(/\[DATE\]/g, new Date().toLocaleDateString('fr-FR'));
+          const introLines = doc.splitTextToSize(introTexte, 170);
           doc.text(introLines, 20, yPos);
           yPos += introLines.length * 7 + 5;
       }
@@ -175,7 +179,8 @@ const generatePDF = async (supabase, certificats, patient, medecin, tenantId = n
       doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
       
-      const footerText = settings.certificat_footer_texte || settings.document_footer_texte || `Document généré le ${new Date().toLocaleString('fr-FR')}`;
+      const footerTemplate = settings.certificat_footer_texte || settings.document_footer_texte || `Document généré le [DATE]`;
+      const footerText = footerTemplate.replace(/\[DATE\]/g, new Date().toLocaleString('fr-FR'));
       doc.text(footerText, 105, pageHeight - 10, { align: 'center' });
     });
 

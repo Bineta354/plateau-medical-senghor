@@ -26,4 +26,6 @@ dist-ssr
 .env.keys
 .env.local
 .env.*.local
-.env
+.env.env.*
+!.env.example
+fix_*.py

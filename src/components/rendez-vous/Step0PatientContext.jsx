@@ -187,11 +187,20 @@ export const Step0PatientContext = ({
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
           >
             <option value="">Sélectionner une spécialité</option>
-            {specialites.map((specialite) => (
-              <option key={specialite} value={specialite}>
-                {specialite}
-              </option>
-            ))}
+            {specialites
+              .filter((s) => !s.parent_id)
+              .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'accent' }))
+              .flatMap((parent) => {
+                const children = specialites
+                  .filter((s) => s.parent_id === parent.id)
+                  .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'accent' }));
+                return [
+                  <option key={parent.id} value={parent.id}>{parent.nom}</option>,
+                  ...children.map((child) => (
+                    <option key={child.id} value={child.id}>{'— ' + child.nom}</option>
+                  ))
+                ];
+              })}
           </select>
         </div>
         <div>

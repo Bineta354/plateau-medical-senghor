@@ -199,9 +199,12 @@ const FormulaireUtilisateur = ({ preselectedRole = null }) => {
     }
   };
 
-  // Filtrer les spécialités dentaires
+  // Filtre les spécialités dentaires uniquement si ce déploiement le demande
+  // (cabinet principal = true, cabinets non-dentaires comme Ngor = false)
   const getDentalSpecialites = () => {
-    const dentalSpecialiteIds = [12, 17, 16, 14, 15, 18, 19, 13]; // IDs des spécialités dentaires
+    const filterDental = import.meta.env.VITE_FILTER_DENTAL_SPECIALITES === 'true';
+    if (!filterDental) return specialites;
+    const dentalSpecialiteIds = [12, 17, 16, 14, 15, 18, 19, 13]; // IDs des spécialités dentaires (cabinet principal)
     return specialites.filter(s => dentalSpecialiteIds.includes(s.id));
   };
 
@@ -917,7 +920,7 @@ const FormulaireUtilisateur = ({ preselectedRole = null }) => {
                       <div className="border border-gray-200 rounded-lg p-4">
                         <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                           <Award className="w-4 h-4" />
-                          Spécialités Dentaires
+                          Spécialités
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>

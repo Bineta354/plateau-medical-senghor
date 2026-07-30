@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { userService } from '../lib/services';
 
 export default function useRdvData() {
   const [patients, setPatients] = useState([]);
@@ -43,12 +44,7 @@ export default function useRdvData() {
 
   const fetchSpecialites = async () => {
     try {
-      const { data, error } = await supabase
-        .from('specialites')
-        .select('id, nom, actif')
-        .eq('actif', true)
-        .order('nom', { ascending: true });
-      if (error) throw error;
+      const data = await userService.getUniqueDoctorSpecialties();
       setSpecialites(Array.isArray(data) ? data : []);
       return data || [];
     } catch (e) {

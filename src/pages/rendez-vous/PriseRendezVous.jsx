@@ -180,8 +180,8 @@ const PriseRendezVous = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Sélectionner une spécialité</option>
-              {specialites.map((specialite, index) => (
-                <option key={`specialite-${index}`} value={specialite}>{specialite}</option>
+              {specialites.map((specialite) => (
+                <option key={specialite.id} value={specialite.id}>{specialite.parent_id ? `— ${specialite.nom}` : specialite.nom}</option>
               ))}
             </select>
           </div>

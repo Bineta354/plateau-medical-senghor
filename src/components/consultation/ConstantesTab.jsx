@@ -29,7 +29,7 @@ const getMainConstanteType = (nom) => {
 };
 
 // Composant pour les autres constantes avec état local contrôlé
-const AutreConstanteInput = ({ constante, saving, onValueChange, onDelete }) => {
+const AutreConstanteInput = ({ constante, saving, onValueChange, onDelete, isTerminated }) => {
   // État local pour la valeur de l'input - initialisé avec la valeur enregistrée
   const [inputValue, setInputValue] = useState(
     constante.valeur_mesuree !== null && constante.valeur_mesuree !== undefined
@@ -809,6 +809,7 @@ const ConstantesTab = ({
                   key={constante.id || `temp_${constante.constante_id}_${index}`}
                   constante={constante}
                   saving={saving}
+                  isTerminated={isTerminated}
                   onValueChange={handleConstanteChange}
                   onDelete={(c) => {
                     if (confirm('Êtes-vous sûr de vouloir supprimer cette constante ?')) {

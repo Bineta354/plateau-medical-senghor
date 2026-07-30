@@ -247,11 +247,7 @@ const NewCalendar = ({
           >
             {calendarEvents.length === 0 && (
               <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-                <p className="text-sm text-slate-500 bg-white/90 px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
-                  {hidePastAppointments
-                    ? 'Aucun rendez-vous à venir. Cliquez sur « RDV passés visibles » pour afficher les anciens créneaux.'
-                    : 'Aucun rendez-vous pour cette période.'}
-                </p>
+                
               </div>
             )}
             <div className="absolute inset-0 overflow-x-auto overflow-y-hidden">
