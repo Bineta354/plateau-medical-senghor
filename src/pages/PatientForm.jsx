@@ -170,7 +170,7 @@ const PatientForm = () => {
                   value={formData.date_naissance}
                   onChange={handleInputChange}
                   required
-                  max={new Date().toISOString().split('T')[0]}
+                  max={new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().split('T')[0]}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
                 />
               </div>

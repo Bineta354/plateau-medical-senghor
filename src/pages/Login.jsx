@@ -19,7 +19,7 @@ const Login = () => {
   const [showQuickLogin, setShowQuickLogin] = useState(false);
   const usernameInputRef = useRef(null);
   const suggestionsRef = useRef(null);
-  
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -36,94 +36,6 @@ const Login = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Données des utilisateurs de test
-  /*const testUsers = [
-    {
-      role: 'Secrétaire',
-      email: 'sophie.leroy@cabinet.local',
-      username: 'sophie.leroy',
-      password: 'sophie1234',
-      icon: User,
-      color: 'bg-blue-500 hover:bg-blue-600',
-      description: 'Gestion des rendez-vous et accueil'
-    },
-    {
-      role: 'Médecin',
-      email: 'claire.bernard@cabinet.local',
-      username: 'claire.bernard',
-      password: 'claire123',
-      icon: Stethoscope,
-      color: 'bg-green-500 hover:bg-green-600',
-      description: 'Consultations et prescriptions',
-      specialty: 'Pédiatrie'
-    },
-    {
-      role: 'Dr. Dabo',
-      email: 'dr.dabo@cabinet.com',
-      username: 'dr.dabo',
-      password: 'dabo123',
-      icon: Stethoscope,
-      color: 'bg-teal-500 hover:bg-teal-600',
-      description: 'Consultations médicales',
-      specialty: 'Médecine Générale'
-    },
-    {
-      role: 'Dr. Mané',
-      email: 'dr.mane@cabinet.com',
-      username: 'dr.mane',
-      password: 'mane123',
-      icon: Stethoscope,
-      color: 'bg-pink-500 hover:bg-pink-600',
-      description: 'Consultations médicales',
-      specialty: 'Médecine Générale'
-    },
-    {
-      role: 'Dr. Niang',
-      email: 'dr.niang@cabinet.com',
-      username: 'dr.niang',
-      password: 'niang123',
-      icon: Stethoscope,
-      color: 'bg-orange-500 hover:bg-orange-600',
-      description: 'Consultations médicales',
-      specialty: 'Médecine Générale'
-    },
-    {
-      role: 'Dr. Mansour Fall',
-      email: 'mansour.fall@cabinet.local',
-      username: 'mansourfall',
-      password: 'Passer123',
-      icon: Stethoscope,
-      color: 'bg-cyan-500 hover:bg-cyan-600',
-      description: 'Soins dentaires',
-      specialty: 'Dentiste'
-    },
-    {
-      role: 'Administrateur',
-      email: 'alice.admin@cabinet.local',
-      username: 'alice.admin',
-      password: 'alice123',
-      icon: Shield,
-      color: 'bg-purple-500 hover:bg-purple-600',
-      description: 'Gestion complète du système'
-    },
-    {
-      role: 'Comptabilité',
-      username: 'pape.g',
-      password: 'Comptable1',
-      icon: Award,
-      color: 'bg-indigo-500 hover:bg-indigo-600',
-      description: 'Gestion financière et facturation'
-    },
-    {
-      role: 'Caissier',
-      username: 'm.diakhate',
-      password: 'arXIblwj37R3',
-      icon: Calculator,
-      color: 'bg-orange-500 hover:bg-orange-600',
-      description: 'Encaissement et gestion caisse'
-    }
-  ];*/
-
   const [testUsers, setTestUsers] = useState([]);
 
   useEffect(() => {
@@ -131,6 +43,10 @@ const Login = () => {
 
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  // 🔍 LOGS DE DEBUG TEMPORAIRES
+  console.log('🔍 MODE:', import.meta.env.MODE);
+  console.log('🔍 SUPABASE_URL:', SUPABASE_URL);
 
   const loadUsers = async () => {
     try {
@@ -167,44 +83,6 @@ const Login = () => {
 
   loadUsers();
 }, [showQuickLogin]);
-
-  /*useEffect(() => {
-  if (!showQuickLogin) return;
-
-  const loadUsers = async () => {
-    const { data, error } = await supabase
-      .rpc('search_usernames', { search_term: '' });
-
-    if (!error && data) {
-      const mapped = data.map(u => ({
-        role: u.role === 'doctor' ? 'Médecin' 
-            : u.role === 'secretary' ? 'Secrétaire'
-            : u.role === 'admin' ? 'Administrateur'
-            : u.role === 'caissier' ? 'Caissier'
-            : u.role === 'accounting' ? 'Comptabilité'
-            : u.role,
-        username: u.username,
-        password: '',
-        nom: u.nom,
-        prenom: u.prenom,
-        icon: u.role === 'doctor' ? Stethoscope 
-            : u.role === 'admin' ? Shield 
-            : u.role === 'accounting' ? Award
-            : u.role === 'caissier' ? Calculator
-            : User,
-        color: u.role === 'doctor' ? 'bg-green-500 hover:bg-green-600'
-             : u.role === 'secretary' ? 'bg-blue-500 hover:bg-blue-600'
-             : u.role === 'admin' ? 'bg-purple-500 hover:bg-purple-600'
-             : u.role === 'caissier' ? 'bg-orange-500 hover:bg-orange-600'
-             : 'bg-indigo-500 hover:bg-indigo-600',
-        description: `${u.prenom || ''} ${u.nom || ''}`.trim()
-      }));
-      setTestUsers(mapped);
-    }
-  };
-
-  loadUsers();
-}, [showQuickLogin]);*/
 
   // Fonction pour rechercher les usernames via RPC
   const searchUsernames = async (searchTerm) => {
@@ -308,7 +186,7 @@ const Login = () => {
           } else {
             try { localStorage.removeItem('hasTemporaryPassword'); } catch (e) {}
             setSuccess('Connexion réussie ! Redirection...');
-            
+
             // Récupérer le role de l'utilisateur
             const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -337,36 +215,7 @@ setTimeout(() => {
     navigate('/dashboard');
   }
 }, 1000);
-            /*const { data: userData } = await supabase
-              .from('users')
-              .select('role')
-              .eq('username', username)
-              .single();
-
-            setTimeout(() => {
-              if (userData?.role === 'admin') {
-                navigate('/cabinet-welcome');
-              } else {
-                navigate('/dashboard');
-              }
-            }, 1000);*/
           }
-        /*} else {
-          // Nettoyer un éventuel flag obsolète si l'on se connecte avec un mot de passe normal
-          try { localStorage.removeItem('hasTemporaryPassword'); } catch (e) {}
-          setSuccess('Connexion réussie ! Redirection...');
-          setTimeout(() => {
-            if (result.role === 'admin') {
-              navigate('/cabinet-welcome');
-            } else {
-              navigate('/dashboard');
-            }
-          }, 1000);
-          setSuccess('Connexion réussie ! Redirection...');
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 1000);
-        }*/
       } else {
         setError(result.error);
       }
@@ -380,8 +229,8 @@ setTimeout(() => {
 
   const containerVariants = {
     hidden: { opacity: 0, y: 20 },
-    visible: { 
-      opacity: 1, 
+    visible: {
+      opacity: 1,
       y: 0,
       transition: { duration: 0.6, ease: 'easeOut' }
     }
@@ -389,8 +238,8 @@ setTimeout(() => {
 
   const formVariants = {
     hidden: { opacity: 0, scale: 0.95 },
-    visible: { 
-      opacity: 1, 
+    visible: {
+      opacity: 1,
       scale: 1,
       transition: { delay: 0.2, duration: 0.5 }
     }
@@ -405,7 +254,7 @@ setTimeout(() => {
         animate="visible"
       >
         {/* Logo et titre */}
-        <motion.div 
+        <motion.div
           className="text-center mb-8"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -423,7 +272,7 @@ setTimeout(() => {
         </motion.div>
 
         <div className={`grid grid-cols-1 ${showQuickLogin ? 'lg:grid-cols-2' : ''} gap-8 items-start`}>
-          
+
           {/* Boutons de connexion rapide (Gauche) */}
           {showQuickLogin && (
             <motion.div
@@ -536,13 +385,13 @@ setTimeout(() => {
                       }
                       setShowSuggestions(true);
                     }}
-                   
+
                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent transition-all duration-200"
                     placeholder="nom.utilisateur"
                     required
                     autoComplete="off"
                   />
-                  
+
                   {/* Liste de suggestions */}
                   {showSuggestions  && (
                     <motion.div
@@ -669,7 +518,7 @@ setTimeout(() => {
                   Mot de passe oublié ?
                 </button>
               </div>
-              
+
               {/* Informations de sécurité - Added back from design */}
               <div className="mt-6 p-4 bg-blue-50 rounded-lg">
                 <h3 className="text-xs font-semibold text-blue-700 mb-1">🔐 Authentification sécurisée</h3>
@@ -682,7 +531,7 @@ setTimeout(() => {
         </div>
 
         {/* Footer */}
-        <motion.div 
+        <motion.div
           className="text-center mt-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

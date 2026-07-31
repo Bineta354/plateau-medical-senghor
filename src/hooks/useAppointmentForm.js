@@ -7,6 +7,7 @@ import { resolveAppointmentMotif } from '../components/common/AppointmentTypeMot
 export const useAppointmentForm = ({
   allPatients,
   allDoctors,
+  specialites = [],
   appointments, // Appointments for the selected date
   refreshAppointments,
   showAlertError, // From AlertContext
@@ -135,9 +136,21 @@ export const useAppointmentForm = ({
     return map;
   }, [appointmentsByDoctor]);
 
+  const specialiteIdsWithChildren = useMemo(() => {
+    if (!selectedSpecialiteStepper) return [];
+    const selectedId = String(selectedSpecialiteStepper);
+    const ids = [selectedId];
+    specialites.forEach((s) => {
+      if (String(s.parent_id) === selectedId) {
+        ids.push(String(s.id));
+      }
+    });
+    return ids;
+  }, [selectedSpecialiteStepper, specialites]);
+
   const availableDoctors = useMemo(() => {
     const base = selectedSpecialiteStepper
-      ? allDoctors.filter((doctor) => doctor.specialite === selectedSpecialiteStepper)
+      ? allDoctors.filter((doctor) => specialiteIdsWithChildren.includes(String(doctor.specialite_id)))
       : allDoctors;
 
     return [...base].sort((a, b) => {
@@ -148,7 +161,7 @@ export const useAppointmentForm = ({
       const nameB = `${b.nom || ''} ${b.prenom || ''}`.trim().toLowerCase();
       return nameA.localeCompare(nameB);
     });
-  }, [allDoctors, selectedSpecialiteStepper, doctorLoadsById]);
+  }, [allDoctors, selectedSpecialiteStepper, specialiteIdsWithChildren, doctorLoadsById]);
 
   const generateDoctorTimeSlots = useCallback((doctorId) => {
     if (!manualDate || !doctorId) return [];

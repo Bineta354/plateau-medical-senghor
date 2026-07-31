@@ -1,5 +1,31 @@
 import { supabase } from '../lib/supabase';
 
+/**
+ * Valide la date de naissance d'un patient
+ * @param {string} dateNaissance - La date de naissance au format ISO
+ * @returns {Object} - { valid: boolean, error: string|null }
+ */
+export const validateBirthDate = (dateNaissance) => {
+  if (!dateNaissance) {
+    return { valid: false, error: 'La date de naissance est obligatoire' };
+  }
+
+  const birthDate = new Date(dateNaissance);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Normaliser à minuit pour comparaison juste
+  const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+
+  if (birthDate > today) {
+    return { valid: false, error: 'La date de naissance ne peut pas être postérieure à aujourd\'hui' };
+  }
+
+  if (birthDate > oneYearAgo) {
+    return { valid: false, error: 'Le patient doit être âgé d\'au moins 1 an' };
+  }
+
+  return { valid: true, error: null };
+};
+
 export const fetchPatients = async () => {
   const { data, error } = await supabase
     .from('patients')

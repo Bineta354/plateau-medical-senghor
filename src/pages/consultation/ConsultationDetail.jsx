@@ -5,6 +5,7 @@ import { appointmentService } from '../../lib/services';
 import { sendNotification, NOTIFICATION_TYPES } from '../../lib/notifications';
 import { useConsultationData } from '../../hooks/consultation/useConsultationData';
 import { createConsultationFromModele } from '../../services/consultation/referenceDataService';
+import { getLastDentalStateForPatient } from '../../services/consultation/consultationService';
 import ConstantesTab from '../../components/consultation/ConstantesTab';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { getConsultationMotif } from '../../utils/consultationUtils';
@@ -119,6 +120,7 @@ const ConsultationDetail = () => {
   const [consultationStarted, setConsultationStarted] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(null);
   const [selectedModele, setSelectedModele] = useState('');
+  const [fallbackDentalState, setFallbackDentalState] = useState(null);
 
   useEffect(() => {
     const fetchMedecinInfo = async () => {
@@ -149,6 +151,29 @@ const ConsultationDetail = () => {
       fetchSyntheseHistorique(patient.id);
     }
   }, [syntheseMode, patient?.id, fetchSyntheseHistorique]);
+
+  // Si cette consultation n'a pas encore d'état dentaire enregistré,
+  // on va chercher le dernier état connu du patient (autre consultation,
+  // même avec un autre médecin) pour ne jamais repartir de zéro.
+  useEffect(() => {
+    const loadFallbackDentalState = async () => {
+      if (!patient?.id || !consultation?.id) return;
+
+      const hasOwnState =
+        consultation.dental_state &&
+        Object.keys(consultation.dental_state).length > 0;
+
+      if (hasOwnState) {
+        setFallbackDentalState(null);
+        return;
+      }
+
+      const lastState = await getLastDentalStateForPatient(patient.id, consultation.id);
+      setFallbackDentalState(lastState);
+    };
+
+    loadFallbackDentalState();
+  }, [patient?.id, consultation?.id, consultation?.dental_state]);
 
   useEffect(() => {
     if (consultation?.heure_debut_consultation) {
@@ -814,7 +839,11 @@ const ConsultationDetail = () => {
           <div className="p-6">
             <ConsultationDentalChart
               consultationId={id}
-              initialDentalState={consultation.dental_state}
+              initialDentalState={
+                (consultation.dental_state && Object.keys(consultation.dental_state).length > 0)
+                  ? consultation.dental_state
+                  : (fallbackDentalState || {})
+              }
               fetchActes={refetchFunctions.refetchActes}
               patientId={patient?.id}
               isTerminated={isTerminated}

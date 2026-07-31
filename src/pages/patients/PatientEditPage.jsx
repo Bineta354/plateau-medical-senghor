@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { validateBirthDate } from '../../services/patientService';
 import { 
   ArrowLeft,
   Save,
@@ -47,6 +48,7 @@ const PatientEditPage = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
     if (id) {
@@ -95,10 +97,51 @@ const PatientEditPage = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+    
+    // Validation en temps réel pour la date de naissance
+    if (name === 'date_naissance') {
+      validateDateNaissanceRealTime(value);
+    } else {
+      // Effacer l'erreur quand l'utilisateur commence à taper
+      if (fieldErrors[name]) {
+        setFieldErrors(prev => ({ ...prev, [name]: '' }));
+      }
+    }
+  };
+
+  const validateDateNaissanceRealTime = (value) => {
+    const newErrors = { ...fieldErrors };
+    
+    if (!value) {
+      newErrors.date_naissance = 'La date de naissance est obligatoire';
+    } else {
+      const birthDate = new Date(value);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+      
+      if (birthDate > today) {
+        newErrors.date_naissance = 'La date de naissance ne peut pas être dans le futur';
+      } else if (birthDate > oneYearAgo) {
+        newErrors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
+      } else {
+        newErrors.date_naissance = '';
+      }
+    }
+    
+    setFieldErrors(newErrors);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validation backend de la date de naissance
+    const birthDateValidation = validateBirthDate(formData.date_naissance);
+    if (!birthDateValidation.valid) {
+      setError(birthDateValidation.error);
+      return;
+    }
+    
     setLoading(true);
     setError(null);
 
@@ -289,9 +332,14 @@ const PatientEditPage = () => {
                   value={formData.date_naissance}
                   onChange={handleInputChange}
                   required
-                  max={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+                  max={new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().split('T')[0]}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent ${
+                    fieldErrors.date_naissance ? 'border-red-300' : 'border-gray-300'
+                  }`}
                 />
+                {fieldErrors.date_naissance && (
+                  <p className="text-red-500 text-xs mt-1">{fieldErrors.date_naissance}</p>
+                )}
               </div>
 
               <div>
@@ -613,8 +661,8 @@ const PatientEditPage = () => {
             </button>
             <button
               type="submit"
-              disabled={loading}
-              className="flex items-center px-6 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary-dark transition-colors disabled:opacity-50"
+              disabled={loading || Object.keys(fieldErrors).some(key => fieldErrors[key] !== '')}
+              className="flex items-center px-6 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4 mr-2" />
               {loading ? 'Enregistrement...' : 'Enregistrer les modifications'}

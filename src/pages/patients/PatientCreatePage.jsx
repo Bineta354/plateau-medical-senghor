@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase'
 import SearchableSelect from '../../components/common/SearchableSelect';
-import { generateNumeroDossier } from '../../services/patientService';
+import { generateNumeroDossier, validateBirthDate } from '../../services/patientService';
 import { 
   ArrowLeft,
   Save,
@@ -66,6 +66,7 @@ const PatientCreatePage = () => {
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [doctors, setDoctors] = useState([]);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // Charger la liste des médecins
   useEffect(() => {
@@ -150,10 +151,96 @@ const PatientCreatePage = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+    
+    // Validation en temps réel pour la date de naissance
+    if (name === 'date_naissance') {
+      validateDateNaissanceRealTime(value);
+    } else {
+      // Effacer l'erreur quand l'utilisateur commence à taper
+      if (fieldErrors[name]) {
+        setFieldErrors(prev => ({ ...prev, [name]: '' }));
+      }
+    }
+  };
+
+  const validateDateNaissanceRealTime = (value) => {
+    const newErrors = { ...fieldErrors };
+    
+    if (!value) {
+      newErrors.date_naissance = 'La date de naissance est obligatoire';
+    } else {
+      const birthDate = new Date(value);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+      
+      if (birthDate > today) {
+        newErrors.date_naissance = 'La date de naissance ne peut pas être dans le futur';
+      } else if (birthDate > oneYearAgo) {
+        newErrors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
+      } else {
+        newErrors.date_naissance = '';
+      }
+    }
+    
+    setFieldErrors(newErrors);
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.nom.trim()) {
+      newErrors.nom = 'Le nom est obligatoire';
+    }
+    
+    if (!formData.prenom.trim()) {
+      newErrors.prenom = 'Le prénom est obligatoire';
+    }
+    
+    if (!formData.date_naissance) {
+      newErrors.date_naissance = 'La date de naissance est obligatoire';
+    } else {
+      // Validation de la date de naissance
+      const birthDate = new Date(formData.date_naissance);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normaliser à minuit pour comparaison juste
+      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+      
+      if (birthDate > today) {
+        newErrors.date_naissance = 'La date de naissance ne peut pas être postérieure à aujourd\'hui';
+      } else if (birthDate > oneYearAgo) {
+        newErrors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
+      }
+    }
+    
+    if (formData.telephone && !/^[0-9\s\+\-\(\)]{10,}$/.test(formData.telephone.replace(/\s/g, ''))) {
+      newErrors.telephone = 'Format de téléphone invalide';
+    }
+    
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Format d\'email invalide';
+    }
+    
+    return newErrors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Valider le formulaire
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setError(Object.values(validationErrors).join(', '));
+      return;
+    }
+    
+    // Validation backend de la date de naissance
+    const birthDateValidation = validateBirthDate(formData.date_naissance);
+    if (!birthDateValidation.valid) {
+      setError(birthDateValidation.error);
+      return;
+    }
+    
     setLoading(true);
     setError(null);
 
@@ -376,8 +463,14 @@ const PatientCreatePage = () => {
                   value={formData.date_naissance}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+                  max={new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().split('T')[0]}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent ${
+                    fieldErrors.date_naissance ? 'border-red-300' : 'border-gray-300'
+                  }`}
                 />
+                {fieldErrors.date_naissance && (
+                  <p className="text-red-500 text-xs mt-1">{fieldErrors.date_naissance}</p>
+                )}
               </div>
 
               <div>
@@ -722,8 +815,8 @@ const PatientCreatePage = () => {
             </button>
             <button
               type="submit"
-              disabled={loading}
-              className="flex items-center px-6 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary-dark transition-colors disabled:opacity-50"
+              disabled={loading || Object.keys(fieldErrors).some(key => fieldErrors[key] !== '')}
+              className="flex items-center px-6 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4 mr-2" />
               {loading ? 'Création en cours...' : 'Créer le patient'}

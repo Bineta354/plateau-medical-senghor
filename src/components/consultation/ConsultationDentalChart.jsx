@@ -38,7 +38,9 @@ const ConsultationDentalChart = ({ consultationId, initialDentalState, fetchActe
             if (!patientId) return;
 
             try {
-                // Récupérer tous les actes dentaires du patient (consultations passées)
+                // FIX: consultations!inner force un vrai INNER JOIN, sinon le filtre
+                // .eq('consultations.patient_id', ...) sur une relation LEFT JOIN
+                // n'est pas fiable et peut retourner des résultats incohérents.
                 const { data: dentalActs, error } = await supabase
                     .from('actes_consultation')
                     .select(`
@@ -47,7 +49,7 @@ const ConsultationDentalChart = ({ consultationId, initialDentalState, fetchActe
                         tarif_unitaire,
                         notes,
                         created_at,
-                        consultations (
+                        consultations!inner (
                             id,
                             date_consultation,
                             statut
@@ -88,40 +90,34 @@ const ConsultationDentalChart = ({ consultationId, initialDentalState, fetchActe
                         });
                     });
 
-                    // Fusionner avec l'état existant
-                    const updatedTeeth = { ...teeth };
+                    // FIX: on ne dépend plus de "teeth" (capturé au moment de la création
+                    // de l'effet, donc potentiellement obsolète / stale). On construit
+                    // seulement les mises à jour ; c'est mergeTeethData (via setState
+                    // fonctionnel) qui se charge de fusionner avec la version la plus
+                    // récente de l'état des dents.
+                    const updates = {};
                     Object.keys(historyByTooth).forEach(toothId => {
-                        const existingData = updatedTeeth[toothId] || { state: 'HEALTHY' };
-                        const existingHistory = existingData.history || [];
-                        
-                        // Fusionner l'historique (éviter les doublons)
-                        const mergedHistory = [
-                            ...historyByTooth[toothId],
-                            ...existingHistory.filter(item => 
-                                !historyByTooth[toothId].some(h => 
-                                    h.date === item.date && h.name === item.name
-                                )
-                            )
-                        ].sort((a, b) => new Date(b.date) - new Date(a.date));
+                        const mergedHistory = historyByTooth[toothId]
+                            .slice()
+                            .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-                        updatedTeeth[toothId] = {
-                            ...existingData,
+                        updates[toothId] = {
                             history: mergedHistory
                         };
 
                         // Mettre à jour l'état visuel si des actes existent
                         if (mergedHistory.length > 0) {
                             // Vérifier si c'est une extraction
-                            const hasExtraction = mergedHistory.some(h => 
+                            const hasExtraction = mergedHistory.some(h =>
                                 h.name.toLowerCase().includes('extraction')
                             );
                             if (hasExtraction) {
-                                updatedTeeth[toothId].state = 'EXTRACTED';
+                                updates[toothId].state = 'EXTRACTED';
                             }
                         }
                     });
 
-                    mergeTeethData(updatedTeeth);
+                    mergeTeethData(updates);
                     console.log('[DentalChart] Historique dentaire chargé pour', Object.keys(historyByTooth).length, 'dents');
                 }
             } catch (err) {

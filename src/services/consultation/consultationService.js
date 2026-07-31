@@ -457,6 +457,41 @@ export const updateDentalState = async (consultationId, dentalState) => {
   return data;
 };
 
+// Récupère le dernier état dentaire connu du patient, en remontant ses
+// consultations précédentes (peu importe le médecin), pour que le schéma
+// dentaire ne reparte jamais de zéro quand une nouvelle consultation démarre.
+export const getLastDentalStateForPatient = async (patientId, excludeConsultationId = null) => {
+  if (!patientId) return null;
+
+  let query = supabase
+    .from('consultations')
+    .select('id, dental_state, date_consultation')
+    .eq('patient_id', patientId)
+    .not('dental_state', 'is', null)
+    .order('date_consultation', { ascending: false })
+    .limit(5); // on prend les 5 dernières au cas où certaines auraient un dental_state vide {}
+
+  if (excludeConsultationId) {
+    query = query.neq('id', excludeConsultationId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Erreur lors de la récupération du dernier état dentaire:', error);
+    return null;
+  }
+
+  if (!data || data.length === 0) return null;
+
+  // On cherche la première consultation qui a un dental_state réellement rempli
+  const found = data.find(
+    (c) => c.dental_state && Object.keys(c.dental_state).length > 0
+  );
+
+  return found ? found.dental_state : null;
+};
+
 export const createConsultation = async (consultationData) => {
   const { data, error } = await supabase
     .from('consultations')

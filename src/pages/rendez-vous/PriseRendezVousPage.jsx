@@ -92,6 +92,7 @@ const PriseRendezVousPage = () => {
   } = useAppointmentForm({
     allPatients,
     allDoctors,
+    specialites,
     appointments,
     refreshAppointments,
     showAlertError,
@@ -418,11 +419,20 @@ const PriseRendezVousPage = () => {
               className="input-field"
             >
               <option value="">Toutes les spécialités</option>
-              {specialites.map((specialite) => (
-                <option key={specialite} value={specialite}>
-                  {specialite}
-                </option>
-              ))}
+              {specialites
+                .filter((s) => !s.parent_id)
+                .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'accent' }))
+                .flatMap((parent) => {
+                  const children = specialites
+                    .filter((s) => s.parent_id === parent.id)
+                    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'accent' }));
+                  return [
+                    <option key={parent.id} value={parent.id}>{parent.nom}</option>,
+                    ...children.map((child) => (
+                      <option key={child.id} value={child.id}>{'— ' + child.nom}</option>
+                    ))
+                  ];
+                })}
             </select>
           </div>
 

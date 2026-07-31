@@ -10,26 +10,46 @@ import {
 
 
 /**
+ * Calcule l'ensemble des IDs de spécialités à prendre en compte pour la cascade :
+ * la spécialité elle-même, ses sous-spécialités (si c'est un parent), et sa
+ * spécialité parente (si c'est une sous-spécialité).
+ */
+const buildSpecialiteCascade = (specialiteId, allSpecialites) => {
+  if (!specialiteId) return new Set();
+  const ids = new Set([specialiteId]);
+  const current = allSpecialites.find((s) => s.id === specialiteId);
+  if (current?.parent_id) {
+    ids.add(current.parent_id);
+  }
+  allSpecialites.forEach((s) => {
+    if (s.parent_id === specialiteId) {
+      ids.add(s.id);
+    }
+  });
+  return ids;
+};
+
+/**
  * Filtre côté JS un tableau d'entités selon une table de correspondance.
  * Conserve :
- *  - les entités liées à la spécialité demandée
+ *  - les entités liées à une spécialité de la cascade (elle-même, parent, enfants)
  *  - les entités sans aucune liaison (visibles par tous)
  *
  * @param {Array} items              - tableau d'entités (avec .id)
  * @param {Array} liaisons           - [{element_id, specialite_id}]
  * @param {string} elementIdKey      - nom de la colonne id dans la table de liaison (ex: 'appareil_id')
- * @param {number} specialiteId      - spécialité à retenir
+ * @param {Set} idsCascade           - ensemble des IDs de spécialités à retenir (cascade)
  */
-const filterBySpecialite = (items, liaisons, elementIdKey, specialiteId) => {
+const filterBySpecialite = (items, liaisons, elementIdKey, idsCascade) => {
   // Ensemble des IDs ayant au moins une liaison
   const idsAvecLiaison = new Set(liaisons.map(l => l[elementIdKey]));
-  // IDs liés à CETTE spécialité
+  // IDs liés à une spécialité de la cascade
   const idsSpecialite = new Set(
-    liaisons.filter(l => l.specialite_id === specialiteId).map(l => l[elementIdKey])
+    liaisons.filter(l => idsCascade.has(l.specialite_id)).map(l => l[elementIdKey])
   );
 
   return items.filter(item =>
-    // Visible si lié à la spécialité du médecin OU sans aucune liaison (générique)
+    // Visible si lié à la cascade de spécialités du médecin OU sans aucune liaison (générique)
     idsSpecialite.has(item.id) || !idsAvecLiaison.has(item.id)
   );
 };
@@ -37,12 +57,26 @@ const filterBySpecialite = (items, liaisons, elementIdKey, specialiteId) => {
 /**
  * Retourne les données de référence utilisées dans la consultation.
  * Si specialiteId est fourni, filtre les référentiels pour ne retourner que les
- * données liées à cette spécialité (ou sans spécialité définie = visibles par tous).
+ * données liées à cette spécialité (ou sans spécialité définie = visibles par tous),
+ * en tenant compte de la cascade parent/sous-spécialité.
  *
  * @param {number|null} specialiteId - ID de la spécialité du médecin connecté
  */
 export const getReferenceData = async (specialiteId = null) => {
   try {
+    // ─── Récupération de la hiérarchie des spécialités (pour la cascade) ──
+    let idsCascade = new Set();
+    if (specialiteId) {
+      const { data: allSpecialites, error: specError } = await supabase
+        .from('specialites')
+        .select('id, parent_id');
+      if (!specError) {
+        idsCascade = buildSpecialiteCascade(specialiteId, allSpecialites || []);
+      } else {
+        idsCascade = new Set([specialiteId]);
+      }
+    }
+
     // ─── Actes ─────────────────────────────────────────────────────────────
     let actesData = [];
     try {
@@ -56,7 +90,7 @@ export const getReferenceData = async (specialiteId = null) => {
         specialite_id: acte.specialite_id
       }));
       if (specialiteId) {
-        actes = actes.filter(a => !a.specialite_id || a.specialite_id === specialiteId);
+        actes = actes.filter(a => !a.specialite_id || idsCascade.has(a.specialite_id));
       }
       actesData = actes;
     } catch (error) {
@@ -111,18 +145,18 @@ export const getReferenceData = async (specialiteId = null) => {
     constantesData = constResult.status === 'fulfilled' ? (constResult.value || []) : [];
     let allSignesCliniques = signesResult.status === 'fulfilled' ? (signesResult.value.data || []) : [];
 
-    // Médicaments — filtrage par specialite_id direct (null = général)
+    // Médicaments — filtrage par specialite_id direct, avec cascade (null = général)
     const allMedicaments = medResult.status === 'fulfilled' ? (medResult.value.data || []) : [];
     if (specialiteId) {
-      medicamentsData = allMedicaments.filter(m => !m.specialite_id || m.specialite_id === specialiteId);
+      medicamentsData = allMedicaments.filter(m => !m.specialite_id || idsCascade.has(m.specialite_id));
     } else {
       medicamentsData = allMedicaments;
     }
 
-    // Certificats — filtrage par specialite_id direct (null = général)
+    // Certificats — filtrage par specialite_id direct, avec cascade (null = général)
     const allCertificats = certResult.status === 'fulfilled' ? (certResult.value.data || []) : [];
     if (specialiteId) {
-      certificatsData = allCertificats.filter(c => !c.specialite_id || c.specialite_id === specialiteId);
+      certificatsData = allCertificats.filter(c => !c.specialite_id || idsCascade.has(c.specialite_id));
     } else {
       certificatsData = allCertificats;
     }
@@ -134,10 +168,10 @@ export const getReferenceData = async (specialiteId = null) => {
     const signesLiaisons= signesLiaisonsResult.status === 'fulfilled' ? (signesLiaisonsResult.value.data || []) : [];
 
     if (specialiteId) {
-      allAppareils       = filterBySpecialite(allAppareils, appLiaisons, 'appareil_id', specialiteId);
-      allDiagnostics     = filterBySpecialite(allDiagnostics, diagLiaisons, 'diagnostic_id', specialiteId);
-      antecedentsData    = filterBySpecialite(antecedentsData, antLiaisons, 'antecedent_id', specialiteId);
-      allSignesCliniques = filterBySpecialite(allSignesCliniques, signesLiaisons, 'signe_clinique_id', specialiteId);
+      allAppareils       = filterBySpecialite(allAppareils, appLiaisons, 'appareil_id', idsCascade);
+      allDiagnostics     = filterBySpecialite(allDiagnostics, diagLiaisons, 'diagnostic_id', idsCascade);
+      antecedentsData    = filterBySpecialite(antecedentsData, antLiaisons, 'antecedent_id', idsCascade);
+      allSignesCliniques = filterBySpecialite(allSignesCliniques, signesLiaisons, 'signe_clinique_id', idsCascade);
     }
 
     return {

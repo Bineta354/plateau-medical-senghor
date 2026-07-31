@@ -90,6 +90,7 @@ const PatientDetailsPage = () => {
   // Détecter le type de couverture du patient
   const getTypeCouverture = () => {
     if (patient?.assurance_id && patient?.assurances) return 'assurance';
+    if (patient?.nom_assurance) return 'legacy'; // Ancien système avec nom_assurance
     return null;
   };
 
@@ -290,12 +291,19 @@ const PatientDetailsPage = () => {
                           </span>
                         )}
                       </div>
-                      
+                       
                       <div className="space-y-3">
                         <div>
                           <label className="text-sm font-medium text-gray-600">Nom de l'assurance</label>
                           <p className="text-lg text-gray-900 font-semibold">{patient.assurances.nom}</p>
                         </div>
+                        
+                        {patient.numero_assurance && (
+                          <div>
+                            <label className="text-sm font-medium text-gray-600">Numéro d'assurance du patient</label>
+                            <p className="text-sm text-gray-900 mt-1">{patient.numero_assurance}</p>
+                          </div>
+                        )}
                         
                         {patient.assurances.taux_remboursement > 0 && (
                           <div>
@@ -321,6 +329,25 @@ const PatientDetailsPage = () => {
                           </div>
                         )}
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Affichage de secours pour anciens patients avec nom_assurance */}
+                {getTypeCouverture() === 'legacy' && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Assurance (ancien système)</label>
+                        <p className="text-lg text-gray-900 font-semibold">{patient.nom_assurance}</p>
+                      </div>
+                      {patient.numero_assurance && (
+                        <div>
+                          <label className="text-sm font-medium text-gray-600">Numéro d'assurance</label>
+                          <p className="text-sm text-gray-900">{patient.numero_assurance}</p>
+                        </div>
+                      )}
+                      <p className="text-xs text-yellow-700 mt-2">⚠️ Ce patient utilise l'ancien système d'assurance. Veuillez le mettre à jour.</p>
                     </div>
                   </div>
                 )}

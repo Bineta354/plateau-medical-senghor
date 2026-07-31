@@ -94,11 +94,25 @@ const GlobalWaitingQueue = ({
 
       const medecinIds = doctors.map(d => d.id);
 
-      // 1) Récupérer les files d'attente sans jointures
+      // Calculer les bornes de la date d'aujourd'hui pour la file d'attente
+      const queueToday = new Date();
+      queueToday.setHours(0, 0, 0, 0);
+      const queueTodayStart = queueToday.toISOString();
+      const queueTomorrow = new Date(queueToday);
+      queueTomorrow.setDate(queueTomorrow.getDate() + 1);
+      const queueTomorrowStart = queueTomorrow.toISOString();
+
+      // 1) Récupérer les files d'attente avec jointure sur appointments et filtre sur statut_arrivee = 'arrive'
       const { data: waitingData, error: waitingError } = await supabase
         .from('waiting_queue')
-        .select('*')
+        .select(`
+          *,
+          appointments(date_heure, statut_arrivee, heure_arrivee)
+        `)
         .in('medecin_id', medecinIds)
+        .gte('appointments.date_heure', queueTodayStart)
+        .lt('appointments.date_heure', queueTomorrowStart)
+        .eq('appointments.statut_arrivee', 'arrive')
         .order('order_position', { ascending: true });
 
       if (waitingError) {

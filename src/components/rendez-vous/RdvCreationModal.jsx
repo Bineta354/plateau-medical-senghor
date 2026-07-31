@@ -5,7 +5,7 @@ import { Calendar, Plus, Save, X } from 'lucide-react';
 import PropTypes from 'prop-types';
 
 import { supabase } from '../../lib/supabase';
-import { appointmentService } from '../../lib/services';
+import { appointmentService, userService } from '../../lib/services';
 //import { supabaseQuery as supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAlert } from '../../contexts/AlertContext';
@@ -255,7 +255,9 @@ const RdvCreationModal = ({
     setQuickBooking(defaultQuickBooking);
     setCurrentStep(0);
     const initialSpecialiteValue =
-      editingAppointment?.medecin?.specialite || initialSpecialty || '';
+      (editingAppointment?.medecin?.specialite_id ? String(editingAppointment.medecin.specialite_id) : '') ||
+      initialSpecialty ||
+      '';
     setSelectedSpecialiteStepper(initialSpecialiteValue);
     setSelectedDoctorStepper(doctorId ? String(doctorId) : '');
     setSuccessMessage('');
@@ -275,8 +277,8 @@ const RdvCreationModal = ({
     const doctor = doctors.find(
       (doc) => String(doc.id) === String(selectedDoctorStepper)
     );
-    if (doctor?.specialite) {
-      setSelectedSpecialiteStepper(doctor.specialite);
+    if (doctor?.specialite_id) {
+      setSelectedSpecialiteStepper(String(doctor.specialite_id));
     }
   }, [doctors, selectedDoctorStepper, selectedSpecialiteStepper]);
 
@@ -297,8 +299,8 @@ const RdvCreationModal = ({
         }
         
         // Forcer la sélection de la spécialité du médecin
-        if (doctor.specialite && selectedSpecialiteStepper !== doctor.specialite) {
-          setSelectedSpecialiteStepper(doctor.specialite);
+        if (doctor.specialite_id && selectedSpecialiteStepper !== String(doctor.specialite_id)) {
+          setSelectedSpecialiteStepper(String(doctor.specialite_id));
         }
       }
     }
@@ -350,15 +352,8 @@ const RdvCreationModal = ({
 
   const fetchSpecialites = async () => {
     try {
-      const { data, error } = await supabase
-        .from('specialites')
-        .select('id, nom, actif')
-        .eq('actif', true)
-        .order('nom', { ascending: true });
-
-        console.log("SPECIALITES FETCH:", data);
-
-      if (error) throw error;
+      const data = await userService.getUniqueDoctorSpecialties();
+      console.log("SPECIALITES FETCH:", data);
       setSpecialites(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Erreur lors du chargement des spécialités:', error);
@@ -391,18 +386,13 @@ const RdvCreationModal = ({
     }
   };
 
-  const specialitesDisponibles = useMemo(() => {
-    const fromDoctors = doctors
-      .map((doctor) => doctor.specialite?.trim())
-      .filter((value) => !!value);
+  const specialitesDisponibles = useMemo(() => specialites, [specialites]);
 
-    const fromTable = specialites
-      .map((s) => s.nom?.trim())
-      .filter((value) => !!value);
-
-    const all = Array.from(new Set([...fromTable, ...fromDoctors]));
-    return all.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'accent' }));
-  }, [doctors, specialites]);
+  const getSpecialiteNom = (specialiteId) => {
+    if (!specialiteId) return '';
+    const found = specialites.find((s) => String(s.id) === String(specialiteId));
+    return found?.nom || '';
+  };
 
   useEffect(() => {
   console.log("SPECIALITES DISPONIBLES:", specialitesDisponibles);
@@ -441,9 +431,21 @@ const RdvCreationModal = ({
     return map;
   }, [appointmentsByDoctor]);
 
+  const specialiteIdsWithChildren = useMemo(() => {
+    if (!selectedSpecialiteStepper) return [];
+    const selectedId = String(selectedSpecialiteStepper);
+    const ids = [selectedId];
+    specialites.forEach((s) => {
+      if (String(s.parent_id) === selectedId) {
+        ids.push(String(s.id));
+      }
+    });
+    return ids;
+  }, [selectedSpecialiteStepper, specialites]);
+
   const availableDoctors = useMemo(() => {
     let base = selectedSpecialiteStepper
-      ? doctors.filter((doctor) => doctor.specialite === selectedSpecialiteStepper)
+      ? doctors.filter((doctor) => specialiteIdsWithChildren.includes(String(doctor.specialite_id)))
       : doctors;
 
     // Si restrictToCurrentDoctor est activé, ne montrer que le médecin connecté
@@ -459,7 +461,7 @@ const RdvCreationModal = ({
       const nameB = `${b.nom || ''} ${b.prenom || ''}`.trim().toLowerCase();
       return nameA.localeCompare(nameB);
     });
-  }, [doctors, selectedSpecialiteStepper, doctorLoadsById, restrictToCurrentDoctor, userProfile]);
+  }, [doctors, selectedSpecialiteStepper, specialiteIdsWithChildren, doctorLoadsById, restrictToCurrentDoctor, userProfile]);
 
   const generateDoctorTimeSlots = (doctorId) => {
     if (!manualDate || !doctorId) return [];
@@ -939,9 +941,9 @@ const RdvCreationModal = ({
                   {selectedDoctorData ? (
                     <div className="text-sm text-gray-700">
                       Dr. {selectedDoctorData.prenom} {selectedDoctorData.nom}
-                      {selectedDoctorData.specialite && (
+                      {getSpecialiteNom(selectedDoctorData.specialite_id) && (
                         <span className="block text-xs text-gray-500">
-                          {selectedDoctorData.specialite}
+                          {getSpecialiteNom(selectedDoctorData.specialite_id)}
                         </span>
                       )}
                     </div>

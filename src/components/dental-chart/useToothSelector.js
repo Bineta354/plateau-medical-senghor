@@ -59,12 +59,21 @@ export const useToothSelector = (initialTeethState = {}, onChange) => {
       .map(([id]) => parseInt(id));
   };
 
+  // FIX: mergeTeethData now merges per-tooth using the freshest "prevTeeth"
+  // from the functional setState, instead of relying on a "teeth" value
+  // captured earlier by the caller (which could be stale).
   const mergeTeethData = useCallback((teethUpdates) => {
     setTeeth((prevTeeth) => {
-      const newTeeth = {
-        ...prevTeeth,
-        ...teethUpdates,
-      };
+      const newTeeth = { ...prevTeeth };
+      Object.keys(teethUpdates).forEach((toothId) => {
+        const prevData = prevTeeth[toothId] || {};
+        const updateData = teethUpdates[toothId] || {};
+        newTeeth[toothId] = {
+          ...prevData,
+          ...updateData,
+          history: updateData.history || prevData.history,
+        };
+      });
       if (onChange) {
         onChange(newTeeth);
       }

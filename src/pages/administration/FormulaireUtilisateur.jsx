@@ -199,9 +199,12 @@ const FormulaireUtilisateur = ({ preselectedRole = null }) => {
     }
   };
 
-  // Filtrer les spécialités dentaires
+  // Filtre les spécialités dentaires uniquement si ce déploiement le demande
+  // (cabinet principal = true, cabinets non-dentaires comme Ngor = false)
   const getDentalSpecialites = () => {
-    const dentalSpecialiteIds = [12, 17, 16, 14, 15, 18, 19, 13]; // IDs des spécialités dentaires
+    const filterDental = import.meta.env.VITE_FILTER_DENTAL_SPECIALITES === 'true';
+    if (!filterDental) return specialites;
+    const dentalSpecialiteIds = [12, 17, 16, 14, 15, 18, 19, 13]; // IDs des spécialités dentaires (cabinet principal)
     return specialites.filter(s => dentalSpecialiteIds.includes(s.id));
   };
 
