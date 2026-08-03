@@ -146,7 +146,7 @@ const GlobalWaitingQueue = ({
       if (appointmentIds.length > 0) {
         const { data: appointmentsData, error: appointmentsError } = await supabase
           .from('appointments')
-          .select('id, motif, duree, date_heure')
+          .select('id, motif, duree, date_heure, priorite')
           .in('id', appointmentIds);
         
         if (appointmentsError) {
@@ -568,7 +568,7 @@ const GlobalWaitingQueue = ({
           <ClickableStatCard
             tone="yellow"
             icon={Clock}
-            label="En salle (hors consult.)"
+            label="Salle d'attente"
             value={totalWaiting}
             onClick={onNavigateWaitingRoom}
             title="Ouvrir la salle d'attente"
