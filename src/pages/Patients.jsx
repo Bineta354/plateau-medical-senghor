@@ -66,6 +66,9 @@ const PatientsPage = () => {
     medecin_traitant: '',
     mutuelle: '',
     numero_mutuelle: '',
+    assurance_id: null,
+    nom_assurance: '',
+    numero_assurance: '',
     personne_contact: '',
     telephone_contact: '',
     lien_contact: '',
@@ -75,11 +78,14 @@ const PatientsPage = () => {
   const [editingPatientId, setEditingPatientId] = useState(null);
   const [createdPatient, setCreatedPatient] = useState(null);
   const [showPostCreateMenu, setShowPostCreateMenu] = useState(false);
+  const [assurances, setAssurances] = useState([]);
+  const [loadingAssurances, setLoadingAssurances] = useState(false);
 
   // Charger les patients depuis la base de données
   useEffect(() => {
     fetchPatients();
     fetchConsultationsCount();
+    fetchAssurances();
   }, []);
 
   // Gérer les paramètres URL pour l'édition/visualisation
@@ -110,6 +116,9 @@ const PatientsPage = () => {
             medecin_traitant: patient.medecin_traitant || '',
             mutuelle: patient.mutuelle || '',
             numero_mutuelle: patient.numero_mutuelle || '',
+            assurance_id: patient.assurance_id || null,
+            nom_assurance: patient.nom_assurance || '',
+            numero_assurance: patient.numero_assurance || '',
             personne_contact: patient.personne_contact || '',
             telephone_contact: patient.telephone_contact || '',
             lien_contact: patient.lien_contact || '',
@@ -151,6 +160,24 @@ const PatientsPage = () => {
     } catch (error) {
       console.error('Erreur lors du chargement des consultations:', error);
       setConsultationsCount(0);
+    }
+  };
+
+  const fetchAssurances = async () => {
+    try {
+      setLoadingAssurances(true);
+      const { data, error } = await supabase
+        .from('assurances')
+        .select('*')
+        .eq('actif', true)
+        .order('nom', { ascending: true });
+
+      if (error) throw error;
+      setAssurances(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des assurances:', error);
+    } finally {
+      setLoadingAssurances(false);
     }
   };
 
@@ -244,6 +271,9 @@ const PatientsPage = () => {
       medecin_traitant: patient.medecin_traitant || '',
       mutuelle: patient.mutuelle || '',
       numero_mutuelle: patient.numero_mutuelle || '',
+      assurance_id: patient.assurance_id || null,
+      nom_assurance: patient.nom_assurance || '',
+      numero_assurance: patient.numero_assurance || '',
       personne_contact: patient.personne_contact || '',
       telephone_contact: patient.telephone_contact || '',
       lien_contact: patient.lien_contact || '',
@@ -284,7 +314,24 @@ const PatientsPage = () => {
 
   const handleSubmitForm = async (e, options = { showPostCreateMenu: true }) => {
     if (e?.preventDefault) e.preventDefault();
-    
+
+    // Validation de l'âge minimum
+    if (formData.date_naissance) {
+      const birthDate = new Date(formData.date_naissance);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+
+      if (birthDate > today) {
+        unifiedNotificationService.error('La date de naissance ne peut pas être dans le futur');
+        return;
+      }
+      if (birthDate > oneYearAgo) {
+        unifiedNotificationService.error('Le patient doit être âgé d\'au moins 1 an');
+        return;
+      }
+    }
+
     try {
       if (editingPatientId) {
         const { error } = await supabase
@@ -358,6 +405,9 @@ const PatientsPage = () => {
       medecin_traitant: '',
       mutuelle: '',
       numero_mutuelle: '',
+      assurance_id: null,
+      nom_assurance: '',
+      numero_assurance: '',
       personne_contact: '',
       telephone_contact: '',
       lien_contact: '',
@@ -388,6 +438,9 @@ const PatientsPage = () => {
       medecin_traitant: '',
       mutuelle: '',
       numero_mutuelle: '',
+      assurance_id: null,
+      nom_assurance: '',
+      numero_assurance: '',
       personne_contact: '',
       telephone_contact: '',
       lien_contact: '',
@@ -550,7 +603,7 @@ const PatientsPage = () => {
                       value={formData.date_naissance}
                       onChange={handleInputChange}
                       required
-                      max={new Date().toISOString().split('T')[0]}
+                      max={new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().split('T')[0]}
                       className="input-field text-xs py-1.5"
                     />
                   </div>
@@ -670,6 +723,37 @@ const PatientsPage = () => {
                       value={formData.numero_mutuelle}
                       onChange={handleInputChange}
                       className="input-field text-xs py-1.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-0.5">Assurance</label>
+                    <select
+                      name="assurance_id"
+                      value={formData.assurance_id || ''}
+                      onChange={handleInputChange}
+                      className="form-select text-xs py-1.5"
+                    >
+                      <option value="">Aucune assurance</option>
+                      {loadingAssurances ? (
+                        <option value="">Chargement...</option>
+                      ) : (
+                        assurances.map(assurance => (
+                          <option key={assurance.id} value={assurance.id}>
+                            {assurance.nom} {assurance.taux_remboursement ? `(${assurance.taux_remboursement}%)` : ''}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-0.5">Numéro Assurance</label>
+                    <input
+                      type="text"
+                      name="numero_assurance"
+                      value={formData.numero_assurance}
+                      onChange={handleInputChange}
+                      className="input-field text-xs py-1.5"
+                      placeholder="Numéro de police"
                     />
                   </div>
                   <div>

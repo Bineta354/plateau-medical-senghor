@@ -23,7 +23,7 @@ const derivePatientsFromAppointments = (appointments) => {
 }
 
 export const useCalendarData = (currentUser, options = {}) => {
-  const { scopedDoctorId = null } = options
+  const { scopedDoctorId = null, userRole = null } = options
   const [loading, setLoading] = useState(true)
   const [appointments, setAppointments] = useState([])
   const [patients, setPatients] = useState([])
@@ -31,9 +31,11 @@ export const useCalendarData = (currentUser, options = {}) => {
   const [specialites, setSpecialites] = useState([])
   const currentUserRef = useRef(currentUser)
   const scopedDoctorIdRef = useRef(scopedDoctorId)
+  const userRoleRef = useRef(userRole)
   const initialLoadDone = useRef(false)
   currentUserRef.current = currentUser
   scopedDoctorIdRef.current = scopedDoctorId
+  userRoleRef.current = userRole
 
   const loadData = useCallback(async () => {
     const user = currentUserRef.current
@@ -46,7 +48,7 @@ export const useCalendarData = (currentUser, options = {}) => {
         setLoading(true)
       }
 
-      const ignoreSpecialityForSecretary = user?.role === 'secretary'
+      const ignoreSpecialityForSecretary = userRoleRef.current === 'secretary'
 
       if (doctorId) {
         const [appointmentsData, medecinData, specialitesData] =

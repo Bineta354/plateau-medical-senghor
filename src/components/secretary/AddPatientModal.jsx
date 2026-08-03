@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAlert } from '../../contexts/AlertContext';
-import { generateNumeroDossier } from '../../services/patientService';
+import { generateNumeroDossier, validateBirthDate } from '../../services/patientService';
 import SearchableSelect from '../common/SearchableSelect';
 import CreateRdvModal from '../doctor/CreateRdvModal';
 import PatientAntecedentsModal from './PatientAntecedentsModal';
@@ -66,6 +66,7 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
     actif: true,
     notes: ''
   });
+  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
     if (step === 1) {
@@ -181,9 +182,48 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
     }
   };
 
+  const validateNewPatient = () => {
+    const errors = {};
+    
+    if (!newPatient.nom.trim()) {
+      errors.nom = 'Le nom est obligatoire';
+    }
+    
+    if (!newPatient.prenom.trim()) {
+      errors.prenom = 'Le prénom est obligatoire';
+    }
+    
+    if (!newPatient.date_naissance) {
+      errors.date_naissance = 'La date de naissance est obligatoire';
+    } else {
+      // Validation de la date de naissance
+      const birthDate = new Date(newPatient.date_naissance);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normaliser à minuit pour comparaison juste
+      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+      
+      if (birthDate > today) {
+        errors.date_naissance = 'La date de naissance ne peut pas être postérieure à aujourd\'hui';
+      } else if (birthDate > oneYearAgo) {
+        errors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
+      }
+    }
+    
+    return errors;
+  };
+
   const handleCreateNewPatient = async () => {
-    if (!newPatient.nom || !newPatient.prenom || !newPatient.date_naissance) {
-      showWarning('Veuillez remplir au moins le nom, prénom et date de naissance');
+    // Valider le formulaire
+    const validationErrors = validateNewPatient();
+    if (Object.keys(validationErrors).length > 0) {
+      showWarning(Object.values(validationErrors).join(', '));
+      return;
+    }
+
+    // Validation backend de la date de naissance
+    const birthDateValidation = validateBirthDate(newPatient.date_naissance);
+    if (!birthDateValidation.valid) {
+      showWarning(birthDateValidation.error);
       return;
     }
 
@@ -325,6 +365,43 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
     } else {
       setShowNewAssuranceForm(false);
     }
+  };
+
+  const handleNewPatientChange = (field, value) => {
+    setNewPatient(prev => ({ ...prev, [field]: value }));
+    
+    // Validation en temps réel pour la date de naissance
+    if (field === 'date_naissance') {
+      validateDateNaissanceRealTime(value);
+    } else {
+      // Effacer l'erreur quand l'utilisateur commence à taper
+      if (fieldErrors[field]) {
+        setFieldErrors(prev => ({ ...prev, [field]: '' }));
+      }
+    }
+  };
+
+  const validateDateNaissanceRealTime = (value) => {
+    const newErrors = { ...fieldErrors };
+    
+    if (!value) {
+      newErrors.date_naissance = 'La date de naissance est obligatoire';
+    } else {
+      const birthDate = new Date(value);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+      
+      if (birthDate > today) {
+        newErrors.date_naissance = 'La date de naissance ne peut pas être dans le futur';
+      } else if (birthDate > oneYearAgo) {
+        newErrors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
+      } else {
+        newErrors.date_naissance = '';
+      }
+    }
+    
+    setFieldErrors(newErrors);
   };
 
   return (
@@ -512,9 +589,15 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
                           <input
                             type="date"
                             value={newPatient.date_naissance}
-                            onChange={(e) => setNewPatient({...newPatient, date_naissance: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+                            onChange={(e) => handleNewPatientChange('date_naissance', e.target.value)}
+                            max={new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().split('T')[0]}
+                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent ${
+                              fieldErrors.date_naissance ? 'border-red-300' : 'border-gray-300'
+                            }`}
                           />
+                          {fieldErrors.date_naissance && (
+                            <p className="text-red-500 text-xs mt-1">{fieldErrors.date_naissance}</p>
+                          )}
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -687,8 +770,8 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
                       <div className="mt-4 flex justify-end">
                         <button
                           onClick={handleCreateNewPatient}
-                          disabled={loading}
-                          className="px-4 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary-dark transition-colors disabled:opacity-50"
+                          disabled={loading || Object.keys(fieldErrors).some(key => fieldErrors[key] !== '')}
+                          className="px-4 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {loading ? 'Création...' : 'Créer le patient'}
                         </button>

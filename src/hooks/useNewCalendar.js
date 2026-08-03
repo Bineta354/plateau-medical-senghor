@@ -106,6 +106,14 @@ export const useNewCalendar = ({
 }) => {
   const { currentUser, userProfile } = useAuth()
 
+  // currentUser (l'objet auth Supabase) n'a jamais de champ .role direct :
+  // le rôle réel vient de userProfile.role ou de currentUser.profile.role.
+  const userRole =
+    currentUser?.profile?.role ||
+    userProfile?.role ||
+    currentUser?.user_metadata?.role ||
+    currentUser?.app_metadata?.role
+
   const scopedDoctorId =
     disableDoctorFilter &&
     selectedDoctorFilter &&
@@ -121,7 +129,7 @@ export const useNewCalendar = ({
     specialites,
     loadData,
     setAppointments,
-  } = useCalendarData(currentUser, { scopedDoctorId })
+  } = useCalendarData(currentUser, { scopedDoctorId, userRole })
   const {
     searchTerm,
     setSearchTerm,
@@ -227,10 +235,6 @@ export const useNewCalendar = ({
     )
   }, [medecins, specialites])
 
-  const userRole =
-    userProfile?.role ||
-    currentUser?.user_metadata?.role ||
-    currentUser?.app_metadata?.role
   const colorByDoctor = userRole === 'secretary' && !disableDoctorFilter
 
   const doctorColorMap = useMemo(() => {

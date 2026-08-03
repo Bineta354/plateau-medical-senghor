@@ -148,10 +148,38 @@ const PatientForm = ({
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Effacer l'erreur quand l'utilisateur commence à taper
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+    // Validation en temps réel pour la date de naissance
+    if (field === 'date_naissance') {
+      validateDateNaissanceRealTime(value);
+    } else {
+      // Effacer l'erreur quand l'utilisateur commence à taper
+      if (errors[field]) {
+        setErrors(prev => ({ ...prev, [field]: '' }));
+      }
     }
+  };
+
+  const validateDateNaissanceRealTime = (value) => {
+    const newErrors = { ...errors };
+    
+    if (!value) {
+      newErrors.date_naissance = 'La date de naissance est obligatoire';
+    } else {
+      const birthDate = new Date(value);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+      
+      if (birthDate > today) {
+        newErrors.date_naissance = 'La date de naissance ne peut pas être dans le futur';
+      } else if (birthDate > oneYearAgo) {
+        newErrors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
+      } else {
+        newErrors.date_naissance = '';
+      }
+    }
+    
+    setErrors(newErrors);
   };
 
   const validateForm = () => {
@@ -171,10 +199,14 @@ const PatientForm = ({
       // Validation de la date de naissance
       const birthDate = new Date(formData.date_naissance);
       const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normaliser à minuit pour comparaison juste
       const minDate = new Date(today.getFullYear() - 120, today.getMonth(), today.getDate());
+      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
       
       if (birthDate > today) {
-        newErrors.date_naissance = 'La date de naissance ne peut pas être dans le futur';
+        newErrors.date_naissance = 'La date de naissance ne peut pas être postérieure à aujourd\'hui';
+      } else if (birthDate > oneYearAgo) {
+        newErrors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
       } else if (birthDate < minDate) {
         newErrors.date_naissance = 'La date de naissance est invalide (âge supérieur à 120 ans)';
       }
@@ -318,7 +350,7 @@ const PatientForm = ({
               type="date"
               value={formData.date_naissance}
               onChange={(e) => handleInputChange('date_naissance', e.target.value)}
-              max={new Date().toISOString().split('T')[0]}
+              max={new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().split('T')[0]}
               className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-medical-primary focus:border-transparent ${
                 errors.date_naissance ? 'border-red-300' : 'border-gray-300'
               }`}
@@ -405,9 +437,13 @@ const PatientForm = ({
             type="text"
             value={formData.numero_dossier}
             onChange={(e) => handleInputChange('numero_dossier', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+            readOnly
+            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
             placeholder="Numéro de dossier unique"
           />
+          <p className="text-xs text-gray-500 mt-1">
+            Généré automatiquement — non modifiable
+          </p>
         </div>
 
         {/* Adresse */}
@@ -710,7 +746,8 @@ const PatientForm = ({
           </button>
           <button
             type="submit"
-            className="flex-1 bg-medical-primary hover:bg-medical-primary-dark text-white py-2 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
+            disabled={Object.keys(errors).some(key => errors[key] !== '')}
+            className="flex-1 bg-medical-primary hover:bg-medical-primary-dark text-white py-2 px-4 rounded-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CheckCircle className="w-4 h-4" />
             {submitText}

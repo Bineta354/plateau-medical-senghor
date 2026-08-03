@@ -12,13 +12,13 @@ import { X, Calendar, Clock, FileText, Save, User, Stethoscope } from 'lucide-re
  * - Mode "après consultation" : patientId fourni, patient pré-sélectionné
  * - Mode "nouveau RDV" : patientId null, sélection du patient via SearchableSelect
  */
-const CreateRdvModal = ({ 
-  isOpen, 
-  onClose, 
+const CreateRdvModal = ({
+  isOpen,
+  onClose,
   patientId = null, // Si null, on peut sélectionner le patient
   medecinId,
   onSuccess,
-  addToQueueOnCreate = true,
+  addToQueueOnCreate = false,
   isNewPatient = false,
 }) => {
   const [loading, setLoading] = useState(false);
@@ -27,7 +27,7 @@ const CreateRdvModal = ({
   const [medecins, setMedecins] = useState([]); // Liste des médecins pour la secrétaire
   const [patients, setPatients] = useState([]); // Liste des patients du médecin
   const [motifs, setMotifs] = useState([]); // Liste des motifs de consultation
-  
+
   const getDefaultMotif = () => (isNewPatient ? 'Consultation' : patientId ? 'Suivi post-consultation' : 'Consultation');
   const getDefaultTypeRdv = () => (isNewPatient ? 'consultation' : patientId ? 'suivi' : 'consultation');
 
@@ -76,8 +76,8 @@ const CreateRdvModal = ({
   // Synchroniser les props avec l'état interne du formulaire à l'ouverture
   useEffect(() => {
     if (isOpen) {
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         patient_id: patientId || prev.patient_id,
         medecin_id: medecinId || prev.medecin_id || '',
         motif: isNewPatient ? 'Consultation' : patientId ? 'Suivi post-consultation' : 'Consultation',
@@ -89,7 +89,7 @@ const CreateRdvModal = ({
   const loadMedecinAndPatients = async () => {
     try {
       console.log('🔵 [CreateRdvModal] Chargement des données...');
-      
+
       // 1. Gérer le médecin
       if (medecinId) {
         const { data: medecinData } = await supabase
@@ -191,8 +191,8 @@ const CreateRdvModal = ({
           .order('order_position', { ascending: false })
           .limit(1);
 
-        const nextPosition = currentQueue && currentQueue.length > 0 
-          ? currentQueue[0].order_position + 1 
+        const nextPosition = currentQueue && currentQueue.length > 0
+          ? currentQueue[0].order_position + 1
           : 1;
 
         const { error: qError } = await supabase
@@ -263,7 +263,7 @@ const CreateRdvModal = ({
   const handleDateChange = (e) => {
     const dateValue = e.target.value;
     setManualDate(dateValue);
-    
+
     if (dateValue && manualTime) {
       const [hh, mm] = manualTime.split(':');
       const composed = new Date(dateValue + 'T00:00:00');
@@ -275,7 +275,7 @@ const CreateRdvModal = ({
   const handleTimeChange = (e) => {
     const timeValue = e.target.value;
     setManualTime(timeValue);
-    
+
     if (manualDate && timeValue) {
       const [hh, mm] = timeValue.split(':');
       const composed = new Date(manualDate + 'T00:00:00');
@@ -516,7 +516,7 @@ const CreateRdvModal = ({
               ))}
               <option value="Autre">Autre (personnalisé)</option>
             </select>
-            
+
             {formData.motif === 'Autre' && (
               <input
                 type="text"
