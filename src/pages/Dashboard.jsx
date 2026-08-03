@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { formatNombre } from '../utils/currency';
 import { 
   Users, 
   Clock, 
@@ -264,7 +265,7 @@ const Dashboard = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Revenus (FCFA)</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                {stats.totalRevenue.toLocaleString()}
+                {formatNombre(stats.totalRevenue)}
               </p>
             </div>
             <div className="p-3 rounded-full bg-emerald-100">

@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Download, Printer } from 'lucide-react';
+import { formatMontant } from '../../utils/currency';
 
 const FactureDetailsModal = ({ facture, onClose, onDownload, onPrint }) => {
   if (!facture) return null;
@@ -39,7 +40,7 @@ const FactureDetailsModal = ({ facture, onClose, onDownload, onPrint }) => {
               {facture.actes.map((item, index) => (
                 <div key={index} className="bg-gray-50 p-2 rounded flex justify-between text-sm">
                   <span>{item.acte.libelle} (x{item.quantite})</span>
-                  <span className="font-medium">{(item.tarifUnitaire * item.quantite).toLocaleString()} FCFA</span>
+                  <span className="font-medium">{formatMontant(item.tarifUnitaire * item.quantite)}</span>
                 </div>
               ))}
             </div>
@@ -51,25 +52,25 @@ const FactureDetailsModal = ({ facture, onClose, onDownload, onPrint }) => {
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <span>Sous-total :</span>
-                <span>{facture.sousTotal.toLocaleString()} FCFA</span>
+                <span>{formatMontant(facture.sousTotal)}</span>
               </div>
               {facture.remise > 0 && (
                 <div className="flex justify-between text-green-600">
                   <span>Remise :</span>
-                  <span>-{facture.remise.toLocaleString()} FCFA</span>
+                  <span>-{formatMontant(facture.remise)}</span>
                 </div>
               )}
               <div className="flex justify-between">
                 <span>Part assurance :</span>
-                <span>{facture.montantAssurance.toLocaleString()} FCFA</span>
+                <span>{formatMontant(facture.montantAssurance)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Part patient :</span>
-                <span>{facture.montantPatient.toLocaleString()} FCFA</span>
+                <span>{formatMontant(facture.montantPatient)}</span>
               </div>
               <div className="flex justify-between font-bold text-base border-t pt-1">
                 <span>Total :</span>
-                <span>{facture.total.toLocaleString()} FCFA</span>
+                <span>{formatMontant(facture.total)}</span>
               </div>
             </div>
           </div>

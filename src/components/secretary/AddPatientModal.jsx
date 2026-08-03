@@ -4,15 +4,17 @@ import { useAlert } from '../../contexts/AlertContext';
 import { generateNumeroDossier } from '../../services/patientService';
 import SearchableSelect from '../common/SearchableSelect';
 import CreateRdvModal from '../doctor/CreateRdvModal';
-import { 
-  X, 
-  User, 
-  Phone, 
-  Calendar, 
+import PatientAntecedentsModal from './PatientAntecedentsModal';
+import {
+  X,
+  User,
+  Phone,
+  Calendar,
   AlertTriangle,
   Plus,
   Search,
-  CheckCircle
+  CheckCircle,
+  ClipboardList
 } from 'lucide-react';
 
 const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
@@ -28,6 +30,7 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [showNewPatientForm, setShowNewPatientForm] = useState(false);
+  const [showAntecedentsModal, setShowAntecedentsModal] = useState(false);
   
   // États pour la gestion des assurances
   const [assurances, setAssurances] = useState([]);
@@ -159,7 +162,6 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
           medecin_id: selectedDoctor,
           status: 'waiting',
           priority: priority,
-          notes: notes,
           arrived_at: new Date().toISOString(),
           order_position: nextPosition,
           motif_consultation: notes
@@ -384,6 +386,13 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
                   >
                     <Calendar className="w-5 h-5" />
                     Planifier un rendez-vous (Futur)
+                  </button>
+                  <button
+                    onClick={() => setShowAntecedentsModal(true)}
+                    className="flex items-center justify-center gap-3 px-6 py-4 bg-teal-600 text-white rounded-xl font-semibold hover:bg-teal-700 transition-all shadow-md hover:shadow-lg"
+                  >
+                    <ClipboardList className="w-5 h-5" />
+                    Saisir les antécédents (carnet de santé...)
                   </button>
                   <button
                     onClick={onClose}
@@ -796,6 +805,13 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
             onPatientAdded();
             onClose();
           }}
+        />
+      )}
+
+      {showAntecedentsModal && selectedPatient && (
+        <PatientAntecedentsModal
+          patient={selectedPatient}
+          onClose={() => setShowAntecedentsModal(false)}
         />
       )}
     </>

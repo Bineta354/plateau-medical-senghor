@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import { generateDevisPDF } from '../../../services/impression/devisPdf';
 import { useToast } from '../../../hooks/useToast';
 import { useAuth } from '../../../contexts/AuthContext';
+import { formatMontantDecimal } from '../../../utils/currency';
 import { 
   X, 
   Plus, 
@@ -287,7 +288,7 @@ const DevisModal = ({
                         </div>
                         <div className="text-right mt-2">
                           <span className="text-sm font-medium text-gray-900">
-                            {(acte.quantite * acte.tarifUnitaire).toFixed(2)} FCFA
+                            {formatMontantDecimal(acte.quantite * acte.tarifUnitaire)}
                           </span>
                         </div>
                       </div>
@@ -333,17 +334,17 @@ const DevisModal = ({
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Sous-total:</span>
-                    <span className="font-medium">{totaux.sousTotal.toFixed(2)} FCFA</span>
+                    <span className="font-medium">{formatMontantDecimal(totaux.sousTotal)}</span>
                   </div>
                   {totaux.montantRemise > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Remise ({remise}%):</span>
-                      <span className="font-medium">-{totaux.montantRemise.toFixed(2)} FCFA</span>
+                      <span className="font-medium">-{formatMontantDecimal(totaux.montantRemise)}</span>
                     </div>
                   )}
                   <div className="flex justify-between border-t pt-2">
                     <span className="font-medium">Total:</span>
-                    <span className="font-bold text-lg">{totaux.total.toFixed(2)} FCFA</span>
+                    <span className="font-bold text-lg">{formatMontantDecimal(totaux.total)}</span>
                   </div>
                 </div>
               </div>

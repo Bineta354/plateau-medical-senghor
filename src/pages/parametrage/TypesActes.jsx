@@ -4,6 +4,7 @@ import Modal from '../../components/common/Modal';
 import Pagination from '../../components/common/Pagination';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { Plus, Search, Edit2, Trash2, Filter, AlertCircle, Check } from 'lucide-react';
+import { formatMontant } from '../../utils/currency';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -246,7 +247,7 @@ const TypesActes = () => {
                     </td>
                     <td className="px-6 py-4 font-medium">
                       {acte.tarif_defaut > 0 ? (
-                        <span className="text-gray-900">{acte.tarif_defaut.toLocaleString('fr-FR')} FCFA</span>
+                        <span className="text-gray-900">{formatMontant(acte.tarif_defaut)}</span>
                       ) : (
                         <span className="inline-flex items-center px-2 py-1 rounded-md bg-green-50 text-green-700 text-xs font-medium">
                           Gratuit

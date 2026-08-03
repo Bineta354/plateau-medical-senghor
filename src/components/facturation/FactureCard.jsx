@@ -1,5 +1,6 @@
 import React from 'react';
 import { Eye, Edit, Download, Printer, Trash2 } from 'lucide-react';
+import { formatMontant } from '../../utils/currency';
 
 const FactureCard = ({ facture, onView, onEdit, onDownload, onPrint, onDelete }) => {
   const getStatusColor = (statut) => {
@@ -48,10 +49,10 @@ const FactureCard = ({ facture, onView, onEdit, onDownload, onPrint, onDelete })
       <td className="px-4 py-3 whitespace-nowrap">
         <div>
           <div className="text-xs font-medium text-gray-900">
-            {facture.total.toLocaleString()} FCFA
+            {formatMontant(facture.total)}
           </div>
           <div className="text-xs text-gray-500">
-            Patient: {facture.montantPatient.toLocaleString()} FCFA
+            Patient: {formatMontant(facture.montantPatient)}
           </div>
         </div>
       </td>

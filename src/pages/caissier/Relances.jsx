@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { MessageSquare, Mail, Smartphone } from 'lucide-react';
+import { formatMontant } from '../../utils/currency';
 
 /**
  * Interface de relances (email / SMS) pour les factures impayées ou partiellement payées.
@@ -214,12 +215,12 @@ const Relances = () => {
                       <div className="text-gray-500 text-xs">{item.patient?.telephone || '–'}</div>
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-amber-700">
-                      {item.totalRestant.toFixed(0)} F CFA
+                      {formatMontant(item.totalRestant)}
                     </td>
                     <td className="px-4 py-3">
                       {item.factures.map((f) => (
                         <span key={f.id} className="mr-2 text-xs bg-gray-100 px-2 py-0.5 rounded">
-                          {f.numero_facture} ({f.restant.toFixed(0)} F CFA)
+                          {f.numero_facture} ({formatMontant(f.restant)})
                         </span>
                       ))}
                     </td>

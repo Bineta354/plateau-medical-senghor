@@ -24,10 +24,12 @@ import {
   Heart,
   Thermometer,
   FileImage,
-  Upload
+  Upload,
+  ClipboardList
 } from 'lucide-react';
 import { formatDoctorSpecialties, getDoctorInitials } from '../utils/doctorUtils';
 import PatientDocumentUploader from '../components/secretary/PatientDocumentUploader';
+import PatientAntecedentsModal from '../components/secretary/PatientAntecedentsModal';
 import {
   WAITING_QUEUE_ACTIVE_STATUSES,
   computeQueueStats,
@@ -62,6 +64,7 @@ const SalleAttentePage = () => {
   const [patientReadyNotifications, setPatientReadyNotifications] = useState([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedPatientForUpload, setSelectedPatientForUpload] = useState(null);
+  const [selectedPatientForAntecedents, setSelectedPatientForAntecedents] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [leftPanelWidth, setLeftPanelWidth] = useState(300);
   const [isResizing, setIsResizing] = useState(false);
@@ -863,7 +866,16 @@ const SalleAttentePage = () => {
                         <FileImage className="w-3 h-3 mr-1" />
                         Scanner
                       </button>
-                      
+
+                      <button
+                        onClick={() => setSelectedPatientForAntecedents(item.patient)}
+                        className="inline-flex items-center px-2 py-1 bg-teal-600 text-white rounded hover:bg-teal-700 transition-colors text-xs"
+                        title="Saisir les antécédents (ex: carnet de santé apporté par le patient)"
+                      >
+                        <ClipboardList className="w-3 h-3 mr-1" />
+                        Antécédents
+                      </button>
+
                       <button
                         onClick={() => handlePatientDetails(item)}
                         className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
@@ -1012,6 +1024,14 @@ const SalleAttentePage = () => {
             setShowUploadModal(false);
             setSelectedPatientForUpload(null);
           }}
+        />
+      )}
+
+      {/* Modal des antécédents (saisie par la secrétaire à l'accueil) */}
+      {selectedPatientForAntecedents && (
+        <PatientAntecedentsModal
+          patient={selectedPatientForAntecedents}
+          onClose={() => setSelectedPatientForAntecedents(null)}
         />
       )}
     </div>

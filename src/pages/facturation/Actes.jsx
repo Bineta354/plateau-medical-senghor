@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTypesActes } from '../../hooks/useTypesActes';
 import { supabase } from '../../lib/supabase';
+import { formatMontantDecimal } from '../../utils/currency';
 import { motion } from 'framer-motion';
 import { 
     PlusIcon, 
@@ -244,7 +245,7 @@ const ActesPage = () => {
                             <div>
                                 <p className="text-sm text-gray-600">Montant Total</p>
                                 <p className="text-2xl font-bold text-gray-900">
-                                    {totalMontant.toFixed(2)} FCFA
+                                    {formatMontantDecimal(totalMontant)}
                                 </p>
                             </div>
                         </div>
@@ -357,12 +358,12 @@ const ActesPage = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm text-gray-900">
-                                                {acte.tarif_unitaire.toFixed(2)} FCFA
+                                                {formatMontantDecimal(acte.tarif_unitaire)}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-green-600">
-                                                {acte.montant_total.toFixed(2)} FCFA
+                                                {formatMontantDecimal(acte.montant_total)}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">

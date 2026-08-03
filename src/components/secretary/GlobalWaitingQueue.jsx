@@ -13,9 +13,11 @@ import {
   CheckCircle,
   UserCheck,
   FileImage,
-  Upload
+  Upload,
+  ClipboardList
 } from 'lucide-react';
 import PatientDocumentUploader from './PatientDocumentUploader';
+import PatientAntecedentsModal from './PatientAntecedentsModal';
 import DoctorReassignModal from './DoctorReassignModal';
 import {
   computeQueueStats,
@@ -47,6 +49,7 @@ const GlobalWaitingQueue = ({
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedPatientForUpload, setSelectedPatientForUpload] = useState(null);
+  const [selectedPatientForAntecedents, setSelectedPatientForAntecedents] = useState(null);
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [selectedPatientForReassign, setSelectedPatientForReassign] = useState(null);
 
@@ -766,6 +769,14 @@ const GlobalWaitingQueue = ({
                                   <FileImage className="w-3 h-3 mr-1" />
                                   Scanner
                                 </button>
+                                <button
+                                  onClick={() => setSelectedPatientForAntecedents(patient.patient)}
+                                  className="inline-flex items-center px-2 py-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-medium rounded-md transition-colors duration-200 shadow-sm hover:shadow-md"
+                                  title="Saisir les antécédents (ex: carnet de santé apporté par le patient)"
+                                >
+                                  <ClipboardList className="w-3 h-3 mr-1" />
+                                  Antécédents
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -840,6 +851,14 @@ const GlobalWaitingQueue = ({
             setShowUploadModal(false);
             setSelectedPatientForUpload(null);
           }}
+        />
+      )}
+
+      {/* Modal des antécédents (saisie par la secrétaire à l'accueil) */}
+      {selectedPatientForAntecedents && (
+        <PatientAntecedentsModal
+          patient={selectedPatientForAntecedents}
+          onClose={() => setSelectedPatientForAntecedents(null)}
         />
       )}
 

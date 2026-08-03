@@ -150,7 +150,14 @@ export const useAppointmentForm = ({
 
   const availableDoctors = useMemo(() => {
     const base = selectedSpecialiteStepper
-      ? allDoctors.filter((doctor) => specialiteIdsWithChildren.includes(String(doctor.specialite_id)))
+      ? allDoctors.filter((doctor) => {
+          // Spécialité principale du médecin
+          if (specialiteIdsWithChildren.includes(String(doctor.specialite_id))) return true;
+          // Spécialités associées (secondaires) : un médecin qui pratique la spécialité
+          // recherchée sans que ce soit sa spécialité principale doit rester proposable.
+          const associees = doctor.specialite_ids_associees || [];
+          return associees.some((id) => specialiteIdsWithChildren.includes(String(id)));
+        })
       : allDoctors;
 
     return [...base].sort((a, b) => {

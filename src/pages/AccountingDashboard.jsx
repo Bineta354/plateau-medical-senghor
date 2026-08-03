@@ -17,6 +17,7 @@ import { ResponsiveContainer, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/useToast';
+import { formatMontant } from '../utils/currency';
 
 const AccountingDashboard = () => {
   const navigate = useNavigate();
@@ -144,7 +145,7 @@ const AccountingDashboard = () => {
     }
   };
 
-  const formatCfa = (amount) => `${(amount || 0).toLocaleString('fr-FR')} FCFA`;
+  const formatCfa = (amount) => formatMontant(amount || 0);
 
   const statusColorByKey = useMemo(() => ({
     payee: '#22C55E',

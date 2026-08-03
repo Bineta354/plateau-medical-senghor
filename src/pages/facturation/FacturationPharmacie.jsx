@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Pill, 
+import { formatMontant } from '../../utils/currency';
+import {
+  Pill,
   Search, 
   Filter, 
   Plus, 
@@ -543,7 +544,7 @@ const FacturationPharmacie = () => {
             <div>
               <p className="text-sm font-medium text-gray-500">Chiffre d'affaires</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {ventesPharmacies.reduce((sum, v) => sum + v.total, 0).toLocaleString()} FCFA
+                {formatMontant(ventesPharmacies.reduce((sum, v) => sum + v.total, 0))}
               </p>
             </div>
           </div>
@@ -690,7 +691,7 @@ const FacturationPharmacie = () => {
                     <option value="">Sélectionner un médicament</option>
                     {medicamentsDisponibles.map(med => (
                       <option key={med.id} value={med.id}>
-                        {med.nom} {med.dosage} - {med.prix.toLocaleString()} FCFA (Stock: {med.stock})
+                        {med.nom} {med.dosage} - {formatMontant(med.prix)} (Stock: {med.stock})
                       </option>
                     ))}
                   </select>
@@ -730,7 +731,7 @@ const FacturationPharmacie = () => {
                           <span className="text-gray-500 ml-2">x{item.quantite}</span>
                         </div>
                         <div className="flex items-center space-x-3">
-                          <span className="font-medium">{(item.medicament.prix * item.quantite).toLocaleString()} FCFA</span>
+                          <span className="font-medium">{formatMontant(item.medicament.prix * item.quantite)}</span>
                           <button
                             type="button"
                             onClick={() => handleRemoveMedicament(index)}
@@ -750,27 +751,27 @@ const FacturationPharmacie = () => {
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Sous-total :</span>
-                            <span className="font-medium">{totaux.sousTotal.toLocaleString()} FCFA</span>
+                            <span className="font-medium">{formatMontant(totaux.sousTotal)}</span>
                     </div>
                           {totaux.remise > 0 && (
                             <div className="flex justify-between text-sm text-green-600">
                               <span>Remise :</span>
-                              <span>-{totaux.remise.toLocaleString()} FCFA</span>
+                              <span>-{formatMontant(totaux.remise)}</span>
                   </div>
                           )}
                           <div className="flex justify-between text-sm font-semibold pt-2 border-t">
                             <span>Total :</span>
-                            <span>{totaux.total.toLocaleString()} FCFA</span>
+                            <span>{formatMontant(totaux.total)}</span>
                           </div>
                           {factureData.patientId && (
                             <>
                               <div className="flex justify-between text-sm text-blue-600">
                                 <span>Part assurance ({totaux.tauxRemboursement}%) :</span>
-                                <span className="font-medium">{totaux.partAssurance.toLocaleString()} FCFA</span>
+                                <span className="font-medium">{formatMontant(totaux.partAssurance)}</span>
                               </div>
                               <div className="flex justify-between text-sm text-orange-600">
                                 <span>Part patient :</span>
-                                <span className="font-medium">{totaux.partPatient.toLocaleString()} FCFA</span>
+                                <span className="font-medium">{formatMontant(totaux.partPatient)}</span>
                               </div>
                             </>
                           )}
@@ -886,10 +887,10 @@ const FacturationPharmacie = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {vente.total.toLocaleString()} FCFA
+                      {formatMontant(vente.total)}
                     </div>
                     <div className="text-sm text-gray-500">
-                      Patient: {vente.montantPatient.toLocaleString()} FCFA
+                      Patient: {formatMontant(vente.montantPatient)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -979,7 +980,7 @@ const FacturationPharmacie = () => {
                       </div>
                       <div className="flex items-center space-x-3">
                         <span className="text-sm text-gray-600">x{item.quantite}</span>
-                        <span className="font-medium">{(item.prixUnitaire * item.quantite).toLocaleString()} FCFA</span>
+                        <span className="font-medium">{formatMontant(item.prixUnitaire * item.quantite)}</span>
                       </div>
                     </div>
                   ))}
@@ -992,25 +993,25 @@ const FacturationPharmacie = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span>Sous-total :</span>
-                    <span>{showDetails.sousTotal.toLocaleString()} FCFA</span>
+                    <span>{formatMontant(showDetails.sousTotal)}</span>
                   </div>
                   {showDetails.remise > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Remise :</span>
-                      <span>-{showDetails.remise.toLocaleString()} FCFA</span>
+                      <span>-{formatMontant(showDetails.remise)}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span>Part assurance :</span>
-                    <span>{showDetails.montantAssurance.toLocaleString()} FCFA</span>
+                    <span>{formatMontant(showDetails.montantAssurance)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Part patient :</span>
-                    <span>{showDetails.montantPatient.toLocaleString()} FCFA</span>
+                    <span>{formatMontant(showDetails.montantPatient)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-lg border-t pt-2">
                     <span>Total :</span>
-                    <span>{showDetails.total.toLocaleString()} FCFA</span>
+                    <span>{formatMontant(showDetails.total)}</span>
                   </div>
                 </div>
               </div>

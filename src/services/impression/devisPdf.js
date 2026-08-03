@@ -1,6 +1,10 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchParametres } from '../parametrageService.js';
+// formatMontantDecimal() insère une espace fine insécable (U+202F) que les polices standard
+// de jsPDF ne savent pas encoder (elle s'afficherait comme un "/" dans le PDF) : on utilise
+// la variante "Pdf" (espace normale) sous le même nom pour ce fichier.
+import { formatMontantDecimalPdf as formatMontantDecimal } from '../../utils/currency';
 
 /**
  * Génère un PDF pour un devis (similaire à facture mais avec statut "Devis")
@@ -80,8 +84,8 @@ export const generateDevisPDF = async (supabase, devisData, print = false, tenan
       acte.acte.code || `ACT-${acte.acte.id}`,
       acte.acte.libelle,
       acte.quantite.toString(),
-      `${acte.tarifUnitaire.toFixed(2)} FCFA`,
-      `${(acte.quantite * acte.tarifUnitaire).toFixed(2)} FCFA`
+      formatMontantDecimal(acte.tarifUnitaire),
+      formatMontantDecimal(acte.quantite * acte.tarifUnitaire)
     ]);
 
     autoTable(doc, {
@@ -97,19 +101,19 @@ export const generateDevisPDF = async (supabase, devisData, print = false, tenan
     const finalY = doc.lastAutoTable.finalY + 10;
     
     doc.setFontSize(10);
-    doc.text(`Sous-total: ${devisData.sousTotal.toFixed(2)} FCFA`, 150, finalY);
-    
+    doc.text(`Sous-total: ${formatMontantDecimal(devisData.sousTotal)}`, 150, finalY);
+
     if (devisData.remise > 0) {
-      doc.text(`Remise (${devisData.remise}%): -${((devisData.sousTotal * devisData.remise) / 100).toFixed(2)} FCFA`, 150, finalY + 10);
+      doc.text(`Remise (${devisData.remise}%): -${formatMontantDecimal((devisData.sousTotal * devisData.remise) / 100)}`, 150, finalY + 10);
     }
-    
+
     doc.setFontSize(12);
-    doc.text(`Total: ${devisData.total.toFixed(2)} FCFA`, 150, finalY + 20);
+    doc.text(`Total: ${formatMontantDecimal(devisData.total)}`, 150, finalY + 20);
 
     if (devisData.montantAssurance > 0) {
       doc.setFontSize(10);
-      doc.text(`Part assurance (${devisData.patient.tauxCouverture}%): ${devisData.montantAssurance.toFixed(2)} FCFA`, 150, finalY + 30);
-      doc.text(`Part patient: ${devisData.montantPatient.toFixed(2)} FCFA`, 150, finalY + 40);
+      doc.text(`Part assurance (${devisData.patient.tauxCouverture}%): ${formatMontantDecimal(devisData.montantAssurance)}`, 150, finalY + 30);
+      doc.text(`Part patient: ${formatMontantDecimal(devisData.montantPatient)}`, 150, finalY + 40);
     }
 
     // Pied de page

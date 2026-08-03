@@ -1,6 +1,10 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchParametres } from '../parametrageService.js';
+// formatMontant() insère une espace fine insécable (U+202F) que les polices standard de
+// jsPDF ne savent pas encoder (elle s'afficherait comme un "/" dans le PDF) : on utilise
+// la variante "Pdf" (espace normale) sous le même nom pour ce fichier.
+import { formatMontantPdf as formatMontant } from '../../utils/currency';
 
 export const generateFacturePDF = async (supabase, facture, forPrint = false, tenantId = null) => {
   try {
@@ -128,8 +132,8 @@ export const generateFacturePDF = async (supabase, facture, forPrint = false, te
           item.acte.code || '',
           item.acte.libelle || 'Acte médical',
           item.quantite || 1,
-          `${(item.tarifUnitaire || 0).toLocaleString()} FCFA`,
-          `${((item.tarifUnitaire || 0) * (item.quantite || 1)).toLocaleString()} FCFA`
+          formatMontant(item.tarifUnitaire || 0),
+          formatMontant((item.tarifUnitaire || 0) * (item.quantite || 1))
         ];
       }
       // Format items (simplifié - chaîne de caractères)
@@ -141,8 +145,8 @@ export const generateFacturePDF = async (supabase, facture, forPrint = false, te
         '',
         itemName,
         itemQty,
-        `${itemPrice.toLocaleString()} FCFA`,
-        `${(itemPrice * itemQty).toLocaleString()} FCFA`
+        formatMontant(itemPrice),
+        formatMontant(itemPrice * itemQty)
       ];
     });
     
@@ -181,32 +185,32 @@ export const generateFacturePDF = async (supabase, facture, forPrint = false, te
     
     doc.setFont(undefined, 'normal');
     doc.text('Sous-total:', 120, currentY);
-    doc.text(`${facture.sousTotal.toLocaleString()} FCFA`, 170, currentY, { align: 'right' });
+    doc.text(formatMontant(facture.sousTotal), 170, currentY, { align: 'right' });
     currentY += 6;
     
     if (facture.remise > 0) {
       doc.setTextColor(0, 128, 0);
       doc.text('Remise:', 120, currentY);
-      doc.text(`-${facture.remise.toLocaleString()} FCFA`, 170, currentY, { align: 'right' });
+      doc.text(`-${formatMontant(facture.remise)}`, 170, currentY, { align: 'right' });
       doc.setTextColor(0, 0, 0);
       currentY += 6;
     }
     
     doc.setFont(undefined, 'bold');
     doc.text('Total:', 120, currentY);
-    doc.text(`${facture.total.toLocaleString()} FCFA`, 170, currentY, { align: 'right' });
+    doc.text(formatMontant(facture.total), 170, currentY, { align: 'right' });
     currentY += 8;
     
     if (facture.patient.tauxCouverture > 0) {
       doc.setFont(undefined, 'normal');
       doc.setTextColor(59, 130, 246);
       doc.text(`Part assurance (${facture.patient.tauxCouverture}%):`, 120, currentY);
-      doc.text(`${facture.montantAssurance.toLocaleString()} FCFA`, 170, currentY, { align: 'right' });
+      doc.text(formatMontant(facture.montantAssurance), 170, currentY, { align: 'right' });
       currentY += 6;
       
       doc.setTextColor(249, 115, 22);
       doc.text('Part patient:', 120, currentY);
-      doc.text(`${facture.montantPatient.toLocaleString()} FCFA`, 170, currentY, { align: 'right' });
+      doc.text(formatMontant(facture.montantPatient), 170, currentY, { align: 'right' });
       currentY += 6;
       doc.setTextColor(0, 0, 0);
     }

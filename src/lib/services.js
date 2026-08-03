@@ -103,12 +103,34 @@ export const userService = {
     }
     
     const { data, error } = await query.order('nom', { ascending: true })
-    
+
     if (error) {
       console.error(`[SPECIALITY_CONFIG] Erreur lors de la récupération des médecins:`, error)
       throw error
     }
-    
+
+    // Rattacher les spécialités associées (secondaires) de chaque médecin, pour que les
+    // écrans de prise de rendez-vous puissent proposer un médecin même quand la spécialité
+    // recherchée n'est pas sa spécialité principale (specialite_id).
+    if (data && data.length > 0) {
+      const { data: associations, error: assocError } = await supabase
+        .from('medecin_specialites')
+        .select('medecin_id, specialite_id')
+        .in('medecin_id', data.map((d) => d.id))
+      if (assocError) {
+        console.warn('[SPECIALITY_CONFIG] Impossible de récupérer les spécialités associées:', assocError)
+      } else {
+        const bymedecin = {}
+        ;(associations || []).forEach((a) => {
+          if (!bymedecin[a.medecin_id]) bymedecin[a.medecin_id] = []
+          bymedecin[a.medecin_id].push(a.specialite_id)
+        })
+        data.forEach((d) => {
+          d.specialite_ids_associees = bymedecin[d.id] || []
+        })
+      }
+    }
+
     console.log(`[SPECIALITY_CONFIG] Médecins récupérés`, {
       count: data?.length || 0,
       specialite_id: specialiteId,
@@ -118,10 +140,11 @@ export const userService = {
         nom: d.nom,
         prenom: d.prenom,
         specialite_id: d.specialite_id,
+        specialite_ids_associees: d.specialite_ids_associees,
         actif: d.actif
       })) || []
     })
-    
+
     return data || []
   },
 

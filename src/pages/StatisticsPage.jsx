@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  BarChart, 
+import { formatNombre, formatMontant } from '../utils/currency';
+import {
+  BarChart,
   Bar, 
   XAxis, 
   YAxis, 
@@ -135,14 +136,14 @@ const StatisticsPage = () => {
             color="green"
           />
           <StatCard 
-            title="Revenus (FCFA)" 
-            value={statsData.overview.totalRevenue.toLocaleString()} 
-            icon={Coins} 
+            title="Revenus (FCFA)"
+            value={formatNombre(statsData.overview.totalRevenue)}
+            icon={Coins}
             change={+12.3}
             color="yellow"
           />
-          <StatCard 
-            title="Temps d'attente (min)" 
+          <StatCard
+            title="Temps d'attente (min)"
             value={statsData.overview.averageWaitTime} 
             icon={Clock} 
             change={-15.4}
@@ -166,30 +167,30 @@ const StatisticsPage = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard 
-            title="Revenus (FCFA)" 
-            value={statsData.overview.totalRevenue.toLocaleString()} 
-            icon={Coins} 
+            title="Revenus (FCFA)"
+            value={formatNombre(statsData.overview.totalRevenue)}
+            icon={Coins}
             change={+12.3}
             color="yellow"
           />
-          <StatCard 
-            title="Dépenses (FCFA)" 
-            value={(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.expenses || 0).toLocaleString()} 
-            icon={TrendingUp} 
+          <StatCard
+            title="Dépenses (FCFA)"
+            value={formatNombre(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.expenses || 0)}
+            icon={TrendingUp}
             change={+2.4}
             color="red"
           />
-          <StatCard 
-            title="Profit (FCFA)" 
-            value={(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.profit || 0).toLocaleString()} 
-            icon={TrendingUp} 
+          <StatCard
+            title="Profit (FCFA)"
+            value={formatNombre(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.profit || 0)}
+            icon={TrendingUp}
             change={+6.1}
             color="green"
           />
-          <StatCard 
-            title="Revenus (mois)" 
-            value={(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.revenue || 0).toLocaleString()} 
-            icon={BarChart3} 
+          <StatCard
+            title="Revenus (mois)"
+            value={formatMontant(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.revenue || 0)}
+            icon={BarChart3}
             change={+3.2}
             color="blue"
           />

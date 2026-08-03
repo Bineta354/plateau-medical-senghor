@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { formatMontant } from '../../utils/currency';
 
 const ListeProduits = () => {
   const [produits, setProduits] = useState([]);
@@ -256,7 +257,7 @@ const ListeProduits = () => {
                 <td className="px-6 py-4 whitespace-nowrap">{produit.fabricant}</td>
                 <td className="px-6 py-4 whitespace-nowrap font-mono">{produit.code_atc}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {produit.prix ? `${produit.prix.toLocaleString('fr-FR')} FCFA` : '-'}
+                  {produit.prix ? formatMontant(produit.prix) : '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${
