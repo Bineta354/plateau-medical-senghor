@@ -200,7 +200,14 @@ const PatientEditPage = () => {
       });
     } catch (error) {
       console.error('❌ [PatientEdit] Erreur lors de la sauvegarde:', error);
-      setError('Erreur lors de la sauvegarde: ' + error.message);
+      
+      // Vérifier si c'est l'erreur spécifique de modification du numéro de dossier
+      const errorMessage = error.message || error.details || error.hint || String(error);
+      if (errorMessage.includes('impossible de modifier le numéro de dossier')) {
+        setError('Désolé, il est impossible de modifier le numéro de dossier.');
+      } else {
+        setError('Erreur lors de la sauvegarde: ' + errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -504,9 +511,13 @@ const PatientEditPage = () => {
                   name="numero_dossier"
                   value={formData.numero_dossier}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
                   placeholder="Numéro de dossier unique"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Généré automatiquement — non modifiable
+                </p>
               </div>
 
               {/* Radio buttons pour type de couverture */}

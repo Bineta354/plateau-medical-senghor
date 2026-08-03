@@ -437,9 +437,13 @@ const PatientForm = ({
             type="text"
             value={formData.numero_dossier}
             onChange={(e) => handleInputChange('numero_dossier', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+            readOnly
+            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
             placeholder="Numéro de dossier unique"
           />
+          <p className="text-xs text-gray-500 mt-1">
+            Généré automatiquement — non modifiable
+          </p>
         </div>
 
         {/* Adresse */}
