@@ -4,28 +4,27 @@ export const DEVISE_LABEL = 'FCFA';
 /**
  * Formate un montant avec séparateur de milliers (espace) et sans décimales
  * @param {number} montant - Le montant à formater
- * @returns {string} - Le montant formaté (ex: 1 500 000 FCFA)
+ * @returns {string} - Le montant formaté (ex: 1 500 FCFA)
  */
 export function formatMontant(montant) {
   const num = montant ?? 0;
-  const formatted = new Intl.NumberFormat('fr-FR', { 
+  const formatted = new Intl.NumberFormat('fr-FR', {
     maximumFractionDigits: 0,
-    useGrouping: true 
+    useGrouping: true
   }).format(num);
   // Remplacer l'espace insécable par un espace normal
   return `${formatted.replace(/\u00A0/g, ' ')} ${DEVISE_LABEL}`;
 }
 
 /**
- * Formate un montant avec séparateur de milliers (espace) et décimales (virgule)
+ * Formate un montant avec séparateur de milliers (espace) et sans décimales
  * @param {number} montant - Le montant à formater
- * @returns {string} - Le montant formaté (ex: 1 500,50 FCFA)
+ * @returns {string} - Le montant formaté (ex: 1 500 FCFA)
  */
 export function formatMontantDecimal(montant) {
   const num = montant ?? 0;
   const formatted = new Intl.NumberFormat('fr-FR', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
     useGrouping: true
   }).format(num);
   // Remplacer l'espace insécable par un espace normal
