@@ -4,6 +4,7 @@ import {
   AlertCircle, CheckCircle, Clock, TrendingUp, TrendingDown,
   Eye, Edit, Trash2, RefreshCw, ChevronDown, ChevronUp
 } from 'lucide-react';
+import { formatMontant } from '../../utils/currency';
 
 const HistoriquePatient = () => {
   const [patients, setPatients] = useState([]);
@@ -212,11 +213,6 @@ const HistoriquePatient = () => {
       case 'impaye': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
-  };
-
-  // Formater les montants
-  const formatMontant = (montant) => {
-    return new Intl.NumberFormat('fr-FR').format(montant) + ' FCFA';
   };
 
   // Exporter les données

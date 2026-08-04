@@ -1,5 +1,6 @@
 import React from 'react';
 import { Download, FileText, Mail } from 'lucide-react';
+import { formatMontant } from './currency';
 
 // Utilitaire pour l'exportation des données
 const ExportUtils = {
@@ -88,7 +89,7 @@ const ExportUtils = {
       Object.keys(formatted).forEach(key => {
         if (key.includes('montant') || key.includes('total') || key.includes('paye')) {
           if (typeof formatted[key] === 'number') {
-            formatted[key] = new Intl.NumberFormat('fr-FR').format(formatted[key]) + ' FCFA';
+            formatted[key] = formatMontant(formatted[key]);
           }
         }
         

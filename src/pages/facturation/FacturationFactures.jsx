@@ -26,6 +26,7 @@ import { supabase } from '../../lib/supabase';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import { useAlert } from '../../contexts/AlertContext';
 import { generateFacturePDF } from '../../services/impression/facturePdf.js';
+import { formatMontant } from '../../utils/currency';
 
 const FacturationFactures = () => {
   const location = useLocation();
@@ -636,7 +637,7 @@ const FacturationFactures = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Chiffre d'affaires</p>
-              <p className="text-2xl font-semibold text-gray-900">{totalChiffre.toLocaleString()} FCFA</p>
+              <p className="text-2xl font-semibold text-gray-900">{formatMontant(totalChiffre)}</p>
             </div>
           </div>
         </div>
@@ -660,7 +661,7 @@ const FacturationFactures = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">En attente</p>
-              <p className="text-2xl font-semibold text-gray-900">{totalEnAttente.toLocaleString()} FCFA</p>
+              <p className="text-2xl font-semibold text-gray-900">{formatMontant(totalEnAttente)}</p>
             </div>
           </div>
         </div>
@@ -679,7 +680,7 @@ const FacturationFactures = () => {
                   {type}
                 </div>
                 <div className="text-2xl font-bold text-gray-900">{facturesType.length}</div>
-                <div className="text-sm text-gray-500">{totalType.toLocaleString()} FCFA</div>
+                <div className="text-sm text-gray-500">{formatMontant(totalType)}</div>
               </div>
             );
           })}
@@ -823,14 +824,14 @@ const FacturationFactures = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
-                        {facture.total.toLocaleString()} FCFA
+                        {formatMontant(facture.total)}
                       </div>
                       <div className="text-sm text-gray-500">
-                        Patient: {facture.montantPatient.toLocaleString()} FCFA
+                        Patient: {formatMontant(facture.montantPatient)}
                       </div>
                       {facture.montantAssurance > 0 && (
                         <div className="text-sm text-blue-600">
-                          Assurance: {facture.montantAssurance.toLocaleString()} FCFA
+                          Assurance: {formatMontant(facture.montantAssurance)}
                         </div>
                       )}
                     </div>
@@ -923,25 +924,25 @@ const FacturationFactures = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span>Sous-total :</span>
-                    <span>{showDetails.sousTotal.toLocaleString()} FCFA</span>
+                    <span>{formatMontant(showDetails.sousTotal)}</span>
                   </div>
                   {showDetails.remise > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Remise :</span>
-                      <span>-{showDetails.remise.toLocaleString()} FCFA</span>
+                      <span>-{formatMontant(showDetails.remise)}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span>Part assurance :</span>
-                    <span>{showDetails.montantAssurance.toLocaleString()} FCFA</span>
+                    <span>{formatMontant(showDetails.montantAssurance)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Part patient :</span>
-                    <span>{showDetails.montantPatient.toLocaleString()} FCFA</span>
+                    <span>{formatMontant(showDetails.montantPatient)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-lg border-t pt-2">
                     <span>Total :</span>
-                    <span>{showDetails.total.toLocaleString()} FCFA</span>
+                    <span>{formatMontant(showDetails.total)}</span>
                   </div>
                 </div>
               </div>

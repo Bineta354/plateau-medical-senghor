@@ -30,6 +30,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useAlert } from '../../contexts/AlertContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatMontant } from '../../utils/currency';
 
 const EncaissementFactures = () => {
   const navigate = useNavigate();
@@ -312,8 +313,8 @@ const EncaissementFactures = () => {
 
         showSuccess(
           isDecaissement
-            ? `Décaissement de test enregistré (${Math.abs(amount).toLocaleString()} FCFA)`
-            : `Encaissement de test enregistré (${amount.toLocaleString()} FCFA)`,
+            ? `Décaissement de test enregistré (${formatMontant(Math.abs(amount))})`
+            : `Encaissement de test enregistré (${formatMontant(amount)})`,
         );
         setShowPaymentModal(false);
         setSelectedFacture(null);
@@ -339,8 +340,8 @@ const EncaissementFactures = () => {
 
       showSuccess(
         isDecaissement
-          ? `Décaissement enregistré (${Math.abs(amount).toLocaleString()} FCFA)`
-          : `Encaissement enregistré (${amount.toLocaleString()} FCFA)`,
+          ? `Décaissement enregistré (${formatMontant(Math.abs(amount))})`
+          : `Encaissement enregistré (${formatMontant(amount)})`,
       );
       setFactures(prevFactures =>
         prevFactures.map(f =>
@@ -423,7 +424,7 @@ const EncaissementFactures = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Chiffre d'affaires</p>
-              <p className="text-2xl font-bold text-gray-900">{totalChiffre.toLocaleString()} FCFA</p>
+              <p className="text-2xl font-bold text-gray-900">{formatMontant(totalChiffre)}</p>
             </div>
             <TrendingUp className="w-8 h-8 text-blue-600" />
           </div>
@@ -433,7 +434,7 @@ const EncaissementFactures = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Encaissé</p>
-              <p className="text-2xl font-bold text-green-600">{totalEncaisse.toLocaleString()} FCFA</p>
+              <p className="text-2xl font-bold text-green-600">{formatMontant(totalEncaisse)}</p>
             </div>
             <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
@@ -443,7 +444,7 @@ const EncaissementFactures = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Reste à encaisser</p>
-              <p className="text-2xl font-bold text-orange-600">{totalRestant.toLocaleString()} FCFA</p>
+              <p className="text-2xl font-bold text-orange-600">{formatMontant(totalRestant)}</p>
             </div>
             <Clock className="w-8 h-8 text-orange-600" />
           </div>
@@ -596,15 +597,15 @@ const EncaissementFactures = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <p className="text-sm font-medium text-gray-900">
-                          {facture.montant_ttc?.toLocaleString()} FCFA
+                          {formatMontant(facture.montant_ttc)}
                         </p>
                         <div className="flex items-center gap-2 text-xs">
                           <span className="text-green-600">
-                            Payé: {facture.montant_paye?.toLocaleString()} FCFA
+                            Payé: {formatMontant(facture.montant_paye)}
                           </span>
                           {facture.montant_restant > 0 && (
                             <span className="text-orange-600">
-                              Reste: {facture.montant_restant?.toLocaleString()} FCFA
+                              Reste: {formatMontant(facture.montant_restant)}
                             </span>
                           )}
                         </div>
@@ -681,13 +682,13 @@ const EncaissementFactures = () => {
                 </p>
                 <div className="mt-2 space-y-1">
                   <p className="text-sm text-gray-600">
-                    Total: {selectedFacture.montant_ttc?.toLocaleString()} FCFA
+                    Total: {formatMontant(selectedFacture.montant_ttc)}
                   </p>
                   <p className="text-sm text-gray-600">
-                    Déjà payé: {selectedFacture.montant_paye?.toLocaleString()} FCFA
+                    Déjà payé: {formatMontant(selectedFacture.montant_paye)}
                   </p>
                   <p className="text-sm font-medium text-orange-600">
-                    Reste à payer: {selectedFacture.montant_restant?.toLocaleString()} FCFA
+                    Reste à payer: {formatMontant(selectedFacture.montant_restant)}
                   </p>
                 </div>
               </div>
@@ -803,7 +804,7 @@ const EncaissementFactures = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Montant HT:</span>
-                    <span className="font-medium">{showDetails.montant_ht?.toLocaleString()} FCFA</span>
+                    <span className="font-medium">{formatMontant(showDetails.montant_ht)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">TVA:</span>
@@ -811,15 +812,15 @@ const EncaissementFactures = () => {
                   </div>
                   <div className="flex justify-between text-lg font-semibold">
                     <span>Montant TTC:</span>
-                    <span>{showDetails.montant_ttc?.toLocaleString()} FCFA</span>
+                    <span>{formatMontant(showDetails.montant_ttc)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Montant payé:</span>
-                    <span className="font-medium text-green-600">{showDetails.montant_paye?.toLocaleString()} FCFA</span>
+                    <span className="font-medium text-green-600">{formatMontant(showDetails.montant_paye)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Reste à payer:</span>
-                    <span className="font-medium text-orange-600">{showDetails.montant_restant?.toLocaleString()} FCFA</span>
+                    <span className="font-medium text-orange-600">{formatMontant(showDetails.montant_restant)}</span>
                   </div>
                 </div>
               </div>

@@ -11,6 +11,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { unifiedNotificationService } from '../services/unifiedNotificationService';
 import { useTypesActes } from '../hooks/useTypesActes';
+import { formatMontant } from '../utils/currency';
 
 const ActesPage = () => {
   const { userProfile } = useAuth();
@@ -88,14 +89,6 @@ const ActesPage = () => {
     return matchesSearch && matchesCategory;
   });
 
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'decimal',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(price) + ' FCFA';
-  };
-
   return (
     <div className="space-y-6 p-6">
       {/* En-tête */}
@@ -172,7 +165,7 @@ const ActesPage = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Tarif moyen</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {actes.length > 0 ? formatPrice(actes.reduce((sum, acte) => sum + acte.tarif_base, 0) / actes.length) : '0 FCFA'}
+                {actes.length > 0 ? formatMontant(actes.reduce((sum, acte) => sum + acte.tarif_base, 0) / actes.length) : formatMontant(0)}
               </p>
             </div>
           </div>
@@ -250,7 +243,7 @@ const ActesPage = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {formatPrice(acte.tarif_base)}
+                      {formatMontant(acte.tarif_base)}
                     </td>
                   </tr>
                 ))}

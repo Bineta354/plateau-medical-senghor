@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../contexts/AuthContext';
+import { formatMontant } from '../utils/currency';
 
 const StatisticsPage = () => {
   const { currentUser, userProfile } = useAuth();
@@ -136,7 +137,7 @@ const StatisticsPage = () => {
           />
           <StatCard 
             title="Revenus (FCFA)" 
-            value={statsData.overview.totalRevenue.toLocaleString()} 
+            value={formatMontant(statsData.overview.totalRevenue)} 
             icon={Coins} 
             change={+12.3}
             color="yellow"
@@ -167,28 +168,28 @@ const StatisticsPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard 
             title="Revenus (FCFA)" 
-            value={statsData.overview.totalRevenue.toLocaleString()} 
+            value={formatMontant(statsData.overview.totalRevenue)} 
             icon={Coins} 
             change={+12.3}
             color="yellow"
           />
           <StatCard 
             title="Dépenses (FCFA)" 
-            value={(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.expenses || 0).toLocaleString()} 
+            value={formatMontant(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.expenses || 0)} 
             icon={TrendingUp} 
             change={+2.4}
             color="red"
           />
           <StatCard 
             title="Profit (FCFA)" 
-            value={(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.profit || 0).toLocaleString()} 
+            value={formatMontant(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.profit || 0)} 
             icon={TrendingUp} 
             change={+6.1}
             color="green"
           />
           <StatCard 
             title="Revenus (mois)" 
-            value={(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.revenue || 0).toLocaleString()} 
+            value={formatMontant(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.revenue || 0)} 
             icon={BarChart3} 
             change={+3.2}
             color="blue"

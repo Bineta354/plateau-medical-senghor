@@ -18,6 +18,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import TestNotifications from '../components/TestNotifications';
 import { useDashboardData } from '../hooks/useDashboardData'; // Import the new hook
+import { formatMontant } from '../utils/currency';
 
 const Dashboard = () => {
   const { currentUser, hasRole } = useAuth();
@@ -264,7 +265,7 @@ const Dashboard = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Revenus (FCFA)</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                {stats.totalRevenue.toLocaleString()}
+                {formatMontant(stats.totalRevenue)}
               </p>
             </div>
             <div className="p-3 rounded-full bg-emerald-100">

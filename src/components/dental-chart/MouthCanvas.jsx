@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { toothMap } from './toothMap';
 import { TOOTH_STATES, TOOTH_NAMES } from './constants';
 import { drawTooth, drawToothNumber } from './drawingUtils';
+import { formatMontant } from '../../utils/currency';
 
 const MouthCanvas = ({ teeth, onToothClick, readOnly = false, toothStates }) => {
   const canvasRef = useRef(null);
@@ -225,7 +226,7 @@ const MouthCanvas = ({ teeth, onToothClick, readOnly = false, toothStates }) => 
                     {teeth[hoveredTooth].history.slice(0, 3).map((item, idx) => (
                         <div key={idx} className="text-xs text-gray-300 py-0.5">
                             <span className="text-blue-400">•</span> {item.name}
-                            {item.price && <span className="text-gray-500 ml-1">({item.price} FCFA)</span>}
+                            {item.price && <span className="text-gray-500 ml-1">({formatMontant(item.price)})</span>}
                         </div>
                     ))}
                     {teeth[hoveredTooth].history.length > 3 && (

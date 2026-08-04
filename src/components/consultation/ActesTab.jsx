@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Stethoscope } from 'lucide-react';
 import PropTypes from 'prop-types';
 import ActesModal from './modals/ActesModal';
+import { formatMontant } from '../../utils/currency';
 
 
 export default function ActesTab(
@@ -73,10 +74,10 @@ export default function ActesTab(
                     </div>
                     <div className="mt-1">
                       <span className="text-xs text-gray-500 block">
-                        {parseFloat(acte.tarif_unitaire || 0).toFixed(2)} FCFA × {acte.quantite}
+                        {formatMontant(acte.tarif_unitaire || 0)} × {acte.quantite}
                       </span>
                       <span className="text-lg font-bold text-purple-600">
-                        {parseFloat(acte.montant_total || (acte.tarif_unitaire * acte.quantite) || 0).toFixed(2)} FCFA
+                        {formatMontant(acte.montant_total || (acte.tarif_unitaire * acte.quantite) || 0)}
                       </span>
                     </div>
                   </div>
@@ -87,7 +88,7 @@ export default function ActesTab(
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">Total des actes:</span>
                 <span className="text-xl font-bold text-purple-600">
-                  {actes.reduce((sum, acte) => sum + parseFloat(acte.montant_total || (acte.tarif_unitaire * acte.quantite) || 0), 0).toFixed(2)} FCFA
+                  {formatMontant(actes.reduce((sum, acte) => sum + parseFloat(acte.montant_total || (acte.tarif_unitaire * acte.quantite) || 0), 0))}
                 </span>
               </div>
             </div>

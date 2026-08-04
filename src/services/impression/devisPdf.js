@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchParametres } from '../parametrageService.js';
+import { formatMontant } from '../../utils/currency';
 
 /**
  * Génère un PDF pour un devis (similaire à facture mais avec statut "Devis")

@@ -16,6 +16,7 @@ import {
   Activity
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { formatMontant } from '../../utils/currency';
 
 const Reporting = () => {
   const { currentUser, userProfile } = useAuth();
@@ -182,10 +183,6 @@ const Reporting = () => {
     setFinancesActes(data || []);
   };
 
-  const formaterMontant = (montant) => {
-    return new Intl.NumberFormat('fr-FR').format(montant || 0) + ' FCFA';
-  };
-
   const formaterNombre = (nombre) => {
     return new Intl.NumberFormat('fr-FR').format(nombre || 0);
   };
@@ -313,7 +310,7 @@ const Reporting = () => {
                 <div key={`resume-${index}`} className="bg-gray-50 rounded-lg p-4">
                   <div className="text-sm font-medium text-gray-500">{item.metrique}</div>
                   <div className="mt-2 text-2xl font-bold text-gray-900">
-                    {item.valeur ? formaterNombre(item.valeur) : formaterMontant(item.montant)}
+                    {item.valeur ? formaterNombre(item.valeur) : formatMontant(item.montant)}
                   </div>
                 </div>
               ))}
@@ -348,7 +345,7 @@ const Reporting = () => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="nom_specialite" />
                     <YAxis />
-                    <Tooltip formatter={(value) => formaterMontant(value)} />
+                    <Tooltip formatter={(value) => formatMontant(value)} />
                     <Legend />
                     <Bar dataKey="montant_total_consultations" fill="#8884D8" name="Chiffre d'Affaires" />
                     <Bar dataKey="montant_total_paye" fill="#82CA9D" name="Payé" />
@@ -503,10 +500,10 @@ const Reporting = () => {
                         {formaterNombre(item.nombre_actes)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formaterMontant(item.tarif_moyen)}
+                        {formatMontant(item.tarif_moyen)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formaterMontant(item.montant_total)}
+                        {formatMontant(item.montant_total)}
                       </td>
                     </tr>
                   ))}
@@ -577,7 +574,7 @@ const Reporting = () => {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="nom_specialite" />
                   <YAxis />
-                  <Tooltip formatter={(value) => formaterMontant(value)} />
+                  <Tooltip formatter={(value) => formatMontant(value)} />
                   <Legend />
                   <Bar dataKey="montant_total_consultations" fill="#8884D8" name="Chiffre d'Affaires" />
                 </BarChart>
@@ -592,7 +589,7 @@ const Reporting = () => {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="nom_medecin" />
                   <YAxis />
-                  <Tooltip formatter={(value) => formaterMontant(value)} />
+                  <Tooltip formatter={(value) => formatMontant(value)} />
                   <Legend />
                   <Bar dataKey="montant_total_consultations" fill="#82CA9D" name="Chiffre d'Affaires" />
                 </BarChart>
@@ -607,7 +604,7 @@ const Reporting = () => {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="nom_type_acte" />
                   <YAxis />
-                  <Tooltip formatter={(value) => formaterMontant(value)} />
+                  <Tooltip formatter={(value) => formatMontant(value)} />
                   <Legend />
                   <Bar dataKey="montant_total_actes" fill="#FFC658" name="Revenus" />
                 </BarChart>
@@ -646,13 +643,13 @@ const Reporting = () => {
                         {formaterNombre(item.nombre_consultations)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formaterMontant(item.montant_total_consultations)}
+                        {formatMontant(item.montant_total_consultations)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formaterMontant(item.montant_total_paye)}
+                        {formatMontant(item.montant_total_paye)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formaterMontant(item.montant_restant_a_payer)}
+                        {formatMontant(item.montant_restant_a_payer)}
                       </td>
                     </tr>
                   ))}

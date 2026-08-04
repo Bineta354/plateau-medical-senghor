@@ -23,6 +23,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import { useAlert } from '../../contexts/AlertContext';
+import { formatMontant } from '../../utils/currency';
 
 const FacturationLabo = () => {
   const { showError, showSuccess, showWarning, showInfo } = useAlert();
@@ -502,7 +503,7 @@ const FacturationLabo = () => {
             <div>
               <p className="text-sm font-medium text-gray-500">Chiffre d'affaires</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {facturationLabo.reduce((sum, f) => sum + f.total, 0).toLocaleString()} FCFA
+                {formatMontant(facturationLabo.reduce((sum, f) => sum + f.total, 0))}
               </p>
             </div>
           </div>
@@ -620,7 +621,7 @@ const FacturationLabo = () => {
                     />
                     <span className="text-sm">
                       <span className="font-medium">{analyse.libelle}</span>
-                      <span className="text-gray-500"> - {analyse.tarif.toLocaleString()} FCFA</span>
+                      <span className="text-gray-500"> - {formatMontant(analyse.tarif)}</span>
                     </span>
                   </label>
                 ))}
@@ -628,10 +629,8 @@ const FacturationLabo = () => {
               {factureData.analysesIds.length > 0 && (
                 <p className="mt-2 text-sm text-blue-600">
                   {factureData.analysesIds.length} analyse(s) sélectionnée(s) - Total estimé: {
-                    factureData.analysesIds
-                      .reduce((sum, id) => sum + (analysesDisponibles.find(a => a.id === id)?.tarif || 0), 0)
-                      .toLocaleString()
-                  } FCFA
+                    formatMontant(factureData.analysesIds.reduce((sum, id) => sum + (analysesDisponibles.find(a => a.id === id)?.tarif || 0), 0))
+                  }
                 </p>
               )}
             </div>
@@ -746,7 +745,7 @@ const FacturationLabo = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {facture.total.toLocaleString()} FCFA
+                      {formatMontant(facture.total)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -840,7 +839,7 @@ const FacturationLabo = () => {
                         )}
                       </div>
                       <div className="flex items-center space-x-3">
-                        <span className="font-medium">{item.analyse.tarif.toLocaleString()} FCFA</span>
+                        <span className="font-medium">{formatMontant(item.analyse.tarif)}</span>
                         {item.statut === 'termine' && <CheckCircle className="w-5 h-5 text-green-500" />}
                         {item.statut === 'en_cours' && <Clock className="w-5 h-5 text-yellow-500" />}
                       </div>
@@ -853,7 +852,7 @@ const FacturationLabo = () => {
               <div>
                 <div className="flex justify-between font-bold text-lg border-t pt-2">
                   <span>Total :</span>
-                  <span>{showDetails.total.toLocaleString()} FCFA</span>
+                  <span>{formatMontant(showDetails.total)}</span>
                 </div>
               </div>
             </div>

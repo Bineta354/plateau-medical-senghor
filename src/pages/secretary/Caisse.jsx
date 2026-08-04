@@ -23,6 +23,7 @@ import { notificationService } from '../../services/notificationService';
 import { useReactToPrint } from 'react-to-print';
 import { useAuth } from '../../contexts/AuthContext';
 import { ROLES } from '../../utils/permissions';
+import { formatMontant } from '../../utils/currency';
 import {
   CheckCircleIcon,
   BanknotesIcon,

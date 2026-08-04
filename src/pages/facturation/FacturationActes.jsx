@@ -28,6 +28,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generateFacturePDF } from '../../services/impression/facturePdf.js';
 import { useToast } from '../../hooks/useToast';
+import { formatMontant } from '../../utils/currency';
 import { useAuth } from '../../contexts/AuthContext';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
@@ -639,7 +640,7 @@ const FacturationActes = () => {
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-500">CA</p>
               <p className="text-xl font-semibold text-gray-900">
-                {facturationActes.reduce((sum, f) => sum + f.total, 0).toLocaleString()} FCFA
+                {formatMontant(facturationActes.reduce((sum, f) => sum + f.total, 0))}
               </p>
             </div>
           </div>
@@ -785,7 +786,7 @@ const FacturationActes = () => {
                           tarif: acte.tarif,
                           description: acte.description,
                           categorie: acte.categorie,
-                          telephone: `${acte.tarif.toLocaleString()} FCFA${acte.description ? ` - ${acte.description}` : ''}${acte.categorie ? ` (${acte.categorie})` : ''}`
+                          telephone: `${formatMontant(acte.tarif)}${acte.description ? ` - ${acte.description}` : ''}${acte.categorie ? ` (${acte.categorie})` : ''}`
                         }))}
                         value=""
                         onChange={(value) => {
@@ -863,7 +864,7 @@ const FacturationActes = () => {
                                     placeholder="Tarif unitaire"
                                   />
                                   <span className="text-sm text-gray-600">
-                                    = {(acte.quantite || 1) * (acte.tarifUnitaire || acte.tarif || 0).toLocaleString()} FCFA
+                                    = {formatMontant((acte.quantite || 1) * (acte.tarifUnitaire || acte.tarif || 0))}
                                   </span>
                                 </div>
                               </div>
@@ -923,7 +924,7 @@ const FacturationActes = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Total estimé</label>
                 <div className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 font-medium">
-                  {calculateTotal().total.toLocaleString()} FCFA
+                  {formatMontant(calculateTotal().total)}
                 </div>
               </div>
             </div>
@@ -935,26 +936,26 @@ const FacturationActes = () => {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Sous-total :</span>
-                    <span className="font-medium">{calculateTotal().sousTotal.toLocaleString()} FCFA</span>
+                    <span className="font-medium">{formatMontant(calculateTotal().sousTotal)}</span>
                   </div>
                   {calculateTotal().remise > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Remise ({factureData.remise}%) :</span>
-                      <span className="font-medium">-{calculateTotal().remise.toLocaleString()} FCFA</span>
+                      <span className="font-medium">-{formatMontant(calculateTotal().remise)}</span>
                     </div>
                   )}
                   <div className="flex justify-between border-t pt-2">
                     <span className="text-gray-600">Total :</span>
-                    <span className="font-bold text-lg">{calculateTotal().total.toLocaleString()} FCFA</span>
+                    <span className="font-bold text-lg">{formatMontant(calculateTotal().total)}</span>
                   </div>
                   <div className="border-t pt-2 mt-2">
                     <div className="flex justify-between text-blue-600">
                       <span>Part assurance ({calculateTotal().tauxCouverture}%) :</span>
-                      <span className="font-medium">{calculateTotal().partAssurance.toLocaleString()} FCFA</span>
+                      <span className="font-medium">{formatMontant(calculateTotal().partAssurance)}</span>
                     </div>
                     <div className="flex justify-between text-orange-600">
                       <span>Part patient :</span>
-                      <span className="font-bold">{calculateTotal().partPatient.toLocaleString()} FCFA</span>
+                      <span className="font-bold">{formatMontant(calculateTotal().partPatient)}</span>
                     </div>
                   </div>
                 </div>

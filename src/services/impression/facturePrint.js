@@ -1,4 +1,5 @@
 import { fetchParametres } from '../parametrageService.js';
+import { formatMontant } from '../../utils/currency';
 
 export const printFacture = async (supabase, facture, patient, medecin, tenantId = null) => {
     if (!facture) return { success: false, error: "Facture non disponible" };
@@ -21,6 +22,9 @@ export const printFacture = async (supabase, facture, patient, medecin, tenantId
       const primaryColor = settings.document_couleur_principale || '#000000';
       const borderColor = settings.document_couleur_bordure || '#e5e7eb';
       const fontSize = settings.document_taille_police || 14;
+      
+      // Formatage des montants
+      const devise = settings.devise || 'FCFA';
       
       win.document.write(`
         <html>
@@ -209,8 +213,8 @@ export const printFacture = async (supabase, facture, patient, medecin, tenantId
                       <strong>${ligne.description}</strong>
                     </td>
                     <td style="text-align: center">${ligne.quantite}</td>
-                    <td class="amount-col">${parseFloat(ligne.prix_unitaire).toLocaleString('fr-FR')}</td>
-                    <td class="amount-col">${(ligne.prix_unitaire * ligne.quantite).toLocaleString('fr-FR')}</td>
+                    <td class="amount-col">${formatMontant(parseFloat(ligne.prix_unitaire))}</td>
+                    <td class="amount-col">${formatMontant(ligne.prix_unitaire * ligne.quantite)}</td>
                   </tr>
                 `).join('') || ''}
               </tbody>
@@ -220,23 +224,23 @@ export const printFacture = async (supabase, facture, patient, medecin, tenantId
               <table class="totals-table">
                 <tr>
                   <td>Total HT</td>
-                  <td class="amount-col">${parseFloat(facture.montant_ht).toLocaleString('fr-FR')} ${settings.devise || 'FCFA'}</td>
+                  <td class="amount-col">${formatMontant(parseFloat(facture.montant_ht))}</td>
                 </tr>
                 ${facture.tva > 0 ? `
                   <tr>
                     <td>TVA (${facture.taux_tva || 0}%)</td>
-                    <td class="amount-col">${parseFloat(facture.tva).toLocaleString('fr-FR')} ${settings.devise || 'FCFA'}</td>
+                    <td class="amount-col">${formatMontant(parseFloat(facture.tva))}</td>
                   </tr>
                 ` : ''}
                 <tr>
                   <td class="total-final">Total TTC</td>
-                  <td class="total-final amount-col">${parseFloat(facture.montant_ttc).toLocaleString('fr-FR')} ${settings.devise || 'FCFA'}</td>
+                  <td class="total-final amount-col">${formatMontant(parseFloat(facture.montant_ttc))}</td>
                 </tr>
               </table>
             </div>
 
             <div class="footer">
-              <p>${settings.document_footer_texte || `Document généré le ${new Date().toLocaleString('fr-FR')}`}</p>
+              <p>${settings.document_footer_texte || `Document généré le ${new Date().toLocaleDateString('fr-FR')} ${new Date().toLocaleTimeString('fr-FR')}`}</p>
               <p style="margin-top: 5px;">
                 ${settings.nom_cabinet} - ${settings.adresse}, ${settings.ville}
                 ${settings.ninea ? ` | NINEA: ${settings.ninea}` : ''}

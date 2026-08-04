@@ -17,6 +17,7 @@ import { ResponsiveContainer, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/useToast';
+import { formatMontant } from '../utils/currency';
 
 const AccountingDashboard = () => {
   const navigate = useNavigate();
@@ -143,8 +144,6 @@ const AccountingDashboard = () => {
       setLoading(false);
     }
   };
-
-  const formatCfa = (amount) => `${(amount || 0).toLocaleString('fr-FR')} FCFA`;
 
   const statusColorByKey = useMemo(() => ({
     payee: '#22C55E',
@@ -423,7 +422,7 @@ const AccountingDashboard = () => {
                 >
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-medium text-gray-700">{b.label}</span>
-                    <span className="text-gray-600">{formatCfa(b.amount)} ({b.count})</span>
+                    <span className="text-gray-600">{formatMontant(b.amount)} ({b.count})</span>
                   </div>
                   <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
@@ -442,7 +441,7 @@ const AccountingDashboard = () => {
 
           {getStatCard(
             "Total facturé",
-            formatCfa(kpis.billed),
+            formatMontant(kpis.billed),
             <Coins className="w-6 h-6 text-green-600" />,
             "bg-green-100",
             null,
@@ -451,7 +450,7 @@ const AccountingDashboard = () => {
           
           {getStatCard(
             "Encaissements",
-            formatCfa(kpis.collected),
+            formatMontant(kpis.collected),
             <Clock className="w-6 h-6 text-yellow-600" />,
             "bg-yellow-100",
             null,
@@ -460,7 +459,7 @@ const AccountingDashboard = () => {
           
           {getStatCard(
             "Reste à encaisser",
-            formatCfa(kpis.remaining),
+            formatMontant(kpis.remaining),
             <AlertCircle className="w-6 h-6 text-red-600" />,
             "bg-red-100",
             null,
@@ -509,7 +508,7 @@ const AccountingDashboard = () => {
                         <div className="text-sm font-medium text-gray-900">{patientName || 'Patient'}</div>
                         <div className="text-xs text-gray-600">{row.count} facture(s)</div>
                       </div>
-                      <div className="text-sm font-semibold text-red-700">{formatCfa(row.amount)}</div>
+                      <div className="text-sm font-semibold text-red-700">{formatMontant(row.amount)}</div>
                     </button>
                   );
                 })}
@@ -692,7 +691,7 @@ const AccountingDashboard = () => {
                       {invoice.patient ? `${invoice.patient.prenom} ${invoice.patient.nom}` : 'Patient inconnu'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCfa(invoice.montant)}
+                      {formatMontant(invoice.montant)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(invoice.statut_paiement)}

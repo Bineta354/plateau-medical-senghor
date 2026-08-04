@@ -263,6 +263,9 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
         ...newPatient,
         assurance_id: assuranceIdToUse
       };
+      
+      // Ne jamais envoyer numero_dossier dans le payload (généré automatiquement par le trigger)
+      delete patientData.numero_dossier;
 
       const { data: createdPatient, error: patientError } = await supabase
         .from('patients')
@@ -633,7 +636,8 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
                             type="text"
                             value={newPatient.numero_dossier}
                             readOnly
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 focus:outline-none"
+                            disabled
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
                             placeholder="Généré automatiquement..."
                           />
                         </div>

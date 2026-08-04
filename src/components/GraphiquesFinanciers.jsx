@@ -4,6 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   AreaChart, Area
 } from 'recharts';
+import { formatMontant } from '../../utils/currency';
 
 // Composant pour les graphiques financiers
 const GraphiquesFinanciers = ({ data, type, title, height = 300 }) => {
@@ -18,7 +19,7 @@ const GraphiquesFinanciers = ({ data, type, title, height = 300 }) => {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis />
-              <Tooltip formatter={(value) => new Intl.NumberFormat('fr-FR').format(value) + ' FCFA'} />
+              <Tooltip formatter={(value) => formatMontant(value)} />
               <Legend />
               <Bar dataKey="value" fill="#8b5cf6" name="Montant" />
             </BarChart>
@@ -32,7 +33,7 @@ const GraphiquesFinanciers = ({ data, type, title, height = 300 }) => {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis />
-              <Tooltip formatter={(value) => new Intl.NumberFormat('fr-FR').format(value) + ' FCFA'} />
+              <Tooltip formatter={(value) => formatMontant(value)} />
               <Legend />
               <Line type="monotone" dataKey="value" stroke="#8b5cf6" name="Montant" strokeWidth={2} />
             </LineChart>
@@ -57,7 +58,7 @@ const GraphiquesFinanciers = ({ data, type, title, height = 300 }) => {
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => new Intl.NumberFormat('fr-FR').format(value) + ' FCFA'} />
+              <Tooltip formatter={(value) => formatMontant(value)} />
             </PieChart>
           </ResponsiveContainer>
         );
@@ -69,7 +70,7 @@ const GraphiquesFinanciers = ({ data, type, title, height = 300 }) => {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis />
-              <Tooltip formatter={(value) => new Intl.NumberFormat('fr-FR').format(value) + ' FCFA'} />
+              <Tooltip formatter={(value) => formatMontant(value)} />
               <Legend />
               <Area type="monotone" dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} name="Montant" />
             </AreaChart>

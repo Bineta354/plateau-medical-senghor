@@ -7,6 +7,7 @@ import {
 import { unifiedNotificationService } from '../../../services/unifiedNotificationService';
 import { updateActe } from '../../../services/consultation/acteService';
 import PropTypes from 'prop-types';
+import { formatMontant } from '../../../utils/currency';
 
 const EditActeModal = ({ acte, onClose, onSave }) => {
 
@@ -92,11 +93,11 @@ const EditActeModal = ({ acte, onClose, onSave }) => {
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-700">Montant total</span>
               <span className="text-lg font-bold text-blue-700">
-                {montantTotal.toLocaleString()} FCFA
+                {formatMontant(montantTotal)}
               </span>
             </div>
             <p className="text-xs text-gray-600 mt-1">
-              {formData.quantite} × {formData.tarif_unitaire.toLocaleString()} FCFA
+              {formData.quantite} × {formatMontant(formData.tarif_unitaire)}
             </p>
           </div>
           <div>

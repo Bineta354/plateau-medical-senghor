@@ -7,6 +7,7 @@ import { useConfirmDialog } from '../../../hooks/useConfirmDialog';
 import PropTypes from 'prop-types';
 import { X } from 'lucide-react';
 import SearchableSelect from '../../common/SearchableSelect';
+import { formatMontant } from '../../../utils/currency';
 
 
 const ActesModal = ({
@@ -244,7 +245,7 @@ return (
                           <span>{option.nom || option.label}</span>
                           {option.tarif > 0 && (
                             <span className="text-xs text-gray-500 ml-2">
-                              {parseFloat(option.tarif).toFixed(2)} FCFA
+                              {formatMontant(option.tarif)}
                             </span>
                           )}
                         </div>
@@ -269,7 +270,7 @@ return (
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-purple-200">
                           <span className="text-xs text-purple-600">Tarif de base:</span>
                           <span className="text-sm font-bold text-purple-900">
-                            {parseFloat(actesList.find(a => a.id === parseInt(acteForm.type_acte_id))?.tarif_defaut || 0).toFixed(2)} FCFA
+                            {formatMontant(actesList.find(a => a.id === parseInt(acteForm.type_acte_id))?.tarif_defaut || 0)}
                           </span>
                         </div>
                       </div>

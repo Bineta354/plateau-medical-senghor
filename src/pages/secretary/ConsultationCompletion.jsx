@@ -21,6 +21,7 @@ import {
   Plus
 } from 'lucide-react';
 import { formatDoctorSpecialties } from '../../utils/doctorUtils';
+import { formatMontant } from '../../utils/currency';
 
 const ConsultationCompletion = () => {
   const { consultationId } = useParams();
@@ -648,10 +649,10 @@ const ConsultationCompletion = () => {
                         </div>
                         <div className="text-right">
                           <p className="font-semibold text-green-600">
-                            {((acte.montant_total || (acte.tarif_unitaire * (acte.quantite || 1)))).toLocaleString('fr-FR')} FCFA
+                            {formatMontant(acte.montant_total || (acte.tarif_unitaire * (acte.quantite || 1)))}
                           </p>
                           <p className="text-sm text-gray-500">
-                            {acte.tarif_unitaire?.toLocaleString('fr-FR')} FCFA / unité
+                            {formatMontant(acte.tarif_unitaire)} / unité
                           </p>
                         </div>
                       </div>
@@ -747,7 +748,7 @@ const ConsultationCompletion = () => {
                           <div key={idx} className="flex justify-between mb-2 text-sm">
                             <span>{ligne.description}:</span>
                             <span className="font-semibold">
-                              {ligne.montant_total?.toLocaleString('fr-FR')} FCFA
+                              {formatMontant(ligne.montant_total)}
                             </span>
                           </div>
                         ))}
@@ -782,11 +783,11 @@ const ConsultationCompletion = () => {
                   <div className="border-t pt-4 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Consultation:</span>
-                      <span>{prixConsultation.toLocaleString('fr-FR')} FCFA</span>
+                      <span>{formatMontant(prixConsultation)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Actes ({actes.length}):</span>
-                      <span>{calculateActesTotal().toLocaleString('fr-FR')} FCFA</span>
+                      <span>{formatMontant(calculateActesTotal())}</span>
                     </div>
                   </div>
 

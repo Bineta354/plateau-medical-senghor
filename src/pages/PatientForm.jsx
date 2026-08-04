@@ -75,17 +75,25 @@ const PatientForm = () => {
 
     try {
       if (isEditMode) {
+        // Ne jamais envoyer numero_dossier dans le payload de mise à jour
+        const updateData = { ...formData };
+        delete updateData.numero_dossier;
+        
         const { error } = await supabase
           .from('patients')
-          .update(formData)
+          .update(updateData)
           .eq('id', patientId);
 
         if (error) throw error;
         unifiedNotificationService.success('Patient modifié avec succès');
       } else {
+        // Ne jamais envoyer numero_dossier dans le payload de création
+        const insertData = { ...formData };
+        delete insertData.numero_dossier;
+        
         const { error } = await supabase
           .from('patients')
-          .insert([formData]);
+          .insert([insertData]);
 
         if (error) throw error;
         unifiedNotificationService.success('Patient ajouté avec succès');
@@ -307,9 +315,9 @@ const PatientForm = () => {
                   type="text"
                   name="numero_dossier"
                   value={formData.numero_dossier}
-                  onChange={handleInputChange}
                   readOnly
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed disabled:cursor-not-allowed disabled:opacity-70"
                   placeholder="Numéro de dossier unique (IPM/CSS)"
                 />
                 <p className="text-xs text-gray-500 mt-1">
