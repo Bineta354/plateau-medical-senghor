@@ -13,10 +13,12 @@ import {
   CheckCircle,
   UserCheck,
   FileImage,
-  Upload
+  Upload,
+  FileText
 } from 'lucide-react';
 import PatientDocumentUploader from './PatientDocumentUploader';
 import DoctorReassignModal from './DoctorReassignModal';
+import AntecedentsMedicaux from '../consultation/AntecedentsMedicaux';
 import {
   computeQueueStats,
   filterActiveQueueItems,
@@ -30,6 +32,7 @@ import {
 } from '../../utils/waitingQueueStatus';
 import ClickableStatCard from '../common/ClickableStatCard';
 import { shouldHidePastAppointment } from '../../utils/appointmentDisplay';
+import * as consultationService from '../../services/consultation/consultationService';
 
 const GlobalWaitingQueue = ({
   doctors,
@@ -50,6 +53,10 @@ const GlobalWaitingQueue = ({
   const [selectedPatientForUpload, setSelectedPatientForUpload] = useState(null);
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [selectedPatientForReassign, setSelectedPatientForReassign] = useState(null);
+  const [showAntecedentsModal, setShowAntecedentsModal] = useState(false);
+  const [selectedPatientForAntecedents, setSelectedPatientForAntecedents] = useState(null);
+  const [antecedents, setAntecedents] = useState([]);
+  const [antecedentsRef, setAntecedentsRef] = useState([]);
 
   useEffect(() => {
     fetchAllData();
@@ -421,6 +428,48 @@ const GlobalWaitingQueue = ({
         type: 'success', 
         duration: 3000 
       });
+    }
+  };
+
+  // Gestion des antécédents
+  const handleViewAntecedents = async (patient) => {
+    setSelectedPatientForAntecedents(patient);
+    await fetchAntecedents(patient.id);
+    await fetchAntecedentsRef();
+    setShowAntecedentsModal(true);
+  };
+
+  const fetchAntecedents = async (patientId) => {
+    try {
+      const { data, error } = await supabase
+        .from('antecedents_patients')
+        .select(`
+          *,
+          antecedents (*)
+        `)
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAntecedents(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des antécédents:', error);
+      setAntecedents([]);
+    }
+  };
+
+  const fetchAntecedentsRef = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('antecedents')
+        .select('*')
+        .order('nom');
+
+      if (error) throw error;
+      setAntecedentsRef(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des références d\'antécédents:', error);
+      setAntecedentsRef([]);
     }
   };
 

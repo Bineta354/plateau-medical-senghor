@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { DocumentTextIcon, CalendarIcon, PrinterIcon } from '@heroicons/react/24/outline';
+import { formatMontant } from '../../utils/currency';
 
 const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
@@ -114,15 +115,15 @@ const ArreteMensuel = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
               <p className="text-sm text-gray-600">Total fonds de caisse</p>
-              <p className="text-xl font-bold text-amber-800">{totalFond.toFixed(0)} F CFA</p>
+              <p className="text-xl font-bold text-amber-800">{formatMontant(totalFond)}</p>
             </div>
             <div className="bg-green-50 p-4 rounded-lg border border-green-200">
               <p className="text-sm text-gray-600">Total encaissements</p>
-              <p className="text-xl font-bold text-green-800">{totalJournalier.toFixed(0)} F CFA</p>
+              <p className="text-xl font-bold text-green-800">{formatMontant(totalJournalier)}</p>
             </div>
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
               <p className="text-sm text-gray-600">Total soldes fin de jour</p>
-              <p className="text-xl font-bold text-blue-800">{totalSolde.toFixed(0)} F CFA</p>
+              <p className="text-xl font-bold text-blue-800">{formatMontant(totalSolde)}</p>
             </div>
           </div>
 
@@ -148,9 +149,9 @@ const ArreteMensuel = () => {
                   data.map((row) => (
                     <tr key={row.date_session} className="hover:bg-gray-50">
                       <td className="px-4 py-3">{row.date_session}</td>
-                      <td className="px-4 py-3 text-right font-medium">{parseFloat(row.fond_caisse || 0).toFixed(0)} F CFA</td>
-                      <td className="px-4 py-3 text-right font-medium">{parseFloat(row.montant_journalier || 0).toFixed(0)} F CFA</td>
-                      <td className="px-4 py-3 text-right font-medium">{parseFloat(row.solde_final || 0).toFixed(0)} F CFA</td>
+                      <td className="px-4 py-3 text-right font-medium">{formatMontant(parseFloat(row.fond_caisse || 0))}</td>
+                      <td className="px-4 py-3 text-right font-medium">{formatMontant(parseFloat(row.montant_journalier || 0))}</td>
+                      <td className="px-4 py-3 text-right font-medium">{formatMontant(parseFloat(row.solde_final || 0))}</td>
                       <td className="px-4 py-3">{row.caissier_nom || '–'}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded text-xs ${row.statut === 'fermee' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>

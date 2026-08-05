@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { CreditCardIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { formatMontant } from '../../utils/currency';
 
 const MODES = [
   { value: 'virement', label: 'Virement' },
@@ -85,7 +86,7 @@ const ReversementBancaire = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const montant = parseFloat(form.montant);
+    const montant = parseFloat(form.montant.toString().replace(/\s/g, ''));
     if (!montant || montant <= 0) {
       setError('Montant invalide');
       return;
@@ -171,11 +172,15 @@ const ReversementBancaire = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Montant (F CFA)</label>
               <input
-                type="number"
+                type="text"
                 min="1"
                 step="1"
-                value={form.montant}
-                onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
+                value={form.montant ? new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(parseFloat(form.montant) || 0).replace(/\u00A0/g, ' ') : ''}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\s/g, '');
+                  const numValue = parseFloat(value) || 0;
+                  setForm((f) => ({ ...f, montant: numValue.toString() }));
+                }}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 required
               />
@@ -298,7 +303,7 @@ const ReversementBancaire = () => {
         <div className="bg-white rounded-xl shadow overflow-hidden">
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
             <span className="font-medium text-gray-700">Historique des reversements</span>
-            <span className="text-sm text-gray-600">Total affiché : {total.toFixed(0)} F CFA</span>
+            <span className="text-sm text-gray-600">Total affiché : {formatMontant(total)}</span>
           </div>
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">
@@ -317,7 +322,7 @@ const ReversementBancaire = () => {
                 list.map((r) => (
                   <tr key={r.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">{r.date_reversement}</td>
-                    <td className="px-4 py-3 text-right font-medium">{parseFloat(r.montant || 0).toFixed(0)} F CFA</td>
+                    <td className="px-4 py-3 text-right font-medium">{formatMontant(parseFloat(r.montant || 0))}</td>
                     <td className="px-4 py-3">{MODES.find((m) => m.value === r.mode)?.label || r.mode}</td>
                     <td className="px-4 py-3">{r.reference_banque || r.banque_nom || '–'}</td>
                     <td className="px-4 py-3">{caissierName(r)}</td>

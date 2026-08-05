@@ -234,7 +234,7 @@ const SuiviCaissiers = () => {
         `${caissierById.get(String(p.caissier_id)).prenom} ${caissierById.get(String(p.caissier_id)).nom}` : '',
       p.factures?.numero_facture || '',
       p.mode_paiement || '',
-      Number(p.montant || 0).toFixed(2)
+      Number(p.montant || 0).toFixed(0)
     ]);
     
     const csv = [headers, ...rows].map(row => row.join(',')).join('\n');

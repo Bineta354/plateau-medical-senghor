@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BarChart3, FileText, Printer } from 'lucide-react';
 import SearchableSelect from '../../components/common/SearchableSelect';
+import { formatMontant } from '../../utils/currency';
 
 const PERIODS = [
   { value: 'all', label: 'Toutes les dates' },
@@ -36,8 +37,10 @@ const Recapitulatif = () => {
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin] = useState('');
   const [filterPatient, setFilterPatient] = useState('');
+  const [filterMedecin, setFilterMedecin] = useState('');
   const [filterCouverture, setFilterCouverture] = useState('');
   const [patients, setPatients] = useState([]);
+  const [medecins, setMedecins] = useState([]);
   const [assurances, setAssurances] = useState([]);
   const [cabinet, setCabinet] = useState(null);
   const [factures, setFactures] = useState([]);
@@ -70,9 +73,10 @@ const Recapitulatif = () => {
         .from('factures')
         .select(`
           id, numero_facture, date_facture, montant_ttc, montant_paye, montant_restant, statut_paiement,
-          patient_id, assurance_id,
+          patient_id, assurance_id, consultation_id,
           patients ( id, nom, prenom, assurance_id, assurances ( id, nom ) ),
-          assurances ( id, nom )
+          assurances ( id, nom ),
+          consultations ( id, medecin_id, medecin:medecin_id ( id, nom, prenom ) )
         `)
         .is('facture_parent_id', null);
 
@@ -80,10 +84,8 @@ const Recapitulatif = () => {
         q = q.gte('date_facture', debut.toISOString().slice(0, 10)).lte('date_facture', fin.toISOString().slice(0, 10));
       }
       if (filterPatient) q = q.eq('patient_id', filterPatient);
-      // Filtre couverture : on ne peut pas filtrer côté serveur (couverture peut être sur le patient) → filtre en JS après
-      if (filterCouverture) {
-        // On récupère toutes les factures de la période puis on filtre par couverture effective (facture ou patient)
-      }
+      // Filtre couverture / médecin : on ne peut pas filtrer côté serveur (couverture peut être sur le
+      // patient, médecin est sur la consultation liée) → on récupère la période puis on filtre en JS.
 
       const { data: rawData, error } = await q.order('date_facture', { ascending: false });
 
@@ -96,9 +98,19 @@ const Recapitulatif = () => {
         return { id: aid, nom: nom || 'Sans couverture' };
       };
 
+      // Médecin = celui de la consultation liée à la facture
+      const getMedecinFacture = (f) => {
+        const medecin = f.consultations?.medecin;
+        if (!medecin) return { id: 'non_attribue', nom: 'Non attribué' };
+        return { id: medecin.id, nom: `${medecin.prenom || ''} ${medecin.nom || ''}`.trim() || `Médecin #${medecin.id}` };
+      };
+
       let data = rawData || [];
       if (filterCouverture) {
         data = data.filter((f) => String(effectiveCouverture(f).id) === String(filterCouverture));
+      }
+      if (filterMedecin) {
+        data = data.filter((f) => String(f.consultations?.medecin_id ?? '') === String(filterMedecin));
       }
       setFactures(data);
 
@@ -124,6 +136,19 @@ const Recapitulatif = () => {
 
       setResumePatient(Object.values(byPatient).filter((r) => r.totalRestant > 0));
       setResumeCouverture(Object.entries(byCouverture).filter(([, t]) => t > 0).map(([nom, total]) => ({ nom, total })));
+      
+      // Extraire les médecins uniques des factures affichées pour le filtre
+      const medecinsMap = new Map();
+      data.forEach(f => {
+        const medecin = f.consultations?.medecin;
+        if (medecin && medecin.id) {
+          medecinsMap.set(medecin.id, medecin);
+        }
+      });
+      const medecinsList = Array.from(medecinsMap.values()).sort((a, b) => 
+        (a.nom || '').localeCompare(b.nom || '')
+      );
+      setMedecins(medecinsList);
     } catch (e) {
       console.error('fetchRecap:', e);
       setFactures([]);
@@ -136,9 +161,10 @@ const Recapitulatif = () => {
 
   useEffect(() => {
     fetchRecap();
-  }, [period, dateDebut, dateFin, filterPatient, filterCouverture]);
+  }, [period, dateDebut, dateFin, filterPatient, filterMedecin, filterCouverture]);
 
   const patientLabel = filterPatient ? patients.find((p) => String(p.id) === String(filterPatient)) : null;
+  const medecinLabel = filterMedecin ? medecins.find((m) => String(m.id) === String(filterMedecin)) : null;
   const couvertureLabel = filterCouverture ? assurances.find((a) => String(a.id) === String(filterCouverture)) : null;
 
   // Couverture effective : facture.assurance_id/assurances si renseignés, sinon patient.assurance_id/assurances (liste des couvertures = source de vérité)
@@ -150,9 +176,11 @@ const Recapitulatif = () => {
 
   const printTitle = filterPatient && patientLabel
     ? `Facture – Patient: ${patientLabel.prenom} ${patientLabel.nom}`
-    : filterCouverture && couvertureLabel
-      ? `Facture – Couverture: ${couvertureLabel.nom}`
-      : 'Factures (période / filtres)';
+    : filterMedecin && medecinLabel
+      ? `Facture – Médecin: Dr. ${medecinLabel.prenom} ${medecinLabel.nom}`
+      : filterCouverture && couvertureLabel
+        ? `Facture – Couverture: ${couvertureLabel.nom}`
+        : 'Factures (période / filtres)';
 
   const totalTTC = factures.reduce((s, f) => s + parseFloat(f.montant_ttc || 0), 0);
   const totalPaye = factures.reduce((s, f) => s + parseFloat(f.montant_paye || 0), 0);
@@ -223,16 +251,19 @@ const Recapitulatif = () => {
     const dateStr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
     const { debut, fin } = getDateRange(period, dateDebut, dateFin);
     const periodLabel = period === 'all' ? 'Toutes les dates' : period === 'day' ? 'Jour' : period === 'month' ? 'Mois' : `Du ${debut.toLocaleDateString('fr-FR')} au ${fin.toLocaleDateString('fr-FR')}`;
+    const formatNumberOnly = (val) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(val).replace(/\u00A0/g, ' ');
     const rows = factures.map((f) => {
       const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0)));
       const patientNom = f.patients ? `${f.patients.prenom || ''} ${f.patients.nom || ''}`.trim() : '–';
+      const medecin = f.consultations?.medecin ? `${f.consultations.medecin.prenom || ''} ${f.consultations.medecin.nom || ''}`.trim() : '–';
       return `<tr>
         <td>${f.numero_facture || ''}</td>
         <td>${f.date_facture ? new Date(f.date_facture).toLocaleDateString('fr-FR') : ''}</td>
         <td>${patientNom}</td>
-        <td style="text-align:right">${parseFloat(f.montant_ttc || 0).toFixed(0)}</td>
-        <td style="text-align:right">${parseFloat(f.montant_paye || 0).toFixed(0)}</td>
-        <td style="text-align:right">${restant.toFixed(0)}</td>
+        <td>${medecin}</td>
+        <td style="text-align:right">${formatNumberOnly(parseFloat(f.montant_ttc || 0))}</td>
+        <td style="text-align:right">${formatNumberOnly(parseFloat(f.montant_paye || 0))}</td>
+        <td style="text-align:right">${formatNumberOnly(restant)}</td>
       </tr>`;
     }).join('');
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facture globale – Tous les patients</title><style>${factureCss}</style></head><body>
@@ -254,13 +285,13 @@ const Recapitulatif = () => {
       <p>Date d'édition : ${dateStr}</p>
     </div>
     <table>
-      <thead><tr><th>N° facture</th><th>Date</th><th>Patient</th><th>TTC (F CFA)</th><th>Payé (F CFA)</th><th>Reste (F CFA)</th></tr></thead>
+      <thead><tr><th>N° facture</th><th>Date</th><th>Patient</th><th>Médecin</th><th>TTC (F CFA)</th><th>Payé (F CFA)</th><th>Reste (F CFA)</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="totaux">
-      <p><strong>Total TTC :</strong> ${totalTTC.toFixed(0)} F CFA</p>
-      <p><strong>Total payé :</strong> ${totalPaye.toFixed(0)} F CFA</p>
-      <p><strong>Total restant :</strong> ${totalRestant.toFixed(0)} F CFA</p>
+      <p><strong>Total TTC :</strong> ${formatCurrency(totalTTC)}</p>
+      <p><strong>Total payé :</strong> ${formatCurrency(totalPaye)}</p>
+      <p><strong>Total restant :</strong> ${formatCurrency(totalRestant)}</p>
     </div>
     <div class="footer">Document généré depuis le récapitulatif caisse.</div>
     ${doPrint ? '<script>window.onload=function(){setTimeout(function(){window.print();},400);}</script>' : ''}
@@ -282,11 +313,12 @@ const Recapitulatif = () => {
       byPatient[pid].totalPaye += paye;
       byPatient[pid].totalRestant += restant;
     });
+    const formatNumberOnly = (val) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(val).replace(/\u00A0/g, ' ');
     const rows = Object.values(byPatient).map((row) => `
       <tr>
         <td>${row.patient?.prenom || ''} ${row.patient?.nom || ''}</td>
-        <td style="text-align:right">${row.totalPaye.toFixed(0)}</td>
-        <td style="text-align:right">${row.totalRestant.toFixed(0)}</td>
+        <td style="text-align:right">${formatNumberOnly(row.totalPaye)}</td>
+        <td style="text-align:right">${formatNumberOnly(row.totalRestant)}</td>
       </tr>`).join('');
     const totalPayeC = listFactures.reduce((s, f) => s + parseFloat(f.montant_paye || 0), 0);
     const totalRestantC = listFactures.reduce((s, f) => s + parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0))), 0);
@@ -313,9 +345,9 @@ const Recapitulatif = () => {
       <tbody>${rows}</tbody>
     </table>
     <div class="totaux">
-      <p><strong>Total somme partielle :</strong> ${totalPayeC.toFixed(0)} F CFA</p>
-      <p><strong>Total reste à payer :</strong> ${totalRestantC.toFixed(0)} F CFA</p>
-      <p><strong>Somme totale due par la couverture :</strong> ${(totalPayeC + totalRestantC).toFixed(0)} F CFA</p>
+      <p><strong>Total somme partielle :</strong> ${formatCurrency(totalPayeC)}</p>
+      <p><strong>Total reste à payer :</strong> ${formatCurrency(totalRestantC)}</p>
+      <p><strong>Somme totale due par la couverture :</strong> ${formatCurrency(totalPayeC + totalRestantC)}</p>
     </div>
     <div class="footer">Document généré depuis le récapitulatif caisse.</div>
     ${doPrint ? '<script>window.onload=function(){setTimeout(function(){window.print();},400);}</script>' : ''}
@@ -342,27 +374,30 @@ const Recapitulatif = () => {
           <p><strong>${patientLabel.prenom} ${patientLabel.nom}</strong></p>
           ${datesConsultation ? `<p><strong>Date(s) de facturation :</strong> ${datesConsultation}</p>` : ''}
         </div>`;
+      const formatNumberOnly = (val) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(val).replace(/\u00A0/g, ' ');
       tableRows = factures.map((f) => {
         const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0)));
+        const medecin = f.consultations?.medecin ? `${f.consultations.medecin.prenom || ''} ${f.consultations.medecin.nom || ''}`.trim() : '–';
         return `<tr>
           <td>${f.numero_facture || ''}</td>
           <td>${f.date_facture ? new Date(f.date_facture).toLocaleDateString('fr-FR') : ''}</td>
-          <td style="text-align:right">${parseFloat(f.montant_paye || 0).toFixed(0)}</td>
-          <td style="text-align:right">${restant.toFixed(0)}</td>
+          <td>${medecin}</td>
+          <td style="text-align:right">${formatNumberOnly(parseFloat(f.montant_paye || 0))}</td>
+          <td style="text-align:right">${formatNumberOnly(restant)}</td>
         </tr>`;
       }).join('');
       totauxSection = `
-        <p><strong>Somme partielle payée :</strong> ${totalPaye.toFixed(0)} F CFA</p>
-        <p><strong>Somme restante à payer :</strong> ${totalRestant.toFixed(0)} F CFA</p>
-        <p><strong>Somme totale payée :</strong> ${totalPaye.toFixed(0)} F CFA</p>
-        <p><strong>Total TTC :</strong> ${totalTTC.toFixed(0)} F CFA</p>`;
+        <p><strong>Somme partielle payée :</strong> ${formatCurrency(totalPaye)}</p>
+        <p><strong>Somme restante à payer :</strong> ${formatCurrency(totalRestant)}</p>
+        <p><strong>Somme totale payée :</strong> ${formatCurrency(totalPaye)}</p>
+        <p><strong>Total TTC :</strong> ${formatCurrency(totalTTC)}</p>`;
       if (tauxCouverture > 0 && patientAssurance) {
         couvertureSection = `
         <div class="couverture-section">
           <h3>Détails de couverture</h3>
           <p><strong>Couverture :</strong> ${patientAssurance.nom || '–'}</p>
           <p><strong>Pourcentage de couverture :</strong> ${tauxCouverture} %</p>
-          <p><strong>Montant à charge de la couverture :</strong> ${montantChargeCouverture.toFixed(0)} F CFA</p>
+          <p><strong>Montant à charge de la couverture :</strong> ${formatCurrency(montantChargeCouverture)}</p>
         </div>`;
       }
     } else if (type === 'couverture' && couvertureLabel) {
@@ -373,22 +408,23 @@ const Recapitulatif = () => {
           <p>Date d'édition : ${dateStr}</p>
           <p>Caissier : ${caissierLabel}</p>
         </div>`;
+      const formatNumberOnly = (val) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(val).replace(/\u00A0/g, ' ');
       tableRows = facturesByPatientCouverture.map((row) => `
         <tr>
           <td>${row.patient?.prenom || ''} ${row.patient?.nom || ''}</td>
-          <td style="text-align:right">${row.totalPaye.toFixed(0)}</td>
-          <td style="text-align:right">${row.totalRestant.toFixed(0)}</td>
+          <td style="text-align:right">${formatNumberOnly(row.totalPaye)}</td>
+          <td style="text-align:right">${formatNumberOnly(row.totalRestant)}</td>
         </tr>`).join('');
       const totalPayeCouv = facturesByPatientCouverture.reduce((s, r) => s + r.totalPaye, 0);
       const totalRestantCouv = facturesByPatientCouverture.reduce((s, r) => s + r.totalRestant, 0);
       totauxSection = `
-        <p><strong>Total somme partielle :</strong> ${totalPayeCouv.toFixed(0)} F CFA</p>
-        <p><strong>Total reste à payer :</strong> ${totalRestantCouv.toFixed(0)} F CFA</p>
-        <p><strong>Somme totale due par la couverture :</strong> ${(totalPayeCouv + totalRestantCouv).toFixed(0)} F CFA</p>`;
+        <p><strong>Total somme partielle :</strong> ${formatNumberOnly(totalPayeCouv)}</p>
+        <p><strong>Total reste à payer :</strong> ${formatNumberOnly(totalRestantCouv)}</p>
+        <p><strong>Somme totale due par la couverture :</strong> ${formatCurrency(totalPayeCouv + totalRestantCouv)}</p>`;
     }
 
     const tableHeader = type === 'patient'
-      ? '<tr><th>N° facture</th><th>Date</th><th>Somme partielle payée (F CFA)</th><th>Somme restante (F CFA)</th></tr>'
+      ? '<tr><th>N° facture</th><th>Date</th><th>Médecin</th><th>Somme partielle payée (F CFA)</th><th>Somme restante (F CFA)</th></tr>'
       : '<tr><th>Patient</th><th>Somme partielle payée (F CFA)</th><th>Reste à payer (F CFA)</th></tr>';
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facture – ${type}</title>
@@ -551,6 +587,25 @@ const Recapitulatif = () => {
           </div>
           <div>
             <SearchableSelect
+              label="Médecin"
+              options={[
+                { id: '', label: 'Tous' },
+                ...medecins.map((m) => ({
+                  id: m.id,
+                  label: `${m.prenom || ''} ${m.nom || ''}`.trim() || `Médecin #${m.id}`,
+                  prenom: m.prenom,
+                  nom: m.nom,
+                })),
+              ]}
+              value={filterMedecin}
+              onChange={(id) => setFilterMedecin(id ?? '')}
+              placeholder="Tous les médecins"
+              searchPlaceholder="Taper pour filtrer (ex. A...)"
+              emptyMessage="Aucun médecin trouvé"
+            />
+          </div>
+          <div>
+            <SearchableSelect
               label="Couverture"
               options={[
                 { id: '', label: 'Toutes' },
@@ -605,7 +660,7 @@ const Recapitulatif = () => {
                       resumePatient.map((r, idx) => (
                         <tr key={r.patient?.id ?? `p-${idx}`} className="hover:bg-gray-50">
                           <td className="px-3 py-2">{r.patient?.prenom} {r.patient?.nom}</td>
-                          <td className="px-3 py-2 text-right font-medium text-amber-700">{r.totalRestant.toFixed(0)}</td>
+                          <td className="px-3 py-2 text-right font-medium text-amber-700">{formatMontant(r.totalRestant)}</td>
                         </tr>
                       ))
                     )}
@@ -630,7 +685,7 @@ const Recapitulatif = () => {
                       resumeCouverture.map((r) => (
                         <tr key={r.nom} className="hover:bg-gray-50">
                           <td className="px-3 py-2">{r.nom}</td>
-                          <td className="px-3 py-2 text-right font-medium text-amber-700">{r.total.toFixed(0)}</td>
+                          <td className="px-3 py-2 text-right font-medium text-amber-700">{formatMontant(r.total)}</td>
                         </tr>
                       ))
                     )}
@@ -653,15 +708,15 @@ const Recapitulatif = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div className="text-sm p-4 bg-gray-50 rounded-lg">
                   <p className="font-semibold text-gray-800">Total TTC</p>
-                  <p className="text-lg">{totalTTC.toFixed(0)} F CFA</p>
+                  <p className="text-lg">{formatMontant(totalTTC)}</p>
                 </div>
                 <div className="text-sm p-4 bg-green-50 rounded-lg">
                   <p className="font-semibold text-gray-800">Total payé</p>
-                  <p className="text-lg text-green-700">{totalPaye.toFixed(0)} F CFA</p>
+                  <p className="text-lg text-green-700">{formatMontant(totalPaye)}</p>
                 </div>
                 <div className="text-sm p-4 bg-amber-50 rounded-lg">
                   <p className="font-semibold text-gray-800">Total restant</p>
-                  <p className="text-lg text-amber-700">{totalRestant.toFixed(0)} F CFA</p>
+                  <p className="text-lg text-amber-700">{formatMontant(totalRestant)}</p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-3 border-t border-gray-200 pt-4">
@@ -701,8 +756,8 @@ const Recapitulatif = () => {
                       <tr key={couv.id} className="hover:bg-gray-50">
                         <td className="px-3 py-2 font-medium">{couv.nom}</td>
                         <td className="px-3 py-2 text-right">{couv.factures.length}</td>
-                        <td className="px-3 py-2 text-right text-green-700">{couv.totalPaye.toFixed(0)}</td>
-                        <td className="px-3 py-2 text-right text-amber-700">{couv.totalRestant.toFixed(0)}</td>
+                        <td className="px-3 py-2 text-right text-green-700">{formatMontant(couv.totalPaye)}</td>
+                        <td className="px-3 py-2 text-right text-amber-700">{formatMontant(couv.totalRestant)}</td>
                         <td className="px-3 py-2">
                           <div className="flex flex-wrap justify-center gap-2">
                             <button type="button" onClick={() => handleGenererFactureCouverture(couv)} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-white border border-emerald-600 text-emerald-600 rounded hover:bg-emerald-50">
@@ -746,8 +801,8 @@ const Recapitulatif = () => {
                         <tr key={f.id}>
                           <td className="px-3 py-2">{f.numero_facture}</td>
                           <td className="px-3 py-2">{f.date_facture ? new Date(f.date_facture).toLocaleDateString('fr-FR') : ''}</td>
-                          <td className="px-3 py-2 text-right">{parseFloat(f.montant_paye || 0).toFixed(0)}</td>
-                          <td className="px-3 py-2 text-right font-medium text-amber-700">{restant.toFixed(0)}</td>
+                          <td className="px-3 py-2 text-right">{formatMontant(parseFloat(f.montant_paye || 0))}</td>
+                          <td className="px-3 py-2 text-right font-medium text-amber-700">{formatMontant(restant)}</td>
                         </tr>
                       );
                     })}
@@ -757,16 +812,16 @@ const Recapitulatif = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="text-sm p-4 bg-gray-50 rounded-lg">
                   <p className="font-semibold text-gray-800 mb-2">Totaux globaux</p>
-                  <p><strong>Total somme partielle payée :</strong> {totalPaye.toFixed(0)} F CFA</p>
-                  <p><strong>Total somme restante à payer :</strong> <span className="text-amber-700 font-semibold">{totalRestant.toFixed(0)} F CFA</span></p>
-                  <p><strong>Somme totale payée :</strong> {totalPaye.toFixed(0)} F CFA</p>
+                  <p><strong>Total somme partielle payée :</strong> {formatMontant(totalPaye)}</p>
+                  <p><strong>Total somme restante à payer :</strong> <span className="text-amber-700 font-semibold">{formatMontant(totalRestant)}</span></p>
+                  <p><strong>Somme totale payée :</strong> {formatMontant(totalPaye)}</p>
                 </div>
                 {tauxCouverture > 0 && patientAssurance && (
                   <div className="text-sm p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <p className="font-semibold text-gray-800 mb-2">Couverture médicale</p>
                     <p><strong>Couverture :</strong> {patientAssurance.nom}</p>
                     <p><strong>Pourcentage de couverture :</strong> {tauxCouverture} %</p>
-                    <p><strong>Montant à charge de la couverture :</strong> {montantChargeCouverture.toFixed(0)} F CFA</p>
+                    <p><strong>Montant à charge de la couverture :</strong> {formatMontant(montantChargeCouverture)}</p>
                   </div>
                 )}
               </div>
@@ -802,8 +857,8 @@ const Recapitulatif = () => {
                     {facturesByPatientCouverture.map((row, idx) => (
                       <tr key={row.patient?.id ?? idx}>
                         <td className="px-3 py-2">{row.patient?.prenom} {row.patient?.nom}</td>
-                        <td className="px-3 py-2 text-right">{row.totalPaye.toFixed(0)}</td>
-                        <td className="px-3 py-2 text-right font-medium text-amber-700">{row.totalRestant.toFixed(0)}</td>
+                        <td className="px-3 py-2 text-right">{formatMontant(row.totalPaye)}</td>
+                        <td className="px-3 py-2 text-right font-medium text-amber-700">{formatMontant(row.totalRestant)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -811,9 +866,9 @@ const Recapitulatif = () => {
               </div>
               <div className="text-sm p-4 bg-gray-50 rounded-lg mb-4">
                 <p className="font-semibold text-gray-800 mb-2">Totaux globaux</p>
-                <p><strong>Total somme partielle :</strong> {facturesByPatientCouverture.reduce((s, r) => s + r.totalPaye, 0).toFixed(0)} F CFA</p>
-                <p><strong>Total reste à payer :</strong> <span className="text-amber-700 font-semibold">{facturesByPatientCouverture.reduce((s, r) => s + r.totalRestant, 0).toFixed(0)} F CFA</span></p>
-                <p><strong>Somme totale due par la couverture :</strong> {facturesByPatientCouverture.reduce((s, r) => s + r.totalPaye + r.totalRestant, 0).toFixed(0)} F CFA</p>
+                <p><strong>Total somme partielle :</strong> {formatMontant(facturesByPatientCouverture.reduce((s, r) => s + r.totalPaye, 0))}</p>
+                <p><strong>Total reste à payer :</strong> <span className="text-amber-700 font-semibold">{formatMontant(facturesByPatientCouverture.reduce((s, r) => s + r.totalRestant, 0))}</span></p>
+                <p><strong>Somme totale due par la couverture :</strong> {formatMontant(facturesByPatientCouverture.reduce((s, r) => s + r.totalPaye + r.totalRestant, 0))}</p>
               </div>
               <div className="flex flex-wrap gap-3 border-t border-gray-200 pt-4">
                 <button type="button" onClick={handleGenererFacture} className="flex items-center gap-2 px-4 py-2 bg-white border border-emerald-600 text-emerald-600 rounded-lg hover:bg-emerald-50">
@@ -855,6 +910,7 @@ const Recapitulatif = () => {
                     <th className="px-4 py-3 text-left font-medium text-gray-700">N° facture</th>
                     <th className="px-4 py-3 text-left font-medium text-gray-700">Date</th>
                     <th className="px-4 py-3 text-left font-medium text-gray-700">Patient</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-700">Médecin</th>
                     <th className="px-4 py-3 text-left font-medium text-gray-700">Couverture</th>
                     <th className="px-4 py-3 text-right font-medium text-gray-700">TTC</th>
                     <th className="px-4 py-3 text-right font-medium text-gray-700">Payé</th>
@@ -865,19 +921,21 @@ const Recapitulatif = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {factures.length === 0 ? (
-                    <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-500">Aucune facture.</td></tr>
+                    <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-500">Aucune facture.</td></tr>
                   ) : (
                     facturesToShow.map((f) => {
                       const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0)));
+                      const medecin = f.consultations?.medecin ? `${f.consultations.medecin.prenom || ''} ${f.consultations.medecin.nom || ''}`.trim() : '–';
                       return (
                         <tr key={f.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3">{f.numero_facture}</td>
                           <td className="px-4 py-3">{f.date_facture}</td>
                           <td className="px-4 py-3">{f.patients?.prenom} {f.patients?.nom}</td>
+                          <td className="px-4 py-3">{medecin}</td>
                           <td className="px-4 py-3">{getCouvertureFacture(f).nom}</td>
-                          <td className="px-4 py-3 text-right">{parseFloat(f.montant_ttc || 0).toFixed(0)}</td>
-                          <td className="px-4 py-3 text-right">{parseFloat(f.montant_paye || 0).toFixed(0)}</td>
-                          <td className="px-4 py-3 text-right font-medium text-amber-700">{restant.toFixed(0)}</td>
+                          <td className="px-4 py-3 text-right">{formatMontant(parseFloat(f.montant_ttc || 0))}</td>
+                          <td className="px-4 py-3 text-right">{formatMontant(parseFloat(f.montant_paye || 0))}</td>
+                          <td className="px-4 py-3 text-right font-medium text-amber-700">{formatMontant(restant)}</td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-0.5 rounded text-xs ${
                               f.statut_paiement === 'paye' ? 'bg-green-100 text-green-800' :

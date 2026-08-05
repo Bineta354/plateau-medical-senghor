@@ -75,7 +75,7 @@ const ETAPES_MOBILE_MONEY = (nom, montant) => [
   `1. Ouvrez l'application ${nom} sur votre téléphone.`,
   `2. Choisissez « Payer » ou « Paiement marchand ».`,
   `3. Scannez le QR code du caissier ou saisissez le code / numéro affiché.`,
-  `4. Montant à payer : ${Number(montant).toFixed(0)} F CFA — vérifiez et validez.`,
+  `4. Montant à payer : ${formatMontant(Number(montant))} — vérifiez et validez.`,
   `5. Validez le paiement puis montrez l'écran de confirmation au caissier.`,
 ];
 
@@ -803,12 +803,13 @@ const Caisse = () => {
     ];
     const rows = detailsJournee.lignes.map((l) => {
       const d = l.date_paiement ? new Date(l.date_paiement) : null;
+      const formatNumberOnly = (val) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(val).replace(/\u00A0/g, ' ');
       return [
         `${l.patient?.prenom || ''} ${l.patient?.nom || ''}`.trim(),
         l.numero_facture,
-        l.montant_facture.toFixed(0),
-        l.partPatient.toFixed(0),
-        l.partCouverture.toFixed(0),
+        formatNumberOnly(l.montant_facture),
+        formatNumberOnly(l.partPatient),
+        formatNumberOnly(l.partCouverture),
         MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement,
         d ? d.toLocaleDateString('fr-FR') : '',
         d ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '',
@@ -834,12 +835,13 @@ const Caisse = () => {
     ];
     const rows = historiquePatientData.lignes.map((l) => {
       const d = l.date_paiement ? new Date(l.date_paiement) : null;
+      const formatNumberOnly = (val) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(val).replace(/\u00A0/g, ' ');
       return [
         l.numero_facture,
         d ? d.toLocaleDateString('fr-FR') : '',
-        l.montant_ttc.toFixed(0),
-        l.partPatient.toFixed(0),
-        l.partCouverture.toFixed(0),
+        formatNumberOnly(l.montant_ttc),
+        formatNumberOnly(l.partPatient),
+        formatNumberOnly(l.partCouverture),
         l.assurance || '',
         MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement,
       ];
@@ -864,13 +866,14 @@ const Caisse = () => {
     ];
     const rows = historiqueCouvertureData.lignes.map((l) => {
       const d = l.date_paiement ? new Date(l.date_paiement) : null;
+      const formatNumberOnly = (val) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(val).replace(/\u00A0/g, ' ');
       return [
         d ? d.toLocaleDateString('fr-FR') : '',
         l.patient,
         l.numero_facture,
-        l.montant_ttc.toFixed(0),
-        l.partPatient.toFixed(0),
-        l.partCouverture.toFixed(0),
+        formatNumberOnly(l.montant_ttc),
+        formatNumberOnly(l.partPatient),
+        formatNumberOnly(l.partCouverture),
         MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement,
       ];
     });
@@ -1164,7 +1167,7 @@ const Caisse = () => {
       setFondCaisseInput('');
       await fetchSessionCaisse();
       fetchEtatCaisse();
-      unifiedNotificationService.success(`Caisse ouverte avec un fond de ${fondCaisse.toFixed(0)} F CFA`);
+      unifiedNotificationService.success(`Caisse ouverte avec un fond de ${formatMontant(fondCaisse)}`);
     } catch (err) {
       console.error('handleOpenCaisse:', err);
       unifiedNotificationService.error('Erreur lors de l\'ouverture de la caisse: ' + (err?.message || err));
@@ -1195,7 +1198,7 @@ const Caisse = () => {
       setShowCloseCaisseModal(false);
       await fetchSessionCaisse();
       fetchEtatCaisse();
-      unifiedNotificationService.success(`Caisse fermée. Montant journalier: ${parseFloat(data.montant_journalier || 0).toFixed(0)} F CFA`);
+      unifiedNotificationService.success(`Caisse fermée. Montant journalier: ${formatMontant(data.montant_journalier || 0)}`);
     } catch (err) {
       console.error('handleCloseCaisse:', err);
       unifiedNotificationService.error('Erreur lors de la fermeture de la caisse: ' + (err?.message || err));
@@ -1343,17 +1346,17 @@ const Caisse = () => {
       <p><strong>Caissier :</strong> ${caissierLabel}</p>
     </div>
     <table>
-      <thead><tr><th>Désignation</th><th style="text-align:right">Montant (F CFA)</th></tr></thead>
+      <thead><tr><th>Désignation</th><th style="text-align:right">Montant</th></tr></thead>
       <tbody>
-        <tr><td>Montant total TTC</td><td style="text-align:right">${montantTtc.toFixed(0)}</td></tr>
-        <tr><td>Montant payé (ce paiement)</td><td style="text-align:right">${montantPaye.toFixed(0)}</td></tr>
+        <tr><td>Montant total TTC</td><td style="text-align:right">${formatMontant(montantTtc)}</td></tr>
+        <tr><td>Montant payé (ce paiement)</td><td style="text-align:right">${formatMontant(montantPaye)}</td></tr>
         <tr><td>Mode de paiement</td><td style="text-align:right">${modeLabel}</td></tr>
-        ${montantAssuranceVal > 0 ? `<tr><td>Part couverture (${nomCouvertureVal || 'Assurance'})</td><td style="text-align:right">${Number(montantAssuranceVal).toFixed(0)}</td></tr>` : ''}
-        <tr><td><strong>Reste à payer</strong></td><td style="text-align:right"><strong>${montantRestant.toFixed(0)}</strong></td></tr>
+        ${montantAssuranceVal > 0 ? `<tr><td>Part couverture (${nomCouvertureVal || 'Assurance'})</td><td style="text-align:right">${formatMontant(Number(montantAssuranceVal))}</td></tr>` : ''}
+        <tr><td><strong>Reste à payer</strong></td><td style="text-align:right"><strong>${formatMontant(montantRestant)}</strong></td></tr>
       </tbody>
     </table>
     <div class="totaux">
-      <p><strong>Montant encaissé :</strong> ${montantPaye.toFixed(0)} F CFA</p>
+      <p><strong>Montant encaissé :</strong> ${formatMontant(montantPaye)}</p>
     </div>
     <div class="footer">Document généré depuis la caisse – Paiement enregistré le ${dateStr}.</div>
     ${doPrint ? '<script>window.onload=function(){setTimeout(function(){window.print();},400);}</script>' : ''}
@@ -1522,13 +1525,13 @@ const Caisse = () => {
 
           <div className="mb-4">
             <h3 className="font-semibold border-b border-gray-300 pb-1 mb-2">Paiement</h3>
-            <div className="flex justify-between"><span>Montant total</span><span>{parseFloat(facture.montant_ttc || 0).toFixed(2)} F CFA</span></div>
-            <div className="flex justify-between"><span>Montant payé (patient)</span><span>{parseFloat(paiement.montant_paye || 0).toFixed(2)} F CFA</span></div>
+            <div className="flex justify-between"><span>Montant total</span><span>{formatMontant(facture.montant_ttc || 0)}</span></div>
+            <div className="flex justify-between"><span>Montant payé (patient)</span><span>{formatMontant(paiement.montant_paye || 0)}</span></div>
             <div className="flex justify-between"><span>Mode</span><span>{MODES_PAIEMENT.find((m) => m.value === paiement.mode_paiement)?.label || paiement.mode_paiement}</span></div>
             {montantAssurance > 0 && (
               <div className="flex justify-between mt-2 pt-2 border-t border-gray-200">
                 <span>Part {nomCouverture}</span>
-                <span>{parseFloat(montantAssurance).toFixed(2)} F CFA</span>
+                <span>{formatMontant(montantAssurance)}</span>
               </div>
             )}
           </div>
@@ -1624,22 +1627,22 @@ const Caisse = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
                 <p className="text-sm text-gray-600">Fond de caisse</p>
-                <p className="text-xl font-bold text-yellow-800">{parseFloat(sessionCaisse.fond_caisse || 0).toFixed(0)} F CFA</p>
+                <p className="text-xl font-bold text-yellow-800">{formatMontant(sessionCaisse.fond_caisse || 0)}</p>
                 <p className="text-xs text-gray-500 mt-1">Ouvert le {new Date(sessionCaisse.heure_ouverture).toLocaleString('fr-FR')}</p>
               </div>
               <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                 <p className="text-sm text-gray-600">Total journée</p>
-                <p className="text-xl font-bold text-green-800">{etatCaisse.totalAujourdhui.toFixed(0)} F CFA</p>
+                <p className="text-xl font-bold text-green-800">{formatMontant(etatCaisse.totalAujourdhui)}</p>
                 <p className="text-xs text-gray-500 mt-1">Paiements aujourd'hui</p>
               </div>
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 <p className="text-sm text-gray-600">Solde actuel</p>
-                <p className="text-xl font-bold text-blue-800">{etatCaisse.solde.toFixed(0)} F CFA</p>
+                <p className="text-xl font-bold text-blue-800">{formatMontant(etatCaisse.solde)}</p>
                 <p className="text-xs text-gray-500 mt-1">Fond + Total journée</p>
               </div>
               <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
                 <p className="text-sm text-gray-600">Ce mois</p>
-                <p className="text-xl font-bold text-purple-800">{etatCaisse.totalMois.toFixed(0)} F CFA</p>
+                <p className="text-xl font-bold text-purple-800">{formatMontant(etatCaisse.totalMois)}</p>
                 <p className="text-xs text-gray-500 mt-1">Total mensuel</p>
               </div>
             </div>
@@ -1648,7 +1651,7 @@ const Caisse = () => {
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(etatCaisse.parModePaiement).filter(([, v]) => v > 0).map(([k, v]) => (
                   <span key={k} className="text-xs bg-white px-2 py-1 rounded border border-gray-200">
-                    {MODES_PAIEMENT.find((m) => m.value === k)?.label || k} <strong>{v.toFixed(0)} F CFA</strong>
+                    {MODES_PAIEMENT.find((m) => m.value === k)?.label || k} <strong>{formatMontant(v)}</strong>
                   </span>
                 ))}
               </div>
@@ -1726,22 +1729,22 @@ const Caisse = () => {
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                     <div className="bg-blue-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-600">Total factures (jour)</p>
-                      <p className="text-xl font-bold text-blue-800">{detailsJournee.totals.factures.toFixed(0)} F CFA</p>
+                      <p className="text-xl font-bold text-blue-800">{formatMontant(detailsJournee.totals.factures)}</p>
                     </div>
                     <div className="bg-green-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-600">Part patient</p>
-                      <p className="text-xl font-bold text-green-800">{detailsJournee.totals.patient.toFixed(0)} F CFA</p>
+                      <p className="text-xl font-bold text-green-800">{formatMontant(detailsJournee.totals.patient)}</p>
                     </div>
                     <div className="bg-amber-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-600">Part couverture (IPM / assurance / mutuelle)</p>
-                      <p className="text-xl font-bold text-amber-800">{detailsJournee.totals.couverture.toFixed(0)} F CFA</p>
+                      <p className="text-xl font-bold text-amber-800">{formatMontant(detailsJournee.totals.couverture)}</p>
                     </div>
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <p className="text-sm text-gray-600">Par mode (jour)</p>
                       <div className="flex flex-wrap gap-1.5 mt-1">
                         {Object.entries(etatCaisse.parModePaiement).filter(([, v]) => v > 0).map(([k, v]) => (
                           <span key={k} className="text-xs bg-white px-2 py-0.5 rounded border border-gray-200">
-                            {MODES_PAIEMENT.find((m) => m.value === k)?.label || k} {v.toFixed(0)} F CFA
+                            {MODES_PAIEMENT.find((m) => m.value === k)?.label || k} {formatMontant(v)}
                           </span>
                         ))}
                       </div>
@@ -1779,9 +1782,9 @@ const Caisse = () => {
                               {l.assurance && <div className="text-xs text-blue-700">{l.assurance.nom} ({l.assurance.taux_remboursement}%)</div>}
                             </td>
                             <td className="px-3 py-2">{l.numero_facture}</td>
-                            <td className="px-3 py-2 font-medium">{l.montant_facture.toFixed(0)} F CFA</td>
-                            <td className="px-3 py-2">{l.partPatient.toFixed(0)} F CFA</td>
-                            <td className="px-3 py-2">{l.partCouverture.toFixed(0)} F CFA</td>
+                            <td className="px-3 py-2 font-medium">{formatMontant(l.montant_facture)}</td>
+                            <td className="px-3 py-2">{formatMontant(l.partPatient)}</td>
+                            <td className="px-3 py-2">{formatMontant(l.partCouverture)}</td>
                             <td className="px-3 py-2">{MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement}</td>
                             <td className="px-3 py-2">{l.date_paiement ? new Date(l.date_paiement).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '–'}</td>
                           </tr>
@@ -1820,7 +1823,7 @@ const Caisse = () => {
                   className="w-full px-4 py-3 text-left hover:bg-blue-50 flex justify-between items-center"
                 >
                   <span className="font-medium">{s.prenom} {s.nom}</span>
-                  <span className="text-sm text-gray-500">{s.numero_facture} – {parseFloat(s.montant_ttc || 0).toFixed(2)} F CFA</span>
+                  <span className="text-sm text-gray-500">{s.numero_facture} – {formatMontant(s.montant_ttc || 0)}</span>
                 </button>
               ))}
             </div>
@@ -1884,7 +1887,7 @@ const Caisse = () => {
                         <td className="px-4 py-3"><span className="font-medium">{p?.prenom} {p?.nom}</span><br /><span className="text-xs text-gray-500">{p?.numero_secu}</span></td>
                         <td className="px-4 py-3 text-sm">{f.numero_facture}</td>
                         <td className="px-4 py-3 text-sm">{dt ? dt.toLocaleDateString('fr-FR') : '–'}</td>
-                        <td className="px-4 py-3 font-medium">{parseFloat(f.montant_ttc || 0).toFixed(2)} F CFA</td>
+                        <td className="px-4 py-3 font-medium">{formatMontant(f.montant_ttc || 0)}</td>
                         <td className="px-4 py-3">{getStatusBadge(statut, f.montant_paye, f.montant_ttc)}</td>
                         <td className="px-4 py-3 text-right">
                           <button type="button" onClick={() => handleOpenModal(f)} className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">Payer à la caisse</button>
@@ -1950,7 +1953,7 @@ const Caisse = () => {
                       <tr key={f.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3">{p?.prenom} {p?.nom}</td>
                         <td className="px-4 py-3 text-sm">{d ? d.toLocaleString('fr-FR') : '–'}</td>
-                        <td className="px-4 py-3 font-medium">{parseFloat(f.montant_ttc || 0).toFixed(2)} F CFA</td>
+                        <td className="px-4 py-3 font-medium">{formatMontant(f.montant_ttc || 0)}</td>
                         <td className="px-4 py-3">{getStatusBadge('paye', f.montant_paye, f.montant_ttc)}</td>
                       </tr>
                     );
@@ -2054,15 +2057,15 @@ const Caisse = () => {
                 <div className="grid grid-cols-3 gap-4 mb-4">
                   <div className="bg-blue-50 p-3 rounded-lg">
                     <p className="text-xs text-gray-600">Paiements (aujourd&apos;hui)</p>
-                    <p className="text-lg font-bold text-blue-800">{historiquePatientData.stats.jour.toFixed(0)} F CFA</p>
+                    <p className="text-lg font-bold text-blue-800">{formatMontant(historiquePatientData.stats.jour)}</p>
                   </div>
                   <div className="bg-green-50 p-3 rounded-lg">
                     <p className="text-xs text-gray-600">Paiements (cette semaine)</p>
-                    <p className="text-lg font-bold text-green-800">{historiquePatientData.stats.semaine.toFixed(0)} F CFA</p>
+                    <p className="text-lg font-bold text-green-800">{formatMontant(historiquePatientData.stats.semaine)}</p>
                   </div>
                   <div className="bg-purple-50 p-3 rounded-lg">
                     <p className="text-xs text-gray-600">Paiements (ce mois)</p>
-                    <p className="text-lg font-bold text-purple-800">{historiquePatientData.stats.mois.toFixed(0)} F CFA</p>
+                    <p className="text-lg font-bold text-purple-800">{formatMontant(historiquePatientData.stats.mois)}</p>
                   </div>
                 </div>
                 <div className="flex items-center justify-between mb-2">
@@ -2097,9 +2100,9 @@ const Caisse = () => {
                           <tr key={l.id} className="hover:bg-gray-50">
                             <td className="px-3 py-2">{l.numero_facture}</td>
                             <td className="px-3 py-2">{l.date_paiement ? new Date(l.date_paiement).toLocaleDateString('fr-FR') : '–'}</td>
-                            <td className="px-3 py-2 font-medium">{l.montant_ttc.toFixed(0)} F CFA</td>
-                            <td className="px-3 py-2">{l.partPatient.toFixed(0)} F CFA</td>
-                            <td className="px-3 py-2">{l.partCouverture > 0 ? `${l.partCouverture.toFixed(0)} F CFA (${l.assurance || ''})` : '–'}</td>
+                            <td className="px-3 py-2 font-medium">{formatMontant(l.montant_ttc)}</td>
+                            <td className="px-3 py-2">{formatMontant(l.partPatient)}</td>
+                            <td className="px-3 py-2">{l.partCouverture > 0 ? `${formatMontant(l.partCouverture)} (${l.assurance || ''})` : '–'}</td>
                             <td className="px-3 py-2">{MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement}</td>
                           </tr>
                         ))}
@@ -2134,9 +2137,9 @@ const Caisse = () => {
                 <div className="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
                   <p className="text-sm font-medium text-amber-900">Facture globale (part couverture)</p>
                   <div className="flex flex-wrap gap-6 mt-2">
-                    <span><strong>Jour:</strong> {historiqueCouvertureData.global.jour?.toFixed(0) ?? 0} F CFA</span>
-                    <span><strong>Semaine:</strong> {historiqueCouvertureData.global.semaine?.toFixed(0) ?? 0} F CFA</span>
-                    <span><strong>Mois:</strong> {historiqueCouvertureData.global.mois?.toFixed(0) ?? 0} F CFA</span>
+                    <span><strong>Jour:</strong> {formatMontant(historiqueCouvertureData.global.jour ?? 0)}</span>
+                    <span><strong>Semaine:</strong> {formatMontant(historiqueCouvertureData.global.semaine ?? 0)}</span>
+                    <span><strong>Mois:</strong> {formatMontant(historiqueCouvertureData.global.mois ?? 0)}</span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between mb-2">
@@ -2173,9 +2176,9 @@ const Caisse = () => {
                             <td className="px-3 py-2">{l.date_paiement ? new Date(l.date_paiement).toLocaleDateString('fr-FR') : '–'}</td>
                             <td className="px-3 py-2 font-medium">{l.patient}</td>
                             <td className="px-3 py-2">{l.numero_facture}</td>
-                            <td className="px-3 py-2">{l.montant_ttc.toFixed(0)} F CFA</td>
-                            <td className="px-3 py-2">{l.partPatient.toFixed(0)} F CFA</td>
-                            <td className="px-3 py-2 font-medium">{l.partCouverture.toFixed(0)} F CFA</td>
+                            <td className="px-3 py-2">{formatMontant(l.montant_ttc)}</td>
+                            <td className="px-3 py-2">{formatMontant(l.partPatient)}</td>
+                            <td className="px-3 py-2 font-medium">{formatMontant(l.partCouverture)}</td>
                             <td className="px-3 py-2">{MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement}</td>
                           </tr>
                         ))}
@@ -2205,14 +2208,14 @@ const Caisse = () => {
 
               {/* Bloc prérempli: montant total, répartition, à payer */}
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <div className="flex justify-between text-sm mb-1"><span>Montant total (facture)</span><span className="font-medium">{parseFloat(selectedFacture.montant_ttc || 0).toFixed(2)} F CFA</span></div>
+                <div className="flex justify-between text-sm mb-1"><span>Montant total (facture)</span><span className="font-medium">{formatMontant(selectedFacture.montant_ttc || 0)}</span></div>
                 {assuranceTaux > 0 && (
                   <>
-                    <div className="flex justify-between text-sm text-blue-700"><span>Prise en charge ({couvertureNom} {assuranceTaux} %)</span><span>-{montantAssurance.toFixed(2)} F CFA</span></div>
-                    <div className="flex justify-between text-sm mt-2 pt-2 border-t border-gray-200"><span>À payer par le patient</span><span className="font-bold">{montantPatient.toFixed(2)} F CFA</span></div>
+                    <div className="flex justify-between text-sm text-blue-700"><span>Prise en charge ({couvertureNom} {assuranceTaux} %)</span><span>-{formatMontant(montantAssurance)}</span></div>
+                    <div className="flex justify-between text-sm mt-2 pt-2 border-t border-gray-200"><span>À payer par le patient</span><span className="font-bold">{formatMontant(montantPatient)}</span></div>
                   </>
                 )}
-                {assuranceTaux === 0 && <div className="flex justify-between text-sm mt-2 pt-2 border-t border-gray-200"><span>À payer</span><span className="font-bold">{montantPatient.toFixed(2)} F CFA</span></div>}
+                {assuranceTaux === 0 && <div className="flex justify-between text-sm mt-2 pt-2 border-t border-gray-200"><span>À payer</span><span className="font-bold">{formatMontant(montantPatient)}</span></div>}
               </div>
 
               <form onSubmit={handlePaiementSubmit}>
@@ -2220,8 +2223,25 @@ const Caisse = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Montant à payer</label>
                   <div className="relative">
                     <BanknotesIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input type="number" step="0.01" min="0" max={montantPatient} value={paiementData.montant_paye} onChange={handleMontantChange} required className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg" />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">/ {montantPatient.toFixed(2)} F CFA</span>
+                    <input 
+                      type="text" 
+                      step="0.01" 
+                      min="0" 
+                      max={montantPatient} 
+                      value={new Intl.NumberFormat('fr-FR', {
+                        maximumFractionDigits: 2,
+                        minimumFractionDigits: 2,
+                        useGrouping: true
+                      }).format(paiementData.montant_paye).replace(/\u00A0/g, ' ')}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\s/g, '');
+                        const numValue = parseFloat(value) || 0;
+                        handleMontantChange({ target: { value: numValue } });
+                      }}
+                      required 
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg" 
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">/ {formatMontant(montantPatient)}</span>
                   </div>
                 </div>
 
@@ -2293,7 +2313,7 @@ const Caisse = () => {
                 {assuranceTaux > 0 && montantAssurance > 0 && (
                   <div className="mb-4 flex gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                     <ExclamationCircleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-amber-800">Une facture de <strong>{montantAssurance.toFixed(2)} F CFA</strong> (même n° {selectedFacture.numero_facture}) sera créée pour la couverture {couvertureNom}.</p>
+                    <p className="text-sm text-amber-800">Une facture de <strong>{formatMontant(montantAssurance)}</strong> (même n° {selectedFacture.numero_facture}) sera créée pour la couverture {couvertureNom}.</p>
                   </div>
                 )}
 
@@ -2326,12 +2346,19 @@ const Caisse = () => {
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Fond de caisse (F CFA)</label>
                 <input
-                  type="number"
+                  type="text"
                   step="100"
                   min="0"
-                  value={fondCaisseInput}
-                  onChange={(e) => setFondCaisseInput(e.target.value)}
-                  placeholder="Ex: 50000"
+                  value={new Intl.NumberFormat('fr-FR', {
+                    maximumFractionDigits: 0,
+                    useGrouping: true
+                  }).format(fondCaisseInput).replace(/\u00A0/g, ' ')}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\s/g, '');
+                    const numValue = parseFloat(value) || 0;
+                    setFondCaisseInput(numValue);
+                  }}
+                  placeholder="Ex: 50 000"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                   autoFocus
                 />
@@ -2357,9 +2384,9 @@ const Caisse = () => {
                 Fermer la caisse
               </h3>
               <div className="mb-4 space-y-2">
-                <div className="flex justify-between"><span className="text-sm text-gray-600">Fond de caisse</span><span className="font-medium">{parseFloat(sessionCaisse.fond_caisse || 0).toFixed(0)} F CFA</span></div>
-                <div className="flex justify-between"><span className="text-sm text-gray-600">Total journée</span><span className="font-medium">{etatCaisse.totalAujourdhui.toFixed(0)} F CFA</span></div>
-                <div className="flex justify-between pt-2 border-t"><span className="text-sm font-semibold">Solde final</span><span className="font-bold text-lg">{etatCaisse.solde.toFixed(0)} F CFA</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-600">Fond de caisse</span><span className="font-medium">{formatMontant(sessionCaisse.fond_caisse || 0)}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-gray-600">Total journée</span><span className="font-medium">{formatMontant(etatCaisse.totalAujourdhui)}</span></div>
+                <div className="flex justify-between pt-2 border-t"><span className="text-sm font-semibold">Solde final</span><span className="font-bold text-lg">{formatMontant(etatCaisse.solde)}</span></div>
               </div>
               <p className="text-sm text-gray-600 mb-4">Le montant journalier sera enregistré et la session fermée.</p>
               <div className="flex gap-3 justify-end">
@@ -2421,7 +2448,7 @@ const Caisse = () => {
                 <>
                   <div className="mb-4 p-3 bg-indigo-50 rounded-lg">
                     <p className="text-sm font-medium text-indigo-900">
-                      Total du mois : <strong>{arreteData.reduce((s, r) => s + parseFloat(r.montant_journalier || 0), 0).toFixed(0)} F CFA</strong>
+                      Total du mois : <strong>{formatMontant(arreteData.reduce((s, r) => s + parseFloat(r.montant_journalier || 0), 0))}</strong>
                     </p>
                     <p className="text-xs text-indigo-700 mt-1">{arreteData.length} jour{arreteData.length > 1 ? 's' : ''} de caisse</p>
                   </div>
@@ -2441,9 +2468,9 @@ const Caisse = () => {
                         {arreteData.map((r, i) => (
                           <tr key={i} className="hover:bg-gray-50">
                             <td className="px-3 py-2">{new Date(r.date_session).toLocaleDateString('fr-FR')}</td>
-                            <td className="px-3 py-2 font-medium">{parseFloat(r.fond_caisse || 0).toFixed(0)} F CFA</td>
-                            <td className="px-3 py-2 font-medium">{parseFloat(r.montant_journalier || 0).toFixed(0)} F CFA</td>
-                            <td className="px-3 py-2 font-bold">{parseFloat(r.solde_final || 0).toFixed(0)} F CFA</td>
+                            <td className="px-3 py-2 font-medium">{formatMontant(r.fond_caisse || 0)}</td>
+                            <td className="px-3 py-2 font-medium">{formatMontant(r.montant_journalier || 0)}</td>
+                            <td className="px-3 py-2 font-bold">{formatMontant(r.solde_final || 0)}</td>
                             <td className="px-3 py-2 text-gray-600">{r.caissier_nom || 'N/A'}</td>
                             <td className="px-3 py-2">{r.statut === 'fermee' ? <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs">Fermée</span> : <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-xs">Ouverte</span>}</td>
                           </tr>
