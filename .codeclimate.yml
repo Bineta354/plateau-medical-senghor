@@ -1,0 +1,24 @@
+version: "2"
+plugins:
+  eslint:
+    enabled: true
+  duplication:
+    enabled: true
+    config:
+      languages:
+        - javascript
+        - jsx
+        - typescript
+        - tsx
+exclude_patterns:
+  - "dist/"
+  - "node_modules/"
+  - "public/"
+  - "scripts/"
+  - "src/tests/"
+  - "**/*.test.js"
+  - "**/*.test.jsx"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "vite.config.js"
+  - "vite.config.ts"

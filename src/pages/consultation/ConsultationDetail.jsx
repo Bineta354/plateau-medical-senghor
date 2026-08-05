@@ -537,11 +537,11 @@ const ConsultationDetail = () => {
 
   const tabs = [
     { id: 'examen', name: 'Examen Général', icon: Eye },
+    ...(isDentist ? [{ id: 'dental', name: 'Schéma Dentaire', icon: Smile }] : []),
     { id: 'antecedents', name: 'Antécédents', icon: User },
     { id: 'constantes', name: 'Constantes', icon: Activity },
     { id: 'appareils', name: 'Appareils', icon: Heart },
     { id: 'diagnostics', name: 'Diagnostics', icon: FileText },
-    ...(isDentist ? [{ id: 'dental', name: 'Schéma Dentaire', icon: Smile }] : []),
     { id: 'actes', name: 'Actes', icon: Stethoscope },
     { id: 'ordonnances', name: 'Ordonnances', icon: Pill },
     { id: 'certificats', name: 'Certificats', icon: Award },

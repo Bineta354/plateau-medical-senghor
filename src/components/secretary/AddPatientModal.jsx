@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAlert } from '../../contexts/AlertContext';
 import { generateNumeroDossier, validateBirthDate } from '../../services/patientService';
+import { validatePatientForm, getDateNaissanceError, normalizePatientPayload } from '../../schemas/patientSchema';
 import SearchableSelect from '../common/SearchableSelect';
 import CreateRdvModal from '../doctor/CreateRdvModal';
 import { 
@@ -181,32 +182,7 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
   };
 
   const validateNewPatient = () => {
-    const errors = {};
-    
-    if (!newPatient.nom.trim()) {
-      errors.nom = 'Le nom est obligatoire';
-    }
-    
-    if (!newPatient.prenom.trim()) {
-      errors.prenom = 'Le prénom est obligatoire';
-    }
-    
-    if (!newPatient.date_naissance) {
-      errors.date_naissance = 'La date de naissance est obligatoire';
-    } else {
-      // Validation de la date de naissance
-      const birthDate = new Date(newPatient.date_naissance);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Normaliser à minuit pour comparaison juste
-      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-      
-      if (birthDate > today) {
-        errors.date_naissance = 'La date de naissance ne peut pas être postérieure à aujourd\'hui';
-      } else if (birthDate > oneYearAgo) {
-        errors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
-      }
-    }
-    
+    const { errors } = validatePatientForm(newPatient);
     return errors;
   };
 
@@ -267,9 +243,11 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
       // Ne jamais envoyer numero_dossier dans le payload (généré automatiquement par le trigger)
       delete patientData.numero_dossier;
 
+      const normalizedPatientData = normalizePatientPayload(patientData);
+
       const { data: createdPatient, error: patientError } = await supabase
         .from('patients')
-        .insert([patientData])
+        .insert([normalizedPatientData])
         .select()
         .single();
 
@@ -383,26 +361,7 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
   };
 
   const validateDateNaissanceRealTime = (value) => {
-    const newErrors = { ...fieldErrors };
-    
-    if (!value) {
-      newErrors.date_naissance = 'La date de naissance est obligatoire';
-    } else {
-      const birthDate = new Date(value);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-      
-      if (birthDate > today) {
-        newErrors.date_naissance = 'La date de naissance ne peut pas être dans le futur';
-      } else if (birthDate > oneYearAgo) {
-        newErrors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
-      } else {
-        newErrors.date_naissance = '';
-      }
-    }
-    
-    setFieldErrors(newErrors);
+    setFieldErrors(prev => ({ ...prev, date_naissance: getDateNaissanceError(value) }));
   };
 
   return (
