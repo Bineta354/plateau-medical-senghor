@@ -14,7 +14,14 @@
       "Bash(npm ls *)",
       "Bash(npx eslint *)",
       "Bash(node \"C:\\\\Users\\\\Samba\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Samba-Documents-cabinet-medical\\\\5f0e9668-cbab-40da-af7f-53a0d721f0d2\\\\scratchpad\\\\find-duplicates.mjs\")",
-      "Bash(node ./scripts/_tmp_find_duplicates.mjs)"
+      "Bash(node ./scripts/_tmp_find_duplicates.mjs)",
+      "Bash(powershell -Command \"Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object State\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(git log *)",
+      "Bash(npx --yes supabase --version)",
+      "Bash(npx --yes supabase projects list)",
+      "Bash(npx --yes supabase migration list)",
+      "Bash(node *)"
     ]
   },
   "enabledMcpjsonServers": [
