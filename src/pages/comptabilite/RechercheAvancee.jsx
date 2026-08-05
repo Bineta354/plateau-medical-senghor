@@ -4,6 +4,7 @@ import {
   BarChart3, PieChart, Activity, RefreshCw, FileText, Eye,
   ChevronDown, ChevronUp, Clock, Coins, Users, Target
 } from 'lucide-react';
+import { formatMontant } from '../../utils/currency';
 
 const RechercheAvancee = () => {
   const [donnees, setDonnees] = useState([]);
@@ -244,11 +245,6 @@ const RechercheAvancee = () => {
       case 'basse': return 'bg-gray-100 text-gray-800 border-gray-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
-  };
-
-  // Formater les montants
-  const formatMontant = (montant) => {
-    return new Intl.NumberFormat('fr-FR').format(montant) + ' FCFA';
   };
 
   // Exporter les données

@@ -7,6 +7,7 @@ import { unifiedNotificationService } from '../../../services/unifiedNotificatio
 import { updateFacture } from '../../../services/factureService';
 import { Receipt } from 'lucide-react';
 import PropTypes from 'prop-types';
+import { formatMontant } from '../../../utils/currency';
 
 const EditFactureModal = ({ facture, onClose, onSave }) => {
 

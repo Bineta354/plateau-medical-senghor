@@ -18,6 +18,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { formatMontant } from '../../utils/currency';
 
 const PERIODS = [
   { value: 'today', label: "Aujourd'hui" },
@@ -25,11 +26,6 @@ const PERIODS = [
   { value: 'month', label: 'Ce mois' },
   { value: 'all', label: 'Tout' },
 ];
-
-const formatAmount = (n) => {
-  const v = Number(n || 0);
-  return new Intl.NumberFormat('fr-FR').format(v) + ' FCFA';
-};
 
 const getStartDateForPeriod = (period) => {
   const now = new Date();
@@ -303,7 +299,7 @@ const SuiviCaissiers = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total encaissé</p>
-              <p className="text-2xl font-bold text-gray-900">{formatAmount(grandTotal)}</p>
+              <p className="text-2xl font-bold text-gray-900">{formatMontant(grandTotal)}</p>
             </div>
             <TrendingUp className="w-8 h-8 text-purple-600" />
           </div>
@@ -323,7 +319,7 @@ const SuiviCaissiers = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Ticket moyen</p>
-              <p className="text-2xl font-bold text-gray-900">{formatAmount(averageTicket)}</p>
+              <p className="text-2xl font-bold text-gray-900">{formatMontant(averageTicket)}</p>
             </div>
             <Coins className="w-8 h-8 text-green-600" />
           </div>
@@ -444,7 +440,7 @@ const SuiviCaissiers = () => {
                     </span>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-lg font-bold">{formatAmount(stats.total)}</div>
+                    <div className="text-lg font-bold">{formatMontant(stats.total)}</div>
                     <div className="text-sm text-gray-600">{stats.count} transaction(s)</div>
                   </div>
                   <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
@@ -486,13 +482,13 @@ const SuiviCaissiers = () => {
                     >
                       {width > 10 && (
                         <span className="text-xs text-white font-medium">
-                          {formatAmount(stats.total)}
+                          {formatMontant(stats.total)}
                         </span>
                       )}
                     </div>
                   </div>
                   <div className="w-20 text-right">
-                    <div className="text-sm font-medium">{formatAmount(stats.total)}</div>
+                    <div className="text-sm font-medium">{formatMontant(stats.total)}</div>
                     <div className="text-xs text-gray-600">{stats.count} tx</div>
                   </div>
                 </div>
@@ -552,8 +548,8 @@ const SuiviCaissiers = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right text-sm text-gray-900">{row.count}</td>
-                      <td className="px-6 py-4 text-right text-sm font-semibold text-gray-900">{formatAmount(row.total)}</td>
-                      <td className="px-6 py-4 text-right text-sm text-gray-900">{formatAmount(avgTicket)}</td>
+                      <td className="px-6 py-4 text-right text-sm font-semibold text-gray-900">{formatMontant(row.total)}</td>
+                      <td className="px-6 py-4 text-right text-sm text-gray-900">{formatMontant(avgTicket)}</td>
                       <td className="px-6 py-4 text-center">
                         <div className="flex items-center justify-center gap-2">
                           <div className="w-16 bg-gray-200 rounded-full h-2">
@@ -664,7 +660,7 @@ const SuiviCaissiers = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="text-sm font-semibold text-gray-900">{formatAmount(p.montant)}</div>
+                        <div className="text-sm font-semibold text-gray-900">{formatMontant(p.montant)}</div>
                       </td>
                       <td className="px-6 py-4 text-center">
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">

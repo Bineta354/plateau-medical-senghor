@@ -9,6 +9,7 @@ import {
   Activity, AlertCircle, Download, Filter, RefreshCw,
   Clock, CheckCircle, XCircle, AlertTriangle
 } from 'lucide-react';
+import { formatMontant } from '../../utils/currency';
 
 const TableauBordComptable = () => {
   const [periode, setPeriode] = useState('mois');
@@ -104,11 +105,6 @@ const TableauBordComptable = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Formater les montants
-  const formatMontant = (montant) => {
-    return new Intl.NumberFormat('fr-FR').format(montant) + ' FCFA';
   };
 
   // Exporter les données

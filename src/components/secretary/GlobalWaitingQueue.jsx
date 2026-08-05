@@ -13,11 +13,9 @@ import {
   CheckCircle,
   UserCheck,
   FileImage,
-  Upload,
-  ClipboardList
+  Upload
 } from 'lucide-react';
 import PatientDocumentUploader from './PatientDocumentUploader';
-import PatientAntecedentsModal from './PatientAntecedentsModal';
 import DoctorReassignModal from './DoctorReassignModal';
 import {
   computeQueueStats,
@@ -46,10 +44,10 @@ const GlobalWaitingQueue = ({
   const tenantId = userProfile?.tenant_id || null;
   const [waitingQueues, setWaitingQueues] = useState({});
   const [appointmentsByDoctor, setAppointmentsByDoctor] = useState({});
+  const [consultationsByDoctor, setConsultationsByDoctor] = useState({});
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedPatientForUpload, setSelectedPatientForUpload] = useState(null);
-  const [selectedPatientForAntecedents, setSelectedPatientForAntecedents] = useState(null);
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [selectedPatientForReassign, setSelectedPatientForReassign] = useState(null);
 
@@ -272,6 +270,26 @@ const GlobalWaitingQueue = ({
 
       setWaitingQueues(queues);
       setAppointmentsByDoctor(apptsByDoc);
+
+      // 10) Récupérer les consultations du jour pour chaque médecin
+      const { data: consultationsData, error: consultationsError } = await supabase
+        .from('consultations')
+        .select('*')
+        .in('medecin_id', medecinIds)
+        .gte('date_consultation', today.toISOString())
+        .lt('date_consultation', tomorrow.toISOString());
+
+      if (consultationsError) {
+        console.error('Erreur consultations du jour:', consultationsError);
+      } else if (consultationsData) {
+        const consultationsByDoc = {};
+        consultationsData.forEach(consultation => {
+          const key = consultation.medecin_id;
+          if (!consultationsByDoc[key]) consultationsByDoc[key] = [];
+          consultationsByDoc[key].push(consultation);
+        });
+        setConsultationsByDoctor(consultationsByDoc);
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des files d\'attente:', error);
       console.error('Détails de l\'erreur:', {
@@ -547,6 +565,56 @@ const GlobalWaitingQueue = ({
     onDoctorSelect?.(doctor, queueFilter);
   };
 
+  // Calculer les statistiques par médecin pour le tableau récapitulatif
+  const doctorStats = doctors.map(doctor => {
+    const doctorQueue = filterActiveQueueItems(waitingQueues[doctor.id] || []);
+    
+    const enAttente = doctorQueue.filter(p => 
+      p.status === 'waiting' || 
+      p.status === 'en_attente' || 
+      p.status === 'present' || 
+      p.status === 'arrive'
+    ).length;
+    
+    const enConsultation = doctorQueue.filter(p => 
+      p.status === 'in_consultation' || 
+      p.status === 'en_consultation'
+    ).length;
+    
+    const total = enAttente + enConsultation;
+    
+    // Répartition par urgence (sur les patients présents)
+    const presentPatients = doctorQueue.filter(p => 
+      p.status === 'waiting' || 
+      p.status === 'en_attente' || 
+      p.status === 'present' || 
+      p.status === 'arrive' ||
+      p.status === 'in_consultation' || 
+      p.status === 'en_consultation'
+    );
+    
+    const tresUrgent = presentPatients.filter(p => p.priority === 'tres_urgente').length;
+    const urgent = presentPatients.filter(p => p.priority === 'urgente').length;
+    const normal = presentPatients.filter(p => p.priority === 'normale' || !p.priority).length;
+    
+    // Total du jour : consultations terminées aujourd'hui
+    const totalDuJour = (consultationsByDoctor[doctor.id] || []).length;
+    
+    return {
+      medecinId: doctor.id,
+      nom: `Dr. ${doctor.prenom} ${doctor.nom}`,
+      enAttente,
+      enConsultation,
+      total,
+      totalDuJour,
+      urgence: {
+        tresUrgent,
+        urgent,
+        normal
+      }
+    };
+  });
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -588,265 +656,54 @@ const GlobalWaitingQueue = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredDoctors
-          .filter((doctor) => {
-            const filteredQueue = filterPatients(waitingQueues[doctor.id] || []);
-            const todaysAppointments = filterTodayAppointments(
-              appointmentsByDoctor[doctor.id] || [],
-            );
-            return filteredQueue.length > 0 || todaysAppointments.length > 0;
-          })
-          .map((doctor) => {
-            const stats = getDoctorStats(doctor.id);
-            const queue = filterActiveQueueItems(waitingQueues[doctor.id] || []);
-            const filteredQueue = filterPatients(waitingQueues[doctor.id] || []);
-            const todaysAppointments = filterTodayAppointments(
-              appointmentsByDoctor[doctor.id] || [],
-            );
-
-            return (
-              <div
-                key={doctor.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => onDoctorSelect?.(doctor)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onDoctorSelect?.(doctor);
-                  }
-                }}
-                className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md hover:ring-2 hover:ring-medical-primary/20 transition-all duration-300 cursor-pointer"
-              >
-                {/* En-tête du médecin */}
-                <div className="p-4 border-b border-gray-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-medical-primary rounded-full flex items-center justify-center">
-                        <Stethoscope className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">
-                          Dr. {doctor.prenom} {doctor.nom}
-                        </h3>
-                        <p className="text-sm text-gray-500">{doctor.specialite}</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDoctorSelect?.(doctor);
-                      }}
-                      className="flex items-center px-3 py-1 text-medical-primary hover:text-medical-primary-dark text-sm font-medium"
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Voir détails
-                    </button>
-                  </div>
-
-                  {/* Statistiques rapides */}
-                  <div className="grid grid-cols-4 gap-2 text-center">
-                    <ClickableStatCard
-                      size="sm"
-                      tone="blue"
-                      label="Total"
-                      value={stats.total}
-                      onClick={(e) => handleDoctorStatClick(doctor, 'all', e)}
-                      title="Voir tous les patients actifs"
-                    />
-                    <ClickableStatCard
-                      size="sm"
-                      tone="yellow"
-                      label="En attente"
-                      value={stats.waiting}
-                      onClick={(e) => handleDoctorStatClick(doctor, 'waiting', e)}
-                      title="Filtrer les patients en attente"
-                    />
-                    <ClickableStatCard
-                      size="sm"
-                      tone="purple"
-                      label="En consultation"
-                      value={stats.inConsultation}
-                      onClick={(e) =>
-                        handleDoctorStatClick(doctor, 'in_consultation', e)
-                      }
-                      title="Filtrer les patients en consultation"
-                    />
-                    <ClickableStatCard
-                      size="sm"
-                      tone="red"
-                      label="Urgences"
-                      value={stats.urgent}
-                      onClick={(e) => handleDoctorStatClick(doctor, 'urgent', e)}
-                      title="Filtrer les urgences"
-                    />
-                  </div>
-                </div>
-
-                {/* Liste des patients */}
-                <div className="p-4">
-                  {filteredQueue.length > 0 ? (
-                    <div className="max-h-64 overflow-y-auto space-y-2">
-                      {filteredQueue.slice(0, 8).map((patient) => {
-                        const waitTime = calculateWaitTime(patient.arrived_at);
-
-                        return (
-                          <div
-                            key={patient.id}
-                            className={`border rounded-lg p-3 transition-all duration-200 ${
-                              patient.status === 'appele' ? 'border-orange-300 bg-orange-50' :
-                              patient.status === 'entre' ? 'border-purple-300 bg-purple-50' :
-                              patient.status === 'en_consultation' ? 'border-blue-300 bg-blue-50' :
-                              patient.priority === 'urgente' || patient.priority === 'tres_urgente' ? 'border-red-300 bg-red-50' :
-                              'border-gray-200 bg-gray-50'
-                            } ${patient.status === 'appele' ? 'patient-called animate-pulse' : ''} ${patient.status === 'en_consultation' ? 'opacity-60 grayscale' : ''}`}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <h4 className="font-medium text-gray-900 text-sm truncate">
-                                    {patient.patient?.prenom} {patient.patient?.nom}
-                                  </h4>
-                                  {patient.priority === 'urgente' || patient.priority === 'tres_urgente' && (
-                                    <AlertTriangle className="w-3 h-3 text-red-600 flex-shrink-0" />
-                                  )}
-                                </div>
-
-                                <div className="flex items-center space-x-3 text-xs text-gray-600 mb-1">
-                                  <span className="flex items-center whitespace-nowrap">
-                                    <Clock className="w-3 h-3 mr-1" />
-                                    {formatTime(patient.arrived_at)}
-                                  </span>
-                                  <span className="flex items-center whitespace-nowrap">
-                                    <Activity className="w-3 h-3 mr-1" />
-                                    {waitTime} min
-                                  </span>
-                                </div>
-                                {patient.appointment?.motif && (
-                                  <div className="text-xs text-gray-500 truncate">
-                                    {patient.appointment.motif}
-                                  </div>
-                                )}
-                                {patient.appointment?.type_rdv && (
-                                  <div className={`text-xs px-2 py-0.5 rounded inline-block mt-1 ${
-                                    patient.appointment.type_rdv === 'consultation' ? 'bg-purple-100 text-purple-700' :
-                                    patient.appointment.type_rdv === 'suivi' ? 'bg-cyan-100 text-cyan-700' :
-                                    patient.appointment.type_rdv === 'urgence' ? 'bg-red-100 text-red-700' :
-                                    patient.appointment.type_rdv === 'preventif' ? 'bg-green-100 text-green-700' :
-                                    'bg-gray-100 text-gray-700'
-                                  }`}>
-                                    {patient.appointment.type_rdv === 'consultation' && '🏥 Consultation'}
-                                    {patient.appointment.type_rdv === 'suivi' && '📋 Suivi'}
-                                    {patient.appointment.type_rdv === 'urgence' && '🚑 Urgence'}
-                                    {patient.appointment.type_rdv === 'preventif' && '💚 Préventif'}
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="flex flex-col items-end space-y-1 ml-2 flex-shrink-0">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(patient.status)}`}>
-                                  {getStatusLabel(patient.status)}
-                                </span>
-                                {patient.status === 'en_consultation' && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-600">
-                                    Consultation en cours
-                                  </span>
-                                )}
-                                {patient.priority && (
-                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${getUrgencyColor(patient.priority)}`}>
-                                    {patient.priority}
-                                  </span>
-                                )}
-                                {patient.status === 'appele' && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleMarkPatientPresent(patient.id);
-                                    }}
-                                    className="inline-flex items-center px-2 py-1 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-md transition-colors duration-200 shadow-sm hover:shadow-md"
-                                    title="Marquer le patient comme présent"
-                                  >
-                                    <UserCheck className="w-3 h-3 mr-1" />
-                                    Présent
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    setSelectedPatientForUpload(patient.patient);
-                                    setShowUploadModal(true);
-                                  }}
-                                  className="inline-flex items-center px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-md transition-colors duration-200 shadow-sm hover:shadow-md"
-                                  title="Scanner des documents"
-                                >
-                                  <FileImage className="w-3 h-3 mr-1" />
-                                  Scanner
-                                </button>
-                                <button
-                                  onClick={() => setSelectedPatientForAntecedents(patient.patient)}
-                                  className="inline-flex items-center px-2 py-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-medium rounded-md transition-colors duration-200 shadow-sm hover:shadow-md"
-                                  title="Saisir les antécédents (ex: carnet de santé apporté par le patient)"
-                                >
-                                  <ClipboardList className="w-3 h-3 mr-1" />
-                                  Antécédents
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {filteredQueue.length > 8 && (
-                        <div className="text-center py-2">
-                          <span className="text-sm text-gray-500">
-                            +{filteredQueue.length - 8} autre(s) patient(s)
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-500 text-sm">
-                        {queue.length === 0 ? 'Aucun patient' : 'Aucun patient correspondant aux filtres'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-                {/* Rendez-vous du jour pour ce médecin */}
-                <div className="p-4 border-t border-gray-200">
-                  <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
-                    <Calendar className="w-4 h-4 mr-2" /> Rendez-vous du jour ({todaysAppointments.length})
-                  </h4>
-                  {todaysAppointments.length > 0 ? (
-                    <div className="space-y-2">
-                      {todaysAppointments.slice(0, 5).map((appt) => {
-                        const inQueue = isAppointmentInQueue(doctor.id, appt);
-                        return (
-                          <div key={appt.id} className={`flex items-center space-x-3 border rounded-md px-3 py-2 ${inQueue ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
-                            <div className="w-8 h-8 bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0">
-                              {formatTime(appt.date_heure).split(':')[0]}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-gray-900 truncate">
-                                {appt.patient?.prenom} {appt.patient?.nom}
-                              </p>
-                              <p className="text-xs text-gray-500 truncate">{formatTime(appt.date_heure)}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-4 text-xs text-gray-500">Aucun rendez-vous aujourd'hui</div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+      {/* Tableau récapitulatif par médecin */}
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+        <div className="p-6 overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Médecin</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-700" colSpan="2">Présents</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-700">Total</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-700">Total du jour</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-700" colSpan="3">Dont (urgence)</th>
+              </tr>
+              <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="text-left py-2 px-4 text-sm font-medium text-gray-600"></th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600">En attente</th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600">En consultation</th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600"></th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600"></th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600 bg-red-200">Très urgent</th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600 bg-orange-50">Urgent</th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600 bg-green-50">Normal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {doctorStats.map((stat) => (
+                <tr 
+                  key={stat.medecinId} 
+                  className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => {
+                    const doctor = doctors.find(d => d.id === stat.medecinId);
+                    if (doctor) onDoctorSelect?.(doctor);
+                  }}
+                >
+                  <td className="py-3 px-4 font-medium text-gray-900">{stat.nom}</td>
+                  <td className="text-center py-3 px-4 text-gray-700">{stat.enAttente}</td>
+                  <td className="text-center py-3 px-4 text-gray-700">{stat.enConsultation}</td>
+                  <td className="text-center py-3 px-4 font-bold text-gray-900">{stat.total}</td>
+                  <td className="text-center py-3 px-4 font-bold text-blue-900">{stat.totalDuJour}</td>
+                  <td className="text-center py-3 px-4 text-gray-700 bg-red-200">{stat.urgence.tresUrgent}</td>
+                  <td className="text-center py-3 px-4 text-gray-700 bg-orange-50">{stat.urgence.urgent}</td>
+                  <td className="text-center py-3 px-4 text-gray-700 bg-green-50">{stat.urgence.normal}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-      {filteredDoctors.length === 0 && (
+      {doctorStats.length === 0 && (
         <div className="text-center py-12">
           <Stethoscope className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-500">Aucun médecin trouvé</p>
@@ -865,14 +722,6 @@ const GlobalWaitingQueue = ({
             setShowUploadModal(false);
             setSelectedPatientForUpload(null);
           }}
-        />
-      )}
-
-      {/* Modal des antécédents (saisie par la secrétaire à l'accueil) */}
-      {selectedPatientForAntecedents && (
-        <PatientAntecedentsModal
-          patient={selectedPatientForAntecedents}
-          onClose={() => setSelectedPatientForAntecedents(null)}
         />
       )}
 

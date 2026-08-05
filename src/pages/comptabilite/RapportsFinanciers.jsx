@@ -4,6 +4,7 @@ import {
   BarChart3, PieChart, Activity, RefreshCw, Printer, Mail,
   ChevronDown, ChevronUp, Settings, Eye, Edit, Trash2
 } from 'lucide-react';
+import { formatMontant } from '../../utils/currency';
 
 const RapportsFinanciers = () => {
   const [rapports, setRapports] = useState([]);
@@ -217,11 +218,6 @@ const RapportsFinanciers = () => {
         case 'personnalise': return <Settings className="w-4 h-4 text-orange-600" />;
         default: return <FileText className="w-4 h-4 text-gray-600" />;
       }
-    };
-
-    // Formater les montants
-    const formatMontant = (montant) => {
-      return new Intl.NumberFormat('fr-FR').format(montant) + ' FCFA';
     };
 
     // Formater la taille du fichier

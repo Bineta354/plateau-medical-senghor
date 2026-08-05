@@ -270,6 +270,11 @@ const PatientForm = ({
         assurance_id: assuranceIdToUse
       };
       
+      // Ne jamais envoyer numero_dossier lors de la modification
+      if (initialData) {
+        delete dataToSubmit.numero_dossier;
+      }
+      
       onSubmit(dataToSubmit);
     }
   };
@@ -436,9 +441,9 @@ const PatientForm = ({
           <input
             type="text"
             value={formData.numero_dossier}
-            onChange={(e) => handleInputChange('numero_dossier', e.target.value)}
             readOnly
-            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
+            disabled
+            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed disabled:cursor-not-allowed disabled:opacity-70"
             placeholder="Numéro de dossier unique"
           />
           <p className="text-xs text-gray-500 mt-1">

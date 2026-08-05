@@ -153,6 +153,9 @@ const PatientEditPage = () => {
       // Préparer les données avec nettoyage selon le type de couverture
       const finalFormData = { ...formData };
 
+      // Ne jamais envoyer numero_dossier dans le payload de mise à jour
+      delete finalFormData.numero_dossier;
+
       // Mettre les champs médecin traitant à null (champ masqué de l'interface)
       finalFormData.medecin_traitant_id = null;
       finalFormData.medecin_traitant = null;
@@ -510,9 +513,9 @@ const PatientEditPage = () => {
                   type="text"
                   name="numero_dossier"
                   value={formData.numero_dossier}
-                  onChange={handleInputChange}
                   readOnly
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed disabled:cursor-not-allowed disabled:opacity-70"
                   placeholder="Numéro de dossier unique"
                 />
                 <p className="text-xs text-gray-500 mt-1">

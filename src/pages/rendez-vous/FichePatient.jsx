@@ -90,17 +90,25 @@ const FichePatient = () => {
     
     try {
       if (editingId) {
+        // Ne jamais envoyer numero_dossier dans le payload de mise à jour
+        const updateData = { ...newPatient };
+        delete updateData.numero_dossier;
+        
         const { error } = await supabase
           .from('patients')
-          .update(newPatient)
+          .update(updateData)
           .eq('id', editingId);
         
         if (error) throw error;
         setEditingId(null);
       } else {
+        // Ne jamais envoyer numero_dossier dans le payload de création
+        const insertData = { ...newPatient };
+        delete insertData.numero_dossier;
+        
         const { error } = await supabase
           .from('patients')
-          .insert([newPatient]);
+          .insert([insertData]);
         
         if (error) throw error;
       }

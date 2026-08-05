@@ -290,9 +290,11 @@ const PatientCreatePage = () => {
       // Utiliser le numéro de dossier généré automatiquement
       const finalFormData = {
         ...formData,
-        numero_dossier: formData.numero_dossier,
         assurance_id: assuranceIdToUse
       };
+      
+      // Ne jamais envoyer numero_dossier dans le payload (généré automatiquement par le trigger)
+      delete finalFormData.numero_dossier;
 
       // Mettre les champs médecin traitant à null (champ masqué de l'interface)
       finalFormData.medecin_traitant_id = null;
@@ -654,12 +656,13 @@ const PatientCreatePage = () => {
                   type="text"
                   name="numero_dossier"
                   value={formData.numero_dossier}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  placeholder="Généré automatiquement si vide"
+                  readOnly
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed disabled:cursor-not-allowed disabled:opacity-70"
+                  placeholder="Généré automatiquement"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Laissez vide pour génération automatique
+                  Généré automatiquement — non modifiable
                 </p>
               </div>
 

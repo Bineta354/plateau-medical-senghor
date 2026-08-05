@@ -5,6 +5,7 @@ import {
   TrendingUp, Clock, CheckCircle, XCircle, RefreshCw,
   Mail, Phone, MessageSquare, Eye, Edit, Trash2
 } from 'lucide-react';
+import { formatMontant } from '../../utils/currency';
 
 const AlertesImpayes = () => {
   const [alertes, setAlertes] = useState([]);
@@ -125,11 +126,6 @@ const AlertesImpayes = () => {
       case 'faible': return <AlertTriangle className="w-4 h-4 text-blue-600" />;
       default: return <AlertTriangle className="w-4 h-4 text-gray-600" />;
     }
-  };
-
-  // Formater les montants
-  const formatMontant = (montant) => {
-    return new Intl.NumberFormat('fr-FR').format(montant) + ' FCFA';
   };
 
   // Envoyer un rappel
