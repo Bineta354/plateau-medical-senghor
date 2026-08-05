@@ -155,6 +155,14 @@ const Login = () => {
     console.log('Selected username:', selectedUsername, ' show suggestions:', showSuggestions);
   };
 
+  // Mots de passe des comptes admin pour la connexion rapide, par cabinet
+  const getQuickLoginPassword = (cabinetName = '') => {
+    const name = cabinetName.toLowerCase();
+    if (name.includes('plateau')) return 'Plateau2024!';
+    if (name.includes('dakar')) return 'Dakar2024!';
+    return '';
+  };
+
   const handleQuickLogin = (user) => {
     // Prefer username, fallback to email local part if needed (though we added username to all testUsers)
     const userToSet = user.username || user.email.split('@')[0];
@@ -324,7 +332,7 @@ setTimeout(() => {
                       return (
                         <motion.button
                           key={user.username}
-                          onClick={() => handleQuickLogin({ ...user, password: '' })}
+                          onClick={() => handleQuickLogin({ ...user, password: getQuickLoginPassword(cabinet.name) })}
                           className={`w-full ${color} text-white p-3 rounded-lg shadow transition-all flex items-center space-x-3 text-left`}
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
