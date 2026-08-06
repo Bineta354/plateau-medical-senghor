@@ -6,9 +6,6 @@ import {
   AlertTriangle,
   Users,
   Calendar,
-  CheckCircle,
-  ChevronRight,
-  Moon
 } from 'lucide-react';
 import {
   computeQueueStats,
@@ -333,9 +330,6 @@ const GlobalWaitingQueue = ({
 
   const filteredDoctors = filterDoctors();
 
-  const getInitials = (doctor) =>
-    `${doctor.prenom?.[0] || ''}${doctor.nom?.[0] || ''}`.toUpperCase() || '?';
-
   // Calculer les statistiques par médecin pour le tableau récapitulatif
   const doctorStatsRaw = filteredDoctors.map(doctor => {
     // On réutilise les mêmes fonctions de classification que les compteurs globaux
@@ -357,9 +351,7 @@ const GlobalWaitingQueue = ({
 
     return {
       medecinId: doctor.id,
-      initiales: getInitials(doctor),
       nom: `Dr. ${doctor.prenom} ${doctor.nom}`,
-      specialite: doctor.specialite || null,
       enAttente,
       enConsultation,
       total,
@@ -381,10 +373,7 @@ const GlobalWaitingQueue = ({
     return a.nom.localeCompare(b.nom);
   });
 
-  // Si on vient de cliquer sur la carte "Urgences", ne garder que les médecins concernés
-  const doctorStats = filterStatus === 'urgent'
-    ? doctorStatsSorted.filter((s) => s.urgence.tresUrgent > 0 || s.urgence.urgent > 0)
-    : doctorStatsSorted;
+  const doctorStats = doctorStatsSorted;
 
   return (
     <div className="p-6">
@@ -428,146 +417,56 @@ const GlobalWaitingQueue = ({
       </div>
 
       {/* Tableau récapitulatif par médecin */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50/60">
-          <h3 className="text-sm font-semibold text-gray-700">Par médecin</h3>
-          {filterStatus === 'urgent' && (
-            <button
-              type="button"
-              onClick={() => onFilterStatus?.('all')}
-              className="text-xs font-medium text-medical-primary hover:text-medical-primary-dark"
-            >
-              Voir tous les médecins ×
-            </button>
-          )}
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+        <div className="p-6 overflow-x-auto">
+          <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50/60">
-                <th className="text-left py-3 px-5 font-semibold text-gray-600">Médecin</th>
-                <th className="text-center py-3 px-3 font-semibold text-gray-600">
-                  <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> Attente</span>
-                </th>
-                <th className="text-center py-3 px-3 font-semibold text-gray-600">
-                  <span className="inline-flex items-center gap-1"><Stethoscope className="w-3.5 h-3.5" /> Consult.</span>
-                </th>
-                <th className="text-center py-3 px-3 font-semibold text-gray-600">Total présent</th>
-                <th className="text-center py-3 px-3 font-semibold text-gray-600">
-                  <span className="inline-flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> Vus aujourd'hui</span>
-                </th>
-                <th className="text-center py-3 px-5 font-semibold text-gray-600">Urgences</th>
-                <th className="w-10"></th>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Médecin</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-700" colSpan="2">Présents</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-700">Total</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-700">Total du jour</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-700" colSpan="3">Dont (urgence)</th>
+              </tr>
+              <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="text-left py-2 px-4 text-sm font-medium text-gray-600"></th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600">En attente</th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600">En consultation</th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600"></th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600"></th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600 bg-red-200">Très urgent</th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600 bg-orange-50">Urgent</th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600 bg-green-50">Normal</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {doctorStats.map((stat) => {
-                const isEmpty = stat.total === 0;
-                const hasTresUrgent = stat.urgence.tresUrgent > 0;
-                return (
-                  <tr
-                    key={stat.medecinId}
-                    className={`group cursor-pointer transition-colors ${
-                      hasTresUrgent
-                        ? 'bg-red-50/60 hover:bg-red-50 border-l-4 border-l-red-500'
-                        : isEmpty
-                          ? 'hover:bg-gray-50 opacity-60'
-                          : 'hover:bg-gray-50'
-                    }`}
-                    onClick={() => {
-                      const doctor = doctors.find(d => d.id === stat.medecinId);
-                      if (doctor) onDoctorSelect?.(doctor);
-                    }}
-                  >
-                    <td className="py-3 px-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-medical-primary/10 text-medical-primary flex items-center justify-center text-xs font-bold flex-shrink-0">
-                          {stat.initiales}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{stat.nom}</p>
-                          {stat.specialite && (
-                            <p className="text-xs text-gray-500 truncate">{stat.specialite}</p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="text-center py-3 px-3">
-                      {stat.enAttente > 0 ? (
-                        <span className="inline-flex items-center justify-center min-w-[1.75rem] px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">
-                          {stat.enAttente}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300">–</span>
-                      )}
-                    </td>
-                    <td className="text-center py-3 px-3">
-                      {stat.enConsultation > 0 ? (
-                        <span className="inline-flex items-center justify-center min-w-[1.75rem] px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-                          {stat.enConsultation}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300">–</span>
-                      )}
-                    </td>
-                    <td className="text-center py-3 px-3 font-bold text-gray-900">
-                      {isEmpty ? <span className="font-normal text-gray-400">Aucun patient</span> : stat.total}
-                    </td>
-                    <td className="text-center py-3 px-3">
-                      <span className="font-semibold text-gray-700">{stat.totalDuJour}</span>
-                    </td>
-                    <td className="py-3 px-5">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <span
-                          title="Très urgent"
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            stat.urgence.tresUrgent > 0 ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-400'
-                          }`}
-                        >
-                          {stat.urgence.tresUrgent > 0 && <AlertTriangle className="w-3 h-3" />}
-                          {stat.urgence.tresUrgent}
-                        </span>
-                        <span
-                          title="Urgent"
-                          className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            stat.urgence.urgent > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'
-                          }`}
-                        >
-                          {stat.urgence.urgent}
-                        </span>
-                        <span
-                          title="Normal"
-                          className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            stat.urgence.normal > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'
-                          }`}
-                        >
-                          {stat.urgence.normal}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="pr-4">
-                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-medical-primary transition-colors" />
-                    </td>
-                  </tr>
-                );
-              })}
+            <tbody>
+              {doctorStats.map((stat) => (
+                <tr
+                  key={stat.medecinId}
+                  className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => {
+                    const doctor = doctors.find(d => d.id === stat.medecinId);
+                    if (doctor) onDoctorSelect?.(doctor);
+                  }}
+                >
+                  <td className="py-3 px-4 font-medium text-gray-900">{stat.nom}</td>
+                  <td className="text-center py-3 px-4 text-gray-700">{stat.enAttente}</td>
+                  <td className="text-center py-3 px-4 text-gray-700">{stat.enConsultation}</td>
+                  <td className="text-center py-3 px-4 font-bold text-gray-900">{stat.total}</td>
+                  <td className="text-center py-3 px-4 font-bold text-blue-900">{stat.totalDuJour}</td>
+                  <td className="text-center py-3 px-4 text-gray-700 bg-red-200">{stat.urgence.tresUrgent}</td>
+                  <td className="text-center py-3 px-4 text-gray-700 bg-orange-50">{stat.urgence.urgent}</td>
+                  <td className="text-center py-3 px-4 text-gray-700 bg-green-50">{stat.urgence.normal}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       </div>
       {doctorStats.length === 0 && (
-        <div className="text-center py-12 bg-white border border-gray-200 rounded-xl mt-4">
-          {filterStatus === 'urgent' ? (
-            <>
-              <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-4" />
-              <p className="text-gray-500">Aucune urgence en ce moment</p>
-            </>
-          ) : (
-            <>
-              <Moon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Aucun médecin trouvé</p>
-            </>
-          )}
+        <div className="text-center py-12">
+          <Stethoscope className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-500">Aucun médecin trouvé</p>
         </div>
       )}
     </div>
