@@ -416,7 +416,7 @@ const SalleAttente = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex flex-col gap-1">
                       <button
-                        onClick={() => handleViewAntecedents(item.patients)}
+                        onClick={() => handleViewAntecedents(item)}
                         className="text-teal-600 hover:text-teal-900 flex items-center gap-1"
                       >
                         Antécédents
@@ -699,30 +699,10 @@ const SalleAttente = () => {
 
       {/* Modal des antécédents */}
       {showAntecedentsModal && selectedPatientForAntecedents && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
-            <div className="mt-3">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Antécédents médicaux - {selectedPatientForAntecedents.prenom} {selectedPatientForAntecedents.nom}
-                </h3>
-                <button
-                  onClick={() => setShowAntecedentsModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  ✕
-                </button>
-              </div>
-              <AntecedentsMedicaux
-                antecedents={antecedents}
-                fetchAntecedents={() => fetchAntecedents(selectedPatientForAntecedents.patient_id)}
-                antecedentsRef={antecedentsRef}
-                patient={{ id: selectedPatientForAntecedents.patient_id }}
-                isTerminated={false}
-              />
-            </div>
-          </div>
-        </div>
+        <PatientAntecedentsModal
+          patient={{ id: selectedPatientForAntecedents.patient_id }}
+          onClose={() => setShowAntecedentsModal(false)}
+        />
       )}
     </div>
   );
