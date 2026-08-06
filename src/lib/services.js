@@ -87,13 +87,37 @@ export const userService = {
     
     // Appliquer le filtre de spécialité si en mode spécialité et non ignoré explicitement
     if (specialiteId !== null) {
+      const idsAvecEnfants = await getSpecialiteIdsWithChildren(specialiteId)
+
+      // Un médecin doit être inclus s'il a cette spécialité en principale (specialite_id)
+      // OU en associée/secondaire (table medecin_specialites) — sinon un médecin dont la
+      // spécialité recherchée n'est que secondaire serait exclu ici, avant même que ses
+      // spécialités associées soient récupérées plus bas.
+      const { data: associationsMatch, error: associationsMatchError } = await supabase
+        .from('medecin_specialites')
+        .select('medecin_id')
+        .in('specialite_id', idsAvecEnfants)
+      if (associationsMatchError) {
+        console.warn('[SPECIALITY_CONFIG] Impossible de récupérer les médecins par spécialité associée:', associationsMatchError)
+      }
+      const idsMedecinsParAssociation = Array.from(
+        new Set((associationsMatch || []).map((a) => a.medecin_id))
+      )
+
       console.log(`[SPECIALITY_CONFIG] Filtre spécialité appliqué aux médecins`, {
         specialite_id: specialiteId,
         service: 'userService.getDoctors()',
-        filter: 'specialite_id = ' + specialiteId
+        filter: 'specialite_id = ' + specialiteId,
+        medecins_via_specialite_associee: idsMedecinsParAssociation.length
       })
-      const idsAvecEnfants = await getSpecialiteIdsWithChildren(specialiteId)
-      query = query.in('specialite_id', idsAvecEnfants)
+
+      if (idsMedecinsParAssociation.length > 0) {
+        query = query.or(
+          `specialite_id.in.(${idsAvecEnfants.join(',')}),id.in.(${idsMedecinsParAssociation.join(',')})`
+        )
+      } else {
+        query = query.in('specialite_id', idsAvecEnfants)
+      }
     } else {
       if (ignoreSpecialityFilter) {
         console.log(`[SPECIALITY_CONFIG] Ignorer le filtre spécialité (appel explicite, ex: secrétaire)`)

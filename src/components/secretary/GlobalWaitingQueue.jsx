@@ -1,35 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../contexts/AuthContext';
 import {
   Stethoscope,
   Clock,
   AlertTriangle,
   Users,
-  Eye,
-  Phone,
   Calendar,
-  Activity,
   CheckCircle,
-  UserCheck,
-  FileImage,
-  Upload
+  ChevronRight,
+  Moon
 } from 'lucide-react';
-import PatientDocumentUploader from './PatientDocumentUploader';
-import DoctorReassignModal from './DoctorReassignModal';
 import {
   computeQueueStats,
   filterActiveQueueItems,
-  isUrgentQueuePriority,
-  matchesQueueFilterStatus,
   hasPastAppointment,
   filterOutPastAppointments,
   isStuckInConsultation,
   filterOutStuckConsultations,
-  isAbandonedOver24h,
+  isOnWaitingBench,
+  isInConsultationQueueStatus,
 } from '../../utils/waitingQueueStatus';
 import ClickableStatCard from '../common/ClickableStatCard';
-import { shouldHidePastAppointment } from '../../utils/appointmentDisplay';
 
 const GlobalWaitingQueue = ({
   doctors,
@@ -40,16 +31,10 @@ const GlobalWaitingQueue = ({
   onNavigateWaitingRoom,
   onFilterStatus,
 }) => {
-  const { userProfile } = useAuth();
-  const tenantId = userProfile?.tenant_id || null;
   const [waitingQueues, setWaitingQueues] = useState({});
   const [appointmentsByDoctor, setAppointmentsByDoctor] = useState({});
   const [consultationsByDoctor, setConsultationsByDoctor] = useState({});
   const [loading, setLoading] = useState(true);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedPatientForUpload, setSelectedPatientForUpload] = useState(null);
-  const [showReassignModal, setShowReassignModal] = useState(false);
-  const [selectedPatientForReassign, setSelectedPatientForReassign] = useState(null);
 
   useEffect(() => {
     fetchAllData();
@@ -302,181 +287,6 @@ const GlobalWaitingQueue = ({
     }
   };
 
-  // Fonction pour marquer un patient comme présent
-  const handleMarkPatientPresent = async (patientId) => {
-    try {
-      console.log('✅ [GlobalWaitingQueue] Marquage patient présent:', patientId);
-      
-      const { error } = await supabase
-        .from('waiting_queue')
-        .update({ 
-          status: 'present',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', patientId);
-
-      if (error) {
-        console.error('❌ [GlobalWaitingQueue] Erreur marquage présent:', error);
-        throw error;
-      }
-
-      console.log('✅ [GlobalWaitingQueue] Patient marqué comme présent:', patientId);
-      
-      // Recharger les données
-      fetchAllData();
-      
-      // Afficher une notification de succès
-      if (window.showNotification) {
-        window.showNotification({
-          message: 'Patient marqué comme présent !',
-          type: 'success',
-          duration: 3000
-        });
-      }
-      
-    } catch (error) {
-      console.error('❌ [GlobalWaitingQueue] Erreur lors du marquage présent:', error);
-      
-      // Afficher une notification d'erreur
-      if (window.showNotification) {
-        window.showNotification({
-          message: 'Erreur lors du marquage du patient comme présent',
-          type: 'error',
-          duration: 4000
-        });
-      }
-    }
-  };
-
-  // Ajouter un rendez-vous du jour en file d'attente pour un médecin
-  const handleAddAppointmentToQueue = async (doctorId, appointment) => {
-    try {
-      // Vérifier s'il est déjà en file pour ce RDV
-      const { data: existing } = await supabase
-        .from('waiting_queue')
-        .select('id')
-        .eq('patient_id', appointment.patient_id)
-        .eq('medecin_id', doctorId)
-        .eq('appointment_id', appointment.id)
-        .eq('status', 'waiting')
-        .maybeSingle();
-
-      if (existing) {
-        if (window.showNotification) {
-          window.showNotification({ message: 'Le patient est déjà en file d\'attente', type: 'warning', duration: 2500 });
-        }
-        return;
-      }
-
-      // Trouver la dernière position
-      const { data: currentQueue } = await supabase
-        .from('waiting_queue')
-        .select('order_position')
-        .eq('medecin_id', doctorId)
-        .order('order_position', { ascending: false })
-        .limit(1);
-
-      const nextPosition = currentQueue && currentQueue.length > 0 ? currentQueue[0].order_position + 1 : 1;
-
-      const { error } = await supabase
-        .from('waiting_queue')
-        .insert([{
-          patient_id: appointment.patient_id,
-          medecin_id: doctorId,
-          appointment_id: appointment.id,
-          status: 'waiting',
-          priority: 'normale',
-          arrived_at: new Date().toISOString(),
-          order_position: nextPosition
-        }]);
-
-      if (error) throw error;
-
-      if (window.showNotification) {
-        window.showNotification({ message: 'Patient ajouté à la file', type: 'success', duration: 2500 });
-      }
-
-      fetchAllData();
-    } catch (e) {
-      console.error('Erreur ajout RDV à la file:', e);
-      if (window.showNotification) {
-        window.showNotification({ message: 'Erreur lors de l\'ajout à la file', type: 'error', duration: 3000 });
-      }
-    }
-  };
-
-  // Gérer la réassignation d'un patient à un autre médecin
-  const handleReassign = (patient) => {
-    setSelectedPatientForReassign(patient);
-    setShowReassignModal(true);
-  };
-
-  const handleReassignComplete = () => {
-    setShowReassignModal(false);
-    setSelectedPatientForReassign(null);
-    fetchAllData();
-    if (window.showNotification) {
-      window.showNotification({ 
-        message: 'Patient réassigné avec succès', 
-        type: 'success', 
-        duration: 3000 
-      });
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'in_consultation':
-      case 'en_consultation': return 'text-blue-600 bg-blue-100';
-      case 'entre': return 'text-purple-600 bg-purple-100';
-      case 'appele': return 'text-orange-600 bg-orange-100';
-      case 'waiting':
-      case 'en_attente': return 'text-yellow-600 bg-yellow-100';
-      case 'finished':
-      case 'termine': return 'text-green-600 bg-green-100';
-      default: return 'text-gray-600 bg-gray-100';
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'in_consultation':
-      case 'en_consultation': return 'En consultation';
-      case 'entre': return 'Entré';
-      case 'appele': return 'Appelé';
-      case 'waiting':
-      case 'en_attente': return 'En attente';
-      case 'finished':
-      case 'termine': return 'Terminé';
-      default: return status;
-    }
-  };
-
-  const getUrgencyColor = (priority) => {
-    switch (priority) {
-      case 'urgente': return 'text-red-600 bg-red-100';
-      case 'tres_urgente': return 'text-red-800 bg-red-200';
-      case 'normale': return 'text-green-600 bg-green-100';
-      default: return 'text-gray-600 bg-gray-100';
-    }
-  };
-
-  const calculateWaitTime = (arrivedAt) => {
-    if (!arrivedAt) return 0;
-    const arrivalTime = new Date(arrivedAt);
-    const now = new Date();
-    const diffMs = now - arrivalTime;
-    return Math.floor(diffMs / (1000 * 60));
-  };
-
-  const formatTime = (dateString) => {
-    if (!dateString) return '';
-    return new Date(dateString).toLocaleTimeString('fr-FR', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
-
   const filterDoctors = () => {
     return doctors.filter(doctor => {
       const doctorName = `${doctor.prenom} ${doctor.nom}`.toLowerCase();
@@ -499,39 +309,6 @@ const GlobalWaitingQueue = ({
     });
   };
 
-  const filterPatients = (patients) => {
-    const active = filterActiveQueueItems(patients);
-    const filtered = filterOutPastAppointments(active);
-    const finalFiltered = filterOutStuckConsultations(filtered);
-    if (filterStatus === 'all') return finalFiltered;
-    if (filterStatus === 'urgent') {
-      return finalFiltered.filter((patient) => isUrgentQueuePriority(patient.priority));
-    }
-    return finalFiltered.filter((patient) =>
-      matchesQueueFilterStatus(filterStatus, patient.status),
-    );
-  };
-
-  const getDoctorStats = (doctorId) => {
-    const queue = filterActiveQueueItems(waitingQueues[doctorId] || []);
-    const filteredQueue = filterPatients(waitingQueues[doctorId] || []);
-    const stats = computeQueueStats(queue);
-
-    return {
-      total: stats.total,
-      waiting: stats.waiting,
-      inConsultation: stats.inConsultation,
-      inSalle: stats.onBench,
-      urgent: stats.urgent,
-      filtered: filteredQueue.length,
-    };
-  };
-
-  const isAppointmentInQueue = (doctorId, appointment) => {
-    const queue = waitingQueues[doctorId] || [];
-    return queue.some(p => p.patient_id === appointment.patient_id && p.appointment_id === appointment.id);
-  };
-
   // Statistiques globales (patients actifs uniquement)
   const allQueues = filterActiveQueueItems(Object.values(waitingQueues).flat());
   const globalStats = computeQueueStats(allQueues);
@@ -541,7 +318,6 @@ const GlobalWaitingQueue = ({
     0,
   );
   const totalWaiting = globalStats.onBench;
-  const totalInConsult = globalStats.inConsultation;
   const totalUrgent = globalStats.urgent;
 
   if (loading) {
@@ -557,52 +333,33 @@ const GlobalWaitingQueue = ({
 
   const filteredDoctors = filterDoctors();
 
-  const filterTodayAppointments = (list) =>
-    (list || []).filter((appt) => !shouldHidePastAppointment(appt));
-
-  const handleDoctorStatClick = (doctor, queueFilter, event) => {
-    event?.stopPropagation?.();
-    onDoctorSelect?.(doctor, queueFilter);
-  };
+  const getInitials = (doctor) =>
+    `${doctor.prenom?.[0] || ''}${doctor.nom?.[0] || ''}`.toUpperCase() || '?';
 
   // Calculer les statistiques par médecin pour le tableau récapitulatif
-  const doctorStats = doctors.map(doctor => {
+  const doctorStatsRaw = filteredDoctors.map(doctor => {
+    // On réutilise les mêmes fonctions de classification que les compteurs globaux
+    // (computeQueueStats / isOnWaitingBench) pour que la somme par médecin
+    // corresponde toujours exactement aux cartes du haut ("Salle d'attente", "Urgences").
     const doctorQueue = filterActiveQueueItems(waitingQueues[doctor.id] || []);
-    
-    const enAttente = doctorQueue.filter(p => 
-      p.status === 'waiting' || 
-      p.status === 'en_attente' || 
-      p.status === 'present' || 
-      p.status === 'arrive'
-    ).length;
-    
-    const enConsultation = doctorQueue.filter(p => 
-      p.status === 'in_consultation' || 
-      p.status === 'en_consultation'
-    ).length;
-    
+
+    const enAttente = doctorQueue.filter(p => isOnWaitingBench(p.status)).length;
+    const enConsultation = doctorQueue.filter(p => isInConsultationQueueStatus(p.status)).length;
     const total = enAttente + enConsultation;
-    
-    // Répartition par urgence (sur les patients présents)
-    const presentPatients = doctorQueue.filter(p => 
-      p.status === 'waiting' || 
-      p.status === 'en_attente' || 
-      p.status === 'present' || 
-      p.status === 'arrive' ||
-      p.status === 'in_consultation' || 
-      p.status === 'en_consultation'
-    );
-    
-    const tresUrgent = presentPatients.filter(p => p.priority === 'tres_urgente').length;
-    const urgent = presentPatients.filter(p => p.priority === 'urgente').length;
-    const normal = presentPatients.filter(p => p.priority === 'normale' || !p.priority).length;
-    
+
+    // Répartition par urgence (sur tous les patients actifs du médecin)
+    const tresUrgent = doctorQueue.filter(p => p.priority === 'tres_urgente').length;
+    const urgent = doctorQueue.filter(p => p.priority === 'urgente').length;
+    const normal = doctorQueue.filter(p => p.priority === 'normale' || !p.priority).length;
+
     // Total du jour : consultations terminées aujourd'hui
     const totalDuJour = (consultationsByDoctor[doctor.id] || []).length;
-    
+
     return {
       medecinId: doctor.id,
+      initiales: getInitials(doctor),
       nom: `Dr. ${doctor.prenom} ${doctor.nom}`,
+      specialite: doctor.specialite || null,
       enAttente,
       enConsultation,
       total,
@@ -614,6 +371,20 @@ const GlobalWaitingQueue = ({
       }
     };
   });
+
+  // Priorité au médecin qui a le plus besoin d'attention : très urgent > urgent > total de patients,
+  // puis les médecins sans aucun patient sont relégués en bas et grisés.
+  const doctorStatsSorted = [...doctorStatsRaw].sort((a, b) => {
+    if (a.urgence.tresUrgent !== b.urgence.tresUrgent) return b.urgence.tresUrgent - a.urgence.tresUrgent;
+    if (a.urgence.urgent !== b.urgence.urgent) return b.urgence.urgent - a.urgence.urgent;
+    if (a.total !== b.total) return b.total - a.total;
+    return a.nom.localeCompare(b.nom);
+  });
+
+  // Si on vient de cliquer sur la carte "Urgences", ne garder que les médecins concernés
+  const doctorStats = filterStatus === 'urgent'
+    ? doctorStatsSorted.filter((s) => s.urgence.tresUrgent > 0 || s.urgence.urgent > 0)
+    : doctorStatsSorted;
 
   return (
     <div className="p-6">
@@ -657,86 +428,147 @@ const GlobalWaitingQueue = ({
       </div>
 
       {/* Tableau récapitulatif par médecin */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-        <div className="p-6 overflow-x-auto">
-          <table className="w-full">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+          <h3 className="text-sm font-semibold text-gray-700">Par médecin</h3>
+          {filterStatus === 'urgent' && (
+            <button
+              type="button"
+              onClick={() => onFilterStatus?.('all')}
+              className="text-xs font-medium text-medical-primary hover:text-medical-primary-dark"
+            >
+              Voir tous les médecins ×
+            </button>
+          )}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-semibold text-gray-700">Médecin</th>
-                <th className="text-center py-3 px-4 font-semibold text-gray-700" colSpan="2">Présents</th>
-                <th className="text-center py-3 px-4 font-semibold text-gray-700">Total</th>
-                <th className="text-center py-3 px-4 font-semibold text-gray-700">Total du jour</th>
-                <th className="text-center py-3 px-4 font-semibold text-gray-700" colSpan="3">Dont (urgence)</th>
-              </tr>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="text-left py-2 px-4 text-sm font-medium text-gray-600"></th>
-                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600">En attente</th>
-                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600">En consultation</th>
-                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600"></th>
-                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600"></th>
-                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600 bg-red-200">Très urgent</th>
-                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600 bg-orange-50">Urgent</th>
-                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600 bg-green-50">Normal</th>
+              <tr className="border-b border-gray-200 bg-gray-50/60">
+                <th className="text-left py-3 px-5 font-semibold text-gray-600">Médecin</th>
+                <th className="text-center py-3 px-3 font-semibold text-gray-600">
+                  <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> Attente</span>
+                </th>
+                <th className="text-center py-3 px-3 font-semibold text-gray-600">
+                  <span className="inline-flex items-center gap-1"><Stethoscope className="w-3.5 h-3.5" /> Consult.</span>
+                </th>
+                <th className="text-center py-3 px-3 font-semibold text-gray-600">Total présent</th>
+                <th className="text-center py-3 px-3 font-semibold text-gray-600">
+                  <span className="inline-flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> Vus aujourd'hui</span>
+                </th>
+                <th className="text-center py-3 px-5 font-semibold text-gray-600">Urgences</th>
+                <th className="w-10"></th>
               </tr>
             </thead>
-            <tbody>
-              {doctorStats.map((stat) => (
-                <tr 
-                  key={stat.medecinId} 
-                  className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
-                  onClick={() => {
-                    const doctor = doctors.find(d => d.id === stat.medecinId);
-                    if (doctor) onDoctorSelect?.(doctor);
-                  }}
-                >
-                  <td className="py-3 px-4 font-medium text-gray-900">{stat.nom}</td>
-                  <td className="text-center py-3 px-4 text-gray-700">{stat.enAttente}</td>
-                  <td className="text-center py-3 px-4 text-gray-700">{stat.enConsultation}</td>
-                  <td className="text-center py-3 px-4 font-bold text-gray-900">{stat.total}</td>
-                  <td className="text-center py-3 px-4 font-bold text-blue-900">{stat.totalDuJour}</td>
-                  <td className="text-center py-3 px-4 text-gray-700 bg-red-200">{stat.urgence.tresUrgent}</td>
-                  <td className="text-center py-3 px-4 text-gray-700 bg-orange-50">{stat.urgence.urgent}</td>
-                  <td className="text-center py-3 px-4 text-gray-700 bg-green-50">{stat.urgence.normal}</td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-gray-100">
+              {doctorStats.map((stat) => {
+                const isEmpty = stat.total === 0;
+                const hasTresUrgent = stat.urgence.tresUrgent > 0;
+                return (
+                  <tr
+                    key={stat.medecinId}
+                    className={`group cursor-pointer transition-colors ${
+                      hasTresUrgent
+                        ? 'bg-red-50/60 hover:bg-red-50 border-l-4 border-l-red-500'
+                        : isEmpty
+                          ? 'hover:bg-gray-50 opacity-60'
+                          : 'hover:bg-gray-50'
+                    }`}
+                    onClick={() => {
+                      const doctor = doctors.find(d => d.id === stat.medecinId);
+                      if (doctor) onDoctorSelect?.(doctor);
+                    }}
+                  >
+                    <td className="py-3 px-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-medical-primary/10 text-medical-primary flex items-center justify-center text-xs font-bold flex-shrink-0">
+                          {stat.initiales}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{stat.nom}</p>
+                          {stat.specialite && (
+                            <p className="text-xs text-gray-500 truncate">{stat.specialite}</p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="text-center py-3 px-3">
+                      {stat.enAttente > 0 ? (
+                        <span className="inline-flex items-center justify-center min-w-[1.75rem] px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">
+                          {stat.enAttente}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">–</span>
+                      )}
+                    </td>
+                    <td className="text-center py-3 px-3">
+                      {stat.enConsultation > 0 ? (
+                        <span className="inline-flex items-center justify-center min-w-[1.75rem] px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                          {stat.enConsultation}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">–</span>
+                      )}
+                    </td>
+                    <td className="text-center py-3 px-3 font-bold text-gray-900">
+                      {isEmpty ? <span className="font-normal text-gray-400">Aucun patient</span> : stat.total}
+                    </td>
+                    <td className="text-center py-3 px-3">
+                      <span className="font-semibold text-gray-700">{stat.totalDuJour}</span>
+                    </td>
+                    <td className="py-3 px-5">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span
+                          title="Très urgent"
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            stat.urgence.tresUrgent > 0 ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-400'
+                          }`}
+                        >
+                          {stat.urgence.tresUrgent > 0 && <AlertTriangle className="w-3 h-3" />}
+                          {stat.urgence.tresUrgent}
+                        </span>
+                        <span
+                          title="Urgent"
+                          className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            stat.urgence.urgent > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'
+                          }`}
+                        >
+                          {stat.urgence.urgent}
+                        </span>
+                        <span
+                          title="Normal"
+                          className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            stat.urgence.normal > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'
+                          }`}
+                        >
+                          {stat.urgence.normal}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="pr-4">
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-medical-primary transition-colors" />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
       {doctorStats.length === 0 && (
-        <div className="text-center py-12">
-          <Stethoscope className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500">Aucun médecin trouvé</p>
+        <div className="text-center py-12 bg-white border border-gray-200 rounded-xl mt-4">
+          {filterStatus === 'urgent' ? (
+            <>
+              <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-4" />
+              <p className="text-gray-500">Aucune urgence en ce moment</p>
+            </>
+          ) : (
+            <>
+              <Moon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">Aucun médecin trouvé</p>
+            </>
+          )}
         </div>
-      )}
-
-      {/* Modal d'upload de documents */}
-      {showUploadModal && selectedPatientForUpload && (
-        <PatientDocumentUploader
-          patient={selectedPatientForUpload}
-          onUploadSuccess={() => {
-            setShowUploadModal(false);
-            setSelectedPatientForUpload(null);
-          }}
-          onClose={() => {
-            setShowUploadModal(false);
-            setSelectedPatientForUpload(null);
-          }}
-        />
-      )}
-
-      {/* Modal de réassignation de médecin */}
-      {showReassignModal && selectedPatientForReassign && (
-        <DoctorReassignModal
-          isOpen={showReassignModal}
-          onClose={() => {
-            setShowReassignModal(false);
-            setSelectedPatientForReassign(null);
-          }}
-          patient={selectedPatientForReassign}
-          currentMedecinId={selectedPatientForReassign.medecin_id}
-          onReassignComplete={handleReassignComplete}
-        />
       )}
     </div>
   );

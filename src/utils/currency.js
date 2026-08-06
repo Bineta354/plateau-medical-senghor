@@ -1,20 +1,24 @@
 /** Formatage des montants en franc CFA (FCFA / XOF). */
 export const DEVISE_LABEL = 'FCFA';
 
+// `?? 0` ne remplace que null/undefined, pas NaN (ex: parseFloat(undefined)) — sans cette
+// garde, un champ manquant en base afficherait littéralement "NaN FCFA" sur une facture.
+const toSafeNumber = (montant) => (Number.isFinite(montant) ? montant : 0);
+
 export function formatMontant(montant) {
-  return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(montant ?? 0)} ${DEVISE_LABEL}`;
+  return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(toSafeNumber(montant))} ${DEVISE_LABEL}`;
 }
 
 export function formatMontantDecimal(montant) {
   return `${new Intl.NumberFormat('fr-FR', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
-  }).format(montant ?? 0)} ${DEVISE_LABEL}`;
+  }).format(toSafeNumber(montant))} ${DEVISE_LABEL}`;
 }
 
 /** Nombre avec séparateur de milliers, sans unité (pour les tableaux où l'en-tête indique déjà "F CFA"). */
 export function formatNombre(montant) {
-  return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(montant ?? 0);
+  return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(toSafeNumber(montant));
 }
 
 // Intl.NumberFormat('fr-FR') sépare les milliers avec une espace fine insécable (U+202F).
