@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { Pill } from 'lucide-react';
+import { Pill, Plus } from 'lucide-react';
 import SearchableSelect from '../../common/SearchableSelect';
+import QuickAddMedicamentModal from './QuickAddMedicamentModal';
 import { useConfirmDialog } from '../../../hooks/useConfirmDialog';
 import PropTypes from 'prop-types';
 
@@ -16,14 +17,52 @@ const OrdonnancesModal = ({
 }) => {
 
     const {  showSuccess , showError, showWarning} = useConfirmDialog();
-      
-    
-  
+
+    // Médicaments créés à la volée pendant cette ordonnance (absents du référentiel
+    // chargé au début de la consultation) — fusionnés avec medicamentsRef pour l'affichage.
+    const [extraMedicaments, setExtraMedicaments] = useState([]);
+    const [quickAddForIndex, setQuickAddForIndex] = useState(null);
+    const allMedicaments = [...medicamentsRef, ...extraMedicaments];
+
    const [ordonnanceForm, setOrdonnanceForm] = useState({
      instructions_generales: '',
      prochain_rdv: '',
      medicaments: []
    });
+
+   // Même règle de choix de posologie que la sélection normale dans le select : selon
+   // l'âge du patient (enfant/adulte), avec repli sur la posologie par défaut.
+   const resolvePosologie = (selectedMedicament) => {
+     if (!selectedMedicament) return '';
+     const patientAge = patient?.date_naissance ? calculateAge(patient.date_naissance) : null;
+     const isChild = patientAge !== null && patientAge < 18;
+
+     if (isChild && selectedMedicament.posologie_enfant) return selectedMedicament.posologie_enfant;
+     if (!isChild && selectedMedicament.posologie_adulte) return selectedMedicament.posologie_adulte;
+     if (selectedMedicament.posologie_defaut) return selectedMedicament.posologie_defaut;
+     return '';
+   };
+
+   const handleMedicamentCreated = (nouveauMedicament) => {
+     // Si le médicament existait déjà (cas récupéré après une contrainte d'unicité côté
+     // QuickAddMedicamentModal, qui affiche alors son propre message), ne pas le dupliquer
+     // dans la liste des options.
+     const dejaConnu = [...medicamentsRef, ...extraMedicaments].some((m) => m.id === nouveauMedicament.id);
+     if (!dejaConnu) {
+       setExtraMedicaments((prev) => [...prev, nouveauMedicament]);
+       showSuccess('Médicament ajouté au référentiel et sélectionné.');
+     }
+     if (quickAddForIndex !== null) {
+       const newMedicaments = [...ordonnanceForm.medicaments];
+       newMedicaments[quickAddForIndex].medicament_id = String(nouveauMedicament.id);
+       const posologie = resolvePosologie(nouveauMedicament);
+       if (posologie) {
+         newMedicaments[quickAddForIndex].posologie = posologie;
+       }
+       setOrdonnanceForm({ ...ordonnanceForm, medicaments: newMedicaments });
+     }
+     setQuickAddForIndex(null);
+   };
 
   const saveOrdonnance = async () => {
     console.log('saveOrdonnance appelée');
@@ -125,12 +164,13 @@ const OrdonnancesModal = ({
   };
 
 
-return ( 
+return (
+      <>
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-5 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Créer une ordonnance</h3>
-              
+
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -204,10 +244,11 @@ return (
                         </button>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="flex flex-col">
                         <SearchableSelect
                           label="Médicament"
                           required
-                          options={medicamentsRef.map(m => ({
+                          options={allMedicaments.map(m => ({
                             id: m.id,
                             label: m.nom,
                             nom: m.nom,
@@ -220,24 +261,16 @@ return (
                           onChange={(value) => {
                             const newMedicaments = [...ordonnanceForm.medicaments];
                             newMedicaments[index].medicament_id = value;
-                            
+
                             // Remplir automatiquement les champs avec les données du médicament sélectionné
                             if (value) {
-                              const selectedMedicament = medicamentsRef.find(m => m.id === parseInt(value));
+                              const selectedMedicament = allMedicaments.find(m => m.id === parseInt(value));
                               if (selectedMedicament) {
-                                // Calculer l'âge du patient pour déterminer quelle posologie utiliser
-                                const patientAge = patient?.date_naissance ? calculateAge(patient.date_naissance) : null;
-                                const isChild = patientAge !== null && patientAge < 18;
-                                
-                                // Posologie selon l'âge (adulte ou enfant) ou posologie par défaut
-                                if (isChild && selectedMedicament.posologie_enfant) {
-                                  newMedicaments[index].posologie = selectedMedicament.posologie_enfant;
-                                } else if (!isChild && selectedMedicament.posologie_adulte) {
-                                  newMedicaments[index].posologie = selectedMedicament.posologie_adulte;
-                                } else if (selectedMedicament.posologie_defaut) {
-                                  newMedicaments[index].posologie = selectedMedicament.posologie_defaut;
+                                const posologie = resolvePosologie(selectedMedicament);
+                                if (posologie) {
+                                  newMedicaments[index].posologie = posologie;
                                 }
-                                
+
                                 // Note: Les contre-indications et interactions sont affichées dans le bloc d'information
                                 // Le médecin peut les copier dans les instructions particulières s'il le souhaite
                               }
@@ -249,7 +282,7 @@ return (
                           searchPlaceholder="Rechercher par nom..."
                           emptyMessage="Aucun médicament trouvé"
                           renderOption={(option) => {
-                            const medicamentData = medicamentsRef.find(m => m.id === option.id);
+                            const medicamentData = allMedicaments.find(m => m.id === option.id);
                             return (
                               <div className="flex flex-col">
                                 <span className="font-medium text-gray-900">
@@ -281,9 +314,17 @@ return (
                             );
                           }}
                         />
+                        <button
+                          type="button"
+                          onClick={() => setQuickAddForIndex(index)}
+                          className="mt-1 self-start flex items-center gap-1 text-xs font-medium text-green-700 hover:text-green-800"
+                        >
+                          <Plus className="w-3 h-3" /> Nouveau médicament (absent de la liste)
+                        </button>
+                        </div>
                         {/* Affichage des informations du médicament sélectionné */}
                         {medicament.medicament_id && (() => {
-                          const selectedMedicament = medicamentsRef.find(m => m.id === parseInt(medicament.medicament_id));
+                          const selectedMedicament = allMedicaments.find(m => m.id === parseInt(medicament.medicament_id));
                           if (selectedMedicament) {
                             return (
                               <div className="md:col-span-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
@@ -433,6 +474,14 @@ return (
             </div>
           </div>
         </div>
+
+        {quickAddForIndex !== null && (
+          <QuickAddMedicamentModal
+            onClose={() => setQuickAddForIndex(null)}
+            onCreated={handleMedicamentCreated}
+          />
+        )}
+      </>
       )
     };
 export default OrdonnancesModal;

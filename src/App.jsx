@@ -755,11 +755,11 @@ const AppContent = () => {
         } />
         
         <Route path="/parametrage/medicaments" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={['admin', ROLES.DOCTOR]}>
             <LazyPageWrapper Component={Medicaments} message="Chargement médicaments..." />
           </ProtectedRoute>
         } />
-        
+
         <Route path="/parametrage/elements-synthese" element={
           <ProtectedRoute allowedRoles={['admin']}>
             <LazyPageWrapper Component={ElementsSynthese} message="Chargement éléments synthèse..." />

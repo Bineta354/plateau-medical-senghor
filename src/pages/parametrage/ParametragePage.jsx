@@ -9,7 +9,8 @@ import {
   Settings,
   Stethoscope,
   ChevronRight,
-  CreditCard
+  CreditCard,
+  Pill
 } from 'lucide-react';
 
 const ParametragePage = () => {
@@ -34,12 +35,19 @@ const ParametragePage = () => {
           icon: Stethoscope,
           color: 'bg-indigo-500' 
         },
-        { 
-          name: 'Spécialités', 
+        {
+          name: 'Spécialités',
           description: 'Spécialités médicales du cabinet',
-          path: '/parametrage/specialites', 
+          path: '/parametrage/specialites',
           icon: Award,
-          color: 'bg-purple-500' 
+          color: 'bg-purple-500'
+        },
+        {
+          name: 'Médicaments',
+          description: 'Référentiel des médicaments (ordonnances)',
+          path: '/parametrage/medicaments',
+          icon: Pill,
+          color: 'bg-rose-500'
         },
       ]
     },

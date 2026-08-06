@@ -450,7 +450,7 @@ export const PAGES_CONFIG = [
     category: 'Paramétrage',
     icon: 'Pill',
     keywords: ['médicaments', 'pharmacie', 'traitements', 'dci'],
-    allowedRoles: [ROLES.ADMIN],
+    allowedRoles: [ROLES.ADMIN, ROLES.DOCTOR],
     isSubPage: true
   },
   {

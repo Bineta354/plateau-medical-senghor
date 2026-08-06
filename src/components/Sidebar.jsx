@@ -215,6 +215,7 @@ const Sidebar = ({
         name: 'PARAMÉTRAGE',
         icon: Settings,
         items: [
+          { name: 'Médicaments', icon: Pill, path: '/parametrage/medicaments' },
           { name: 'États Dentaires', icon: Activity, path: '/parametrage/etats-dentaires' },
         ]
       }
@@ -248,6 +249,7 @@ const Sidebar = ({
         items: [
           { name: 'Paramétrage', icon: Settings, path: '/parametrage' },
           { name: 'Spécialités', icon: Award, path: '/parametrage/specialites' },
+          { name: 'Médicaments', icon: Pill, path: '/parametrage/medicaments' },
           { name: 'Personnalisation', icon: Sparkles, path: '/administration/personnalisation' },
           { name: 'États Dentaires', icon: Activity, path: '/parametrage/etats-dentaires' },
         ]
