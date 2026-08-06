@@ -21,7 +21,12 @@
       "Bash(npx --yes supabase --version)",
       "Bash(npx --yes supabase projects list)",
       "Bash(npx --yes supabase migration list)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "mcp__plugin_supabase_supabase__list_projects",
+      "mcp__plugin_supabase_supabase__list_tables",
+      "mcp__plugin_supabase_supabase__execute_sql",
+      "Bash(git status *)",
+      "Bash(npx jest *)"
     ]
   },
   "enabledMcpjsonServers": [
