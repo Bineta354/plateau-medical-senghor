@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { validateBirthDate } from '../../services/patientService';
+import { validatePatientForm, getDateNaissanceError, normalizePatientPayload } from '../../schemas/patientSchema';
 import { 
   ArrowLeft,
   Save,
@@ -110,38 +110,25 @@ const PatientEditPage = () => {
   };
 
   const validateDateNaissanceRealTime = (value) => {
-    const newErrors = { ...fieldErrors };
-    
-    if (!value) {
-      newErrors.date_naissance = 'La date de naissance est obligatoire';
-    } else {
-      const birthDate = new Date(value);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-      
-      if (birthDate > today) {
-        newErrors.date_naissance = 'La date de naissance ne peut pas être dans le futur';
-      } else if (birthDate > oneYearAgo) {
-        newErrors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
-      } else {
-        newErrors.date_naissance = '';
-      }
-    }
-    
-    setFieldErrors(newErrors);
+    setFieldErrors(prev => ({ ...prev, date_naissance: getDateNaissanceError(value) }));
+  };
+
+  const validateForm = () => {
+    const { errors } = validatePatientForm(formData);
+    return errors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validation backend de la date de naissance
-    const birthDateValidation = validateBirthDate(formData.date_naissance);
-    if (!birthDateValidation.valid) {
-      setError(birthDateValidation.error);
+
+    // Valider le formulaire
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors);
+      setError(Object.values(validationErrors).join(', '));
       return;
     }
-    
+
     setLoading(true);
     setError(null);
 
@@ -186,11 +173,13 @@ const PatientEditPage = () => {
         finalFormData.numero_assurance = null;
       }
 
-      console.log('📤 [PatientEdit] Données finales à mettre à jour:', finalFormData);
+      const normalizedFormData = normalizePatientPayload(finalFormData);
+
+      console.log('📤 [PatientEdit] Données finales à mettre à jour:', normalizedFormData);
 
       const { error } = await supabase
         .from('patients')
-        .update(finalFormData)
+        .update(normalizedFormData)
         .eq('id', id);
 
       if (error) throw error;

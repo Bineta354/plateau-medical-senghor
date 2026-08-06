@@ -29,3 +29,5 @@ dist-ssr
 .env.env.*
 !.env.example
 fix_*.py
+.env
+.env.ngor

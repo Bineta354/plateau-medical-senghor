@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase'
 import SearchableSelect from '../../components/common/SearchableSelect';
 import { generateNumeroDossier, validateBirthDate } from '../../services/patientService';
+import { validatePatientForm, getDateNaissanceError, normalizePatientPayload } from '../../schemas/patientSchema';
 import { 
   ArrowLeft,
   Save,
@@ -164,64 +165,12 @@ const PatientCreatePage = () => {
   };
 
   const validateDateNaissanceRealTime = (value) => {
-    const newErrors = { ...fieldErrors };
-    
-    if (!value) {
-      newErrors.date_naissance = 'La date de naissance est obligatoire';
-    } else {
-      const birthDate = new Date(value);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-      
-      if (birthDate > today) {
-        newErrors.date_naissance = 'La date de naissance ne peut pas être dans le futur';
-      } else if (birthDate > oneYearAgo) {
-        newErrors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
-      } else {
-        newErrors.date_naissance = '';
-      }
-    }
-    
-    setFieldErrors(newErrors);
+    setFieldErrors(prev => ({ ...prev, date_naissance: getDateNaissanceError(value) }));
   };
 
   const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.nom.trim()) {
-      newErrors.nom = 'Le nom est obligatoire';
-    }
-    
-    if (!formData.prenom.trim()) {
-      newErrors.prenom = 'Le prénom est obligatoire';
-    }
-    
-    if (!formData.date_naissance) {
-      newErrors.date_naissance = 'La date de naissance est obligatoire';
-    } else {
-      // Validation de la date de naissance
-      const birthDate = new Date(formData.date_naissance);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Normaliser à minuit pour comparaison juste
-      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-      
-      if (birthDate > today) {
-        newErrors.date_naissance = 'La date de naissance ne peut pas être postérieure à aujourd\'hui';
-      } else if (birthDate > oneYearAgo) {
-        newErrors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
-      }
-    }
-    
-    if (formData.telephone && !/^[0-9\s\+\-\(\)]{10,}$/.test(formData.telephone.replace(/\s/g, ''))) {
-      newErrors.telephone = 'Format de téléphone invalide';
-    }
-    
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Format d\'email invalide';
-    }
-    
-    return newErrors;
+    const { errors } = validatePatientForm(formData);
+    return errors;
   };
 
   const handleSubmit = async (e) => {
@@ -307,12 +256,14 @@ const PatientCreatePage = () => {
         }
       }
 
-      console.log('📤 [PatientCreate] Données finales à insérer:', finalFormData);
+      const normalizedFormData = normalizePatientPayload(finalFormData);
+
+      console.log('📤 [PatientCreate] Données finales à insérer:', normalizedFormData);
       console.log('🔵 [PatientCreate] Envoi de la requête INSERT à Supabase...');
 
       const { data, error } = await supabase
         .from('patients')
-        .insert([finalFormData])
+        .insert([normalizedFormData])
         .select()
         .single();
 

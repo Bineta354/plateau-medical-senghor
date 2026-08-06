@@ -42,7 +42,7 @@ const ConsultationCompletion = () => {
   const [facture, setFacture] = useState(null);
 
   // États pour la facturation
-  const [prixConsultation, setPrixConsultation] = useState(0);
+  const [prixConsultation, setPrixConsultation] = useState(6000);
   const [generatingInvoice, setGeneratingInvoice] = useState(false);
   const [invoiceGenerated, setInvoiceGenerated] = useState(false);
 
@@ -770,9 +770,16 @@ const ConsultationCompletion = () => {
                       Prix de la consultation (FCFA)
                     </label>
                     <input
-                      type="number"
-                      value={prixConsultation}
-                      onChange={(e) => setPrixConsultation(parseFloat(e.target.value) || 0)}
+                      type="text"
+                      value={new Intl.NumberFormat('fr-FR', {
+                        maximumFractionDigits: 0,
+                        useGrouping: true
+                      }).format(prixConsultation).replace(/\u00A0/g, ' ')}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\s/g, '');
+                        const numValue = parseFloat(value) || 0;
+                        setPrixConsultation(numValue);
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="0"
                       min="0"

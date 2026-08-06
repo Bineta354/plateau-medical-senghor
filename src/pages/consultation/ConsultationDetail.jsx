@@ -537,11 +537,11 @@ const ConsultationDetail = () => {
 
   const tabs = [
     { id: 'examen', name: 'Examen Général', icon: Eye },
+    ...(isDentist ? [{ id: 'dental', name: 'Schéma Dentaire', icon: Smile }] : []),
     { id: 'antecedents', name: 'Antécédents', icon: User },
     { id: 'constantes', name: 'Constantes', icon: Activity },
     { id: 'appareils', name: 'Appareils', icon: Heart },
     { id: 'diagnostics', name: 'Diagnostics', icon: FileText },
-    ...(isDentist ? [{ id: 'dental', name: 'Schéma Dentaire', icon: Smile }] : []),
     { id: 'actes', name: 'Actes', icon: Stethoscope },
     { id: 'ordonnances', name: 'Ordonnances', icon: Pill },
     { id: 'certificats', name: 'Certificats', icon: Award },
@@ -693,7 +693,7 @@ const ConsultationDetail = () => {
         <div className="flex flex-col space-y-2">
           {/* Rangée 1 */}
           <nav className="-mb-px flex space-x-8 flex-wrap">
-            {tabs.filter(tab => ['examen', 'antecedents', 'constantes', 'appareils', 'diagnostics'].includes(tab.id)).map((tab) => (
+            {tabs.filter(tab => ['examen', 'dental', 'antecedents', 'constantes', 'appareils', 'diagnostics'].includes(tab.id)).map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
@@ -710,7 +710,7 @@ const ConsultationDetail = () => {
 
           {/* Rangée 2 */}
           <nav className="-mb-px flex space-x-8 flex-wrap">
-            {tabs.filter(tab => ['actes', 'ordonnances', 'certificats', 'synthese', 'dental'].includes(tab.id)).map((tab) => (
+            {tabs.filter(tab => ['actes', 'ordonnances', 'certificats', 'synthese'].includes(tab.id)).map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}

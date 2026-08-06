@@ -475,25 +475,35 @@ const PriseRendezVousPage = () => {
 
         <div className="max-h-96 overflow-y-auto">
           {appointments.map((appointment) => (
-              <div 
-                key={appointment.id} 
+              <div
+                key={appointment.id}
                 className={`p-3 border-b border-gray-100 border-l-4 ${getPriorityColor(appointment.priorite)}`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center space-x-3 min-w-0 flex-1">
                     <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                       {formatTime(appointment.date_heure).split(':')[0]}
                     </div>
-                    <div className="flex-1">
-                      <div className="font-bold text-gray-900 text-base">
+                    <div className="flex-1 min-w-0 grid grid-cols-[160px_100px_140px_180px_1fr] items-center gap-x-3">
+                      <span className="font-bold text-gray-900 text-base truncate" title={`${appointment.patient?.prenom} ${appointment.patient?.nom}`}>
                         {appointment.patient?.prenom} {appointment.patient?.nom}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {formatTime(appointment.date_heure)}
-                      </div>
+                      </span>
+                      <span className="justify-self-start">{getStatusBadge(appointment.statut)}</span>
+                      <span className="text-sm text-gray-500 whitespace-nowrap">
+                        {new Date(appointment.date_heure).toLocaleDateString('fr-FR')} · {formatTime(appointment.date_heure)}
+                      </span>
+                      <span className="text-sm text-gray-500 truncate" title={appointment.motif || ''}>
+                        {appointment.motif}
+                      </span>
+                      {appointment.medecin && (
+                        <span className="text-sm text-gray-500 truncate">
+                          Dr. {appointment.medecin.prenom} {appointment.medecin.nom}
+                          {appointment.medecin.specialite ? ` · ${appointment.medecin.specialite}` : ''}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-shrink-0">
                     {!['arrive', 'termine', 'annule'].includes(appointment.statut) && (
                       <button
                         onClick={() => handleConfirmPatientPresence(appointment)}

@@ -86,7 +86,7 @@ const ReversementBancaire = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const montant = parseFloat(form.montant);
+    const montant = parseFloat(form.montant.toString().replace(/\s/g, ''));
     if (!montant || montant <= 0) {
       setError('Montant invalide');
       return;
@@ -172,11 +172,15 @@ const ReversementBancaire = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Montant (F CFA)</label>
               <input
-                type="number"
+                type="text"
                 min="1"
                 step="1"
-                value={form.montant}
-                onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
+                value={form.montant ? new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(parseFloat(form.montant) || 0).replace(/\u00A0/g, ' ') : ''}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\s/g, '');
+                  const numValue = parseFloat(value) || 0;
+                  setForm((f) => ({ ...f, montant: numValue.toString() }));
+                }}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 required
               />

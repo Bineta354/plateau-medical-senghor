@@ -5,6 +5,9 @@ import {
   confirmSkippedWorkflowSteps,
   validateQueueTransition,
 } from '../../utils/workflowGuards';
+import { FileText } from 'lucide-react';
+import AntecedentsMedicaux from '../../components/consultation/AntecedentsMedicaux';
+import * as consultationService from '../../services/consultation/consultationService';
 
 const SalleAttente = () => {
   const [waitingQueue, setWaitingQueue] = useState([]);
@@ -15,6 +18,10 @@ const SalleAttente = () => {
   const [showArrivalModal, setShowArrivalModal] = useState(false);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [showAntecedentsModal, setShowAntecedentsModal] = useState(false);
+  const [selectedPatientForAntecedents, setSelectedPatientForAntecedents] = useState(null);
+  const [antecedents, setAntecedents] = useState([]);
+  const [antecedentsRef, setAntecedentsRef] = useState([]);
   const [newArrival, setNewArrival] = useState({
     patient_id: '',
     medecin_id: '',
@@ -237,6 +244,48 @@ const SalleAttente = () => {
     }
   };
 
+  // Gestion des antécédents
+  const handleViewAntecedents = async (patient) => {
+    setSelectedPatientForAntecedents(patient);
+    await fetchAntecedents(patient.patient_id);
+    await fetchAntecedentsRef();
+    setShowAntecedentsModal(true);
+  };
+
+  const fetchAntecedents = async (patientId) => {
+    try {
+      const { data, error } = await supabase
+        .from('antecedents_patients')
+        .select(`
+          *,
+          antecedents (*)
+        `)
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAntecedents(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des antécédents:', error);
+      setAntecedents([]);
+    }
+  };
+
+  const fetchAntecedentsRef = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('antecedents')
+        .select('*')
+        .order('nom');
+
+      if (error) throw error;
+      setAntecedentsRef(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des références d\'antécédents:', error);
+      setAntecedentsRef([]);
+    }
+  };
+
   const handleStatusChange = async (queueId, newStatus) => {
     try {
       const currentPatient = waitingQueue.find(p => p.id === queueId);
@@ -406,6 +455,13 @@ const SalleAttente = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => handleViewAntecedents(item.patients)}
+                        className="text-purple-600 hover:text-purple-900 flex items-center gap-1"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Antécédents
+                      </button>
                       {item.status === 'present' && (
                         <button
                           onClick={() => handleStatusChange(item.id, 'en_consultation')}
@@ -677,6 +733,34 @@ const SalleAttente = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal des antécédents */}
+      {showAntecedentsModal && selectedPatientForAntecedents && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
+            <div className="mt-3">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Antécédents médicaux - {selectedPatientForAntecedents.prenom} {selectedPatientForAntecedents.nom}
+                </h3>
+                <button
+                  onClick={() => setShowAntecedentsModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+              <AntecedentsMedicaux
+                antecedents={antecedents}
+                fetchAntecedents={() => fetchAntecedents(selectedPatientForAntecedents.patient_id)}
+                antecedentsRef={antecedentsRef}
+                patient={{ id: selectedPatientForAntecedents.patient_id }}
+                isTerminated={false}
+              />
             </div>
           </div>
         </div>

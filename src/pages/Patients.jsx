@@ -646,8 +646,9 @@ const PatientsPage = () => {
                       type="text"
                       name="numero_dossier"
                       value={formData.numero_dossier}
-                      onChange={handleInputChange}
-                      className="input-field text-xs py-1.5"
+                      readOnly
+                      disabled
+                      className="input-field text-xs py-1.5 bg-gray-100 text-gray-600 cursor-not-allowed disabled:cursor-not-allowed disabled:opacity-70"
                     />
                   </div>
                   <div>

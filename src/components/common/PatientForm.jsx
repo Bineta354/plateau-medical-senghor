@@ -12,6 +12,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { generateNumeroDossier } from '../../services/patientService';
+import { validatePatientForm, getDateNaissanceError, normalizePatientPayload } from '../../schemas/patientSchema';
 
 const PatientForm = ({ 
   initialData = null,
@@ -160,68 +161,13 @@ const PatientForm = ({
   };
 
   const validateDateNaissanceRealTime = (value) => {
-    const newErrors = { ...errors };
-    
-    if (!value) {
-      newErrors.date_naissance = 'La date de naissance est obligatoire';
-    } else {
-      const birthDate = new Date(value);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-      
-      if (birthDate > today) {
-        newErrors.date_naissance = 'La date de naissance ne peut pas être dans le futur';
-      } else if (birthDate > oneYearAgo) {
-        newErrors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
-      } else {
-        newErrors.date_naissance = '';
-      }
-    }
-    
-    setErrors(newErrors);
+    setErrors(prev => ({ ...prev, date_naissance: getDateNaissanceError(value) }));
   };
 
   const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.nom.trim()) {
-      newErrors.nom = 'Le nom est obligatoire';
-    }
-    
-    if (!formData.prenom.trim()) {
-      newErrors.prenom = 'Le prénom est obligatoire';
-    }
-    
-    if (!formData.date_naissance) {
-      newErrors.date_naissance = 'La date de naissance est obligatoire';
-    } else {
-      // Validation de la date de naissance
-      const birthDate = new Date(formData.date_naissance);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Normaliser à minuit pour comparaison juste
-      const minDate = new Date(today.getFullYear() - 120, today.getMonth(), today.getDate());
-      const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-      
-      if (birthDate > today) {
-        newErrors.date_naissance = 'La date de naissance ne peut pas être postérieure à aujourd\'hui';
-      } else if (birthDate > oneYearAgo) {
-        newErrors.date_naissance = 'La date de naissance doit correspondre à un âge d\'au moins 1 an';
-      } else if (birthDate < minDate) {
-        newErrors.date_naissance = 'La date de naissance est invalide (âge supérieur à 120 ans)';
-      }
-    }
-    
-    if (formData.telephone && !/^[0-9\s\+\-\(\)]{10,}$/.test(formData.telephone.replace(/\s/g, ''))) {
-      newErrors.telephone = 'Format de téléphone invalide';
-    }
-    
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Format d\'email invalide';
-    }
-    
+    const { isValid, errors: newErrors } = validatePatientForm(formData);
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return isValid;
   };
 
   const handleSubmit = async (e) => {
@@ -274,8 +220,8 @@ const PatientForm = ({
       if (initialData) {
         delete dataToSubmit.numero_dossier;
       }
-      
-      onSubmit(dataToSubmit);
+
+      onSubmit(normalizePatientPayload(dataToSubmit));
     }
   };
 
