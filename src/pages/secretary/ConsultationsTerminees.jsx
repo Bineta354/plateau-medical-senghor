@@ -7,6 +7,7 @@ import { useConsultationWorkflow } from '../../hooks/consultation/useHistoriqueC
 // Components
 import ConsultationsTable from '../../components/consultation/ConsultationsTable';
 import ConsultationDetailsModal from '../../components/consultation/modals/ConsultationDetailsModal';
+import Pagination from '../../components/common/Pagination';
 
 // Modals
 import EditFactureModal from '../../components/secretary/modals/EditFactureModal';
@@ -15,11 +16,14 @@ import EditCertificatModal from '../../components/secretary/modals/EditCertifica
 import EditAnalyseModal from '../../components/secretary/modals/EditAnalyseModal';
 import EditActeModal from '../../components/secretary/modals/EditActeModal';
 
+const ITEMS_PER_PAGE = 20;
+
 const ConsultationsTerminees = () => {
   /* -------------------- LISTE -------------------- */
   const [searchTerm, setSearchTerm] = useState('');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const { consultations, loading: loadingList, fetchConsultations } =
     useConsultationWorkflow();
 
@@ -112,6 +116,16 @@ const ConsultationsTerminees = () => {
     });
   }, [consultations, searchTerm, dateStart, dateEnd]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, dateStart, dateEnd]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredConsultations.length / ITEMS_PER_PAGE));
+  const paginatedConsultations = filteredConsultations.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
   /* -------------------- RENDER -------------------- */
   return (
     <div className="p-6 space-y-6">
@@ -161,11 +175,23 @@ const ConsultationsTerminees = () => {
       </div>
 
       {/* Table */}
-      <ConsultationsTable
-        consultations={filteredConsultations}
-        loading={loadingList}
-        onViewDetails={handleViewDetails}
-      />
+      <div className="bg-white rounded-lg shadow border">
+        <ConsultationsTable
+          consultations={paginatedConsultations}
+          loading={loadingList}
+          onViewDetails={handleViewDetails}
+          searchTerm={searchTerm}
+        />
+        {!loadingList && filteredConsultations.length > 0 && (
+          <div className="border-t border-gray-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Détails */}
       <ConsultationDetailsModal
