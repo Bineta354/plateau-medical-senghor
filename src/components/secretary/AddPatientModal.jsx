@@ -5,6 +5,7 @@ import { generateNumeroDossier, validateBirthDate } from '../../services/patient
 import { validatePatientForm, getDateNaissanceError, normalizePatientPayload } from '../../schemas/patientSchema';
 import SearchableSelect from '../common/SearchableSelect';
 import CreateRdvModal from '../doctor/CreateRdvModal';
+import PatientAntecedentsModal from './PatientAntecedentsModal';
 import { 
   X, 
   User, 
@@ -13,7 +14,8 @@ import {
   AlertTriangle,
   Plus,
   Search,
-  CheckCircle
+  CheckCircle,
+  ClipboardList
 } from 'lucide-react';
 
 const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
@@ -21,6 +23,7 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
   const [step, setStep] = useState(1); // 1: Sélection, 2: File d'attente, 3: Menu Succès
   const [queueReturnStep, setQueueReturnStep] = useState(1);
   const [showRdvModal, setShowRdvModal] = useState(false);
+  const [showAntecedentsModal, setShowAntecedentsModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -161,7 +164,6 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
           medecin_id: selectedDoctor,
           status: 'waiting',
           priority: priority,
-          notes: notes,
           arrived_at: new Date().toISOString(),
           order_position: nextPosition,
           motif_consultation: notes
@@ -423,6 +425,13 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
                   >
                     <Calendar className="w-5 h-5" />
                     Planifier un rendez-vous (Futur)
+                  </button>
+                  <button
+                    onClick={() => setShowAntecedentsModal(true)}
+                    className="flex items-center justify-center gap-3 px-6 py-4 bg-teal-600 text-white rounded-xl font-semibold hover:bg-teal-700 transition-all shadow-md hover:shadow-lg"
+                  >
+                    <ClipboardList className="w-5 h-5" />
+                    Saisir les antécédents
                   </button>
                   <button
                     onClick={onClose}
@@ -842,6 +851,13 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
             onPatientAdded();
             onClose();
           }}
+        />
+      )}
+
+      {showAntecedentsModal && selectedPatient && (
+        <PatientAntecedentsModal
+          patient={selectedPatient}
+          onClose={() => setShowAntecedentsModal(false)}
         />
       )}
     </>

@@ -5,9 +5,7 @@ import {
   confirmSkippedWorkflowSteps,
   validateQueueTransition,
 } from '../../utils/workflowGuards';
-import { FileText } from 'lucide-react';
-import AntecedentsMedicaux from '../../components/consultation/AntecedentsMedicaux';
-import * as consultationService from '../../services/consultation/consultationService';
+import PatientAntecedentsModal from '../../components/secretary/PatientAntecedentsModal';
 
 const SalleAttente = () => {
   const [waitingQueue, setWaitingQueue] = useState([]);
@@ -20,8 +18,6 @@ const SalleAttente = () => {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [showAntecedentsModal, setShowAntecedentsModal] = useState(false);
   const [selectedPatientForAntecedents, setSelectedPatientForAntecedents] = useState(null);
-  const [antecedents, setAntecedents] = useState([]);
-  const [antecedentsRef, setAntecedentsRef] = useState([]);
   const [newArrival, setNewArrival] = useState({
     patient_id: '',
     medecin_id: '',
@@ -245,61 +241,9 @@ const SalleAttente = () => {
   };
 
   // Gestion des antécédents
-  const handleViewAntecedents = async (patient) => {
+  const handleViewAntecedents = (patient) => {
     setSelectedPatientForAntecedents(patient);
-    await fetchAntecedents(patient.patient_id);
-    await fetchAntecedentsRef();
     setShowAntecedentsModal(true);
-  };
-
-  const fetchAntecedents = async (patientId) => {
-    try {
-      const { data, error } = await supabase
-        .from('antecedents_patients')
-        .select(`
-          *,
-          antecedents (*)
-        `)
-        .eq('patient_id', patientId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setAntecedents(data || []);
-    } catch (error) {
-      console.error('Erreur lors du chargement des antécédents:', error);
-      setAntecedents([]);
-    }
-  };
-
-  const fetchAntecedentsRef = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('antecedents')
-        .select('*')
-        .order('nom');
-
-      if (error) throw error;
-      setAntecedentsRef(data || []);
-    } catch (error) {
-      console.error('Erreur lors du chargement des références d\'antécédents:', error);
-      setAntecedentsRef([]);
-    }
-  };
-        .from('waiting_queue')
-        .update({ documents_scannes: true })
-        .eq('patient_id', newDocument.patient_id);
-
-      setShowDocumentModal(false);
-      setNewDocument({
-        patient_id: '',
-        type_document: 'analyse',
-        nom_fichier: '',
-        description: ''
-      });
-      fetchWaitingQueue();
-    } catch (error) {
-      console.error('Erreur lors du scan du document:', error);
-    }
   };
 
   const handleStatusChange = async (queueId, newStatus) => {
@@ -473,9 +417,8 @@ const SalleAttente = () => {
                     <div className="flex flex-col gap-1">
                       <button
                         onClick={() => handleViewAntecedents(item.patients)}
-                        className="text-purple-600 hover:text-purple-900 flex items-center gap-1"
+                        className="text-teal-600 hover:text-teal-900 flex items-center gap-1"
                       >
-                        <FileText className="w-4 h-4" />
                         Antécédents
                       </button>
                       {item.status === 'present' && (
