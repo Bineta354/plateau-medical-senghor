@@ -47,66 +47,14 @@ const SuiviCaissiers = () => {
   const [period, setPeriod] = useState('today');
   const [selectedCaissierId, setSelectedCaissierId] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [useMockData, setUseMockData] = useState(false); // Toggle for demo
 
   const [caissiers, setCaissiers] = useState([]);
   const [paiements, setPaiements] = useState([]);
-
-  // Mock data generator for demonstration
-  const generateMockData = () => {
-    const mockCaissiers = [
-      { id: 1, nom: 'Diakhate', prenom: 'Mamadou', username: 'm.diakhate', role: 'caissier', actif: true },
-      { id: 2, nom: 'Ndiaye', prenom: 'Fatou', username: 'f.ndiaye', role: 'caissier', actif: true },
-      { id: 3, nom: 'Sall', prenom: 'Ousmane', username: 'o.sall', role: 'cashier', actif: true },
-      { id: 4, nom: 'Ba', prenom: 'Aminata', username: 'a.ba', role: 'caissier', actif: false },
-    ];
-
-    const modesPaiement = ['especes', 'carte_bancaire', 'mobile_money', 'virement', 'cheque'];
-    const mockPaiements = [];
-    
-    // Generate payments for the last 30 days
-    const today = new Date();
-    for (let i = 0; i < 150; i++) {
-      const daysAgo = Math.floor(Math.random() * 30);
-      const paymentDate = new Date(today);
-      paymentDate.setDate(today.getDate() - daysAgo);
-      paymentDate.setHours(Math.floor(Math.random() * 12) + 8); // 8h-20h
-      paymentDate.setMinutes(Math.floor(Math.random() * 60));
-      
-      const caissier = mockCaissiers[Math.floor(Math.random() * 3)]; // Only active cashiers
-      const montant = Math.floor(Math.random() * 50000) + 5000; // 5k to 55k
-      
-      mockPaiements.push({
-        id: 1000 + i,
-        date_paiement: paymentDate.toISOString(),
-        montant: montant,
-        mode_paiement: modesPaiement[Math.floor(Math.random() * modesPaiement.length)],
-        statut: 'effectue',
-        caissier_id: caissier.id,
-        factures: {
-          id: 2000 + i,
-          numero_facture: `F${String(2000 + i).padStart(6, '0')}`,
-          montant_ttc: montant,
-        }
-      });
-    }
-
-    return { caissiers: mockCaissiers, paiements: mockPaiements };
-  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
       setError('');
-
-      // Use mock data for demonstration
-      if (useMockData) {
-        const mock = generateMockData();
-        setCaissiers(mock.caissiers);
-        setPaiements(mock.paiements);
-        setLoading(false);
-        return;
-      }
 
       const { data: caissiersData, error: caissiersError } = await supabase.rpc('get_caissiers');
 
@@ -146,7 +94,7 @@ const SuiviCaissiers = () => {
 
   useEffect(() => {
     fetchData();
-  }, [period, selectedCaissierId, useMockData]);
+  }, [period, selectedCaissierId]);
 
   const caissierById = useMemo(() => {
     const map = new Map();
@@ -259,20 +207,6 @@ const SuiviCaissiers = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Mock data toggle for demo */}
-          <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg">
-            <input
-              type="checkbox"
-              id="mockData"
-              checked={useMockData}
-              onChange={(e) => setUseMockData(e.target.checked)}
-              className="rounded"
-            />
-            <label htmlFor="mockData" className="text-sm font-medium text-gray-700">
-              Données démo
-            </label>
-          </div>
-
           <button
             type="button"
             onClick={exportToCSV}

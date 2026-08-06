@@ -1,41 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Receipt, 
-  Search, 
-  Filter, 
-  Plus, 
-  Edit, 
-  Trash2,
+import {
+  Receipt,
+  Search,
   Eye,
-  Download,
   Calendar,
-  User,
   CheckCircle,
   Clock,
   Coins,
   FileText,
-  Save,
   X,
   CreditCard,
-  AlertCircle,
   TrendingUp,
-  BarChart3,
   RefreshCw,
   Banknote,
   CreditCard as CardIcon,
   Smartphone,
-  Building
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAlert } from '../../contexts/AlertContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatMontant } from '../../utils/currency';
+import { getStatusColor, getStatusLabel } from '../../utils/factureStatus';
+import { MODES_PAIEMENT, getModePaiementLabel } from '../../config/modesPaiement';
+import { enregistrerPaiement } from '../../services/paiementService';
 
+/**
+ * Corrections comptables — écran réservé à la comptabilité/admin pour ajuster
+ * une facture a posteriori (correction d'encaissement, décaissement),
+ * en dehors du guichet de caisse quotidien (voir src/pages/secretary/Caisse.jsx).
+ * Utilise le même moteur d'encaissement (paiementService.enregistrerPaiement)
+ * pour ne jamais désynchroniser factures/paiements.
+ */
 const EncaissementFactures = () => {
-  const navigate = useNavigate();
-  const { showError, showSuccess, showWarning, showInfo } = useAlert();
-  const { currentUser } = useAuth();
+  const { showError, showSuccess, showWarning } = useAlert();
+  const { userProfile } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('outstanding'); // Par défaut : à encaisser
   const [selectedPeriod, setSelectedPeriod] = useState('today');
@@ -45,13 +43,13 @@ const EncaissementFactures = () => {
   const [factures, setFactures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const [paymentData, setPaymentData] = useState({
     montant_paye: 0,
     mode_paiement: 'especes',
     notes: ''
   });
 
-  // Récupérer les factures depuis la base de données
   useEffect(() => {
     fetchFactures();
   }, [selectedStatus, selectedPeriod]);
@@ -97,14 +95,12 @@ const EncaissementFactures = () => {
         `)
         .order('date_facture', { ascending: false });
 
-      // Filtrer par statut
       if (selectedStatus === 'outstanding') {
         query = query.in('statut_paiement', ['en_attente', 'partiel']);
       } else if (selectedStatus !== 'all') {
         query = query.eq('statut_paiement', selectedStatus);
       }
 
-      // Filtrer par période
       const today = new Date();
       if (selectedPeriod === 'today') {
         const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -120,81 +116,9 @@ const EncaissementFactures = () => {
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
-      
-      // Si aucune facture réelle, ajouter des données de test
-      if (!data || data.length === 0) {
-        const testData = [
-          {
-            id: 999,
-            numero_facture: 'FACT-2025-001',
-            date_facture: new Date().toISOString().split('T')[0],
-            montant_ht: 25000,
-            tva: 18,
-            montant_ttc: 29500,
-            montant_paye: 0,
-            montant_restant: 29500,
-            statut_paiement: 'en_attente',
-            mode_paiement: null,
-            notes: 'Facture de test pour démonstration',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            patients: {
-              id: 1,
-              nom: 'Diallo',
-              prenom: 'Aminata',
-              telephone: '77 123 45 67',
-              email: 'aminata.diallo@email.com'
-            },
-            consultations: {
-              id: 1,
-              date_consultation: new Date().toISOString().split('T')[0],
-              medecin_id: 1,
-              users: {
-                id: 1,
-                nom: 'Diop',
-                prenom: 'Mouhammad'
-              }
-            }
-          },
-          {
-            id: 998,
-            numero_facture: 'FACT-2025-002',
-            date_facture: new Date().toISOString().split('T')[0],
-            montant_ht: 15000,
-            tva: 18,
-            montant_ttc: 17700,
-            montant_paye: 5000,
-            montant_restant: 12700,
-            statut_paiement: 'partiel',
-            mode_paiement: 'especes',
-            notes: 'Paiement partiel déjà effectué',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            patients: {
-              id: 2,
-              nom: 'Ndiaye',
-              prenom: 'Moussa',
-              telephone: '76 987 65 43',
-              email: 'moussa.ndiaye@email.com'
-            },
-            consultations: {
-              id: 2,
-              date_consultation: new Date().toISOString().split('T')[0],
-              medecin_id: 2,
-              users: {
-                id: 2,
-                nom: 'Fall',
-                prenom: 'Aminata'
-              }
-            }
-          }
-        ];
-        setFactures(testData);
-      } else {
-        setFactures(data || []);
-      }
+
+      setFactures(data || []);
     } catch (error) {
       console.error('Erreur lors du chargement des factures:', error);
       setError(error.message);
@@ -203,49 +127,30 @@ const EncaissementFactures = () => {
     }
   };
 
-  // Filtrer les factures
   const filteredFactures = factures.filter(facture => {
-    const matchesSearch = 
+    return (
       facture.numero_facture?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       `${facture.patients?.prenom} ${facture.patients?.nom}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      facture.consultations?.users?.nom?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    return matchesSearch;
+      facture.consultations?.users?.nom?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
   });
 
-  // Calculer les statistiques
   const totalFactures = factures.length;
   const totalChiffre = factures.reduce((sum, f) => sum + (f.montant_ttc || 0), 0);
   const totalEncaisse = factures.reduce((sum, f) => sum + (f.montant_paye || 0), 0);
   const totalRestant = factures.reduce((sum, f) => sum + (f.montant_restant || 0), 0);
   const facturesPayees = factures.filter(f => f.statut_paiement === 'paye').length;
 
-  const getStatusColor = (statut) => {
-    switch (statut) {
-      case 'paye': return 'bg-green-100 text-green-800 border-green-200';
-      case 'partiel': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'en_attente': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'impaye': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getStatusText = (statut) => {
-    switch (statut) {
-      case 'paye': return 'Payée';
-      case 'partiel': return 'Partiellement payée';
-      case 'en_attente': return 'En attente';
-      case 'impaye': return 'Impayée';
-      default: return statut;
-    }
-  };
-
   const getPaymentModeIcon = (mode) => {
     switch (mode) {
       case 'especes': return Banknote;
       case 'carte': return CardIcon;
       case 'cheque': return FileText;
-      case 'monnaie_electronique': return Smartphone;
+      case 'monnaie_electronique':
+      case 'orange_money':
+      case 'wave':
+      case 'yas':
+        return Smartphone;
       default: return CreditCard;
     }
   };
@@ -261,110 +166,40 @@ const EncaissementFactures = () => {
   };
 
   const handlePaymentSubmit = async () => {
+    if (!selectedFacture) return;
+    const amount = parseFloat(paymentData.montant_paye) || 0;
+    const isDecaissement = amount < 0;
+
+    if (amount === 0) {
+      showWarning('Veuillez saisir un montant différent de 0');
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      if (!selectedFacture) return;
-      const amount = parseFloat(paymentData.montant_paye) || 0;
-      const montantTtc = parseFloat(selectedFacture.montant_ttc) || 0;
-      const montantDejaPaye = parseFloat(selectedFacture.montant_paye) || 0;
-      const isDecaissement = amount < 0;
-
-      if (amount === 0) {
-        showWarning('Veuillez saisir un montant différent de 0');
-        return;
-      }
-
-      if (amount > 0 && amount > (parseFloat(selectedFacture.montant_restant) || 0)) {
-        showWarning('Le montant à encaisser dépasse le reste à payer');
-        return;
-      }
-
-      if (isDecaissement && Math.abs(amount) > montantDejaPaye) {
-        showWarning('Le décaissement dépasse le montant déjà encaissé');
-        return;
-      }
-
-      const newMontantPaye = Math.max(0, montantDejaPaye + amount);
-      const newMontantRestant = Math.max(0, montantTtc - newMontantPaye);
-      const newStatut = newMontantPaye >= montantTtc
-        ? 'paye'
-        : newMontantPaye > 0
-          ? 'partiel'
-          : 'en_attente';
-
-      // Si c'est une facture de test (ID 999 ou 998), simuler le paiement
-      if (selectedFacture.id >= 998) {
-        // Simuler la mise à jour locale
-        setFactures(prevFactures => 
-          prevFactures.map(f => 
-            f.id === selectedFacture.id 
-              ? { 
-                  ...f, 
-                  montant_paye: newMontantPaye, 
-                  montant_restant: newMontantRestant,
-                  statut_paiement: newStatut,
-                  mode_paiement: paymentData.mode_paiement,
-                  date_paiement: new Date().toISOString(),
-                  notes: paymentData.notes ? `${f.notes || ''}\n${paymentData.notes}`.trim() : f.notes,
-                  updated_at: new Date().toISOString()
-                }
-              : f
-          )
-        );
-
-        showSuccess(
-          isDecaissement
-            ? `Décaissement de test enregistré (${formatMontant(Math.abs(amount))})`
-            : `Encaissement de test enregistré (${formatMontant(amount)})`,
-        );
-        setShowPaymentModal(false);
-        setSelectedFacture(null);
-        return;
-      }
-
-      // Traitement normal pour les factures réelles
-      const { error } = await supabase
-        .from('factures')
-        .update({
-          montant_paye: newMontantPaye,
-          montant_restant: newMontantRestant,
-          statut_paiement: newStatut,
-          mode_paiement: paymentData.mode_paiement,
-          date_paiement: new Date().toISOString(),
-          notes: paymentData.notes ? `${selectedFacture.notes || ''}\n${paymentData.notes}`.trim() : selectedFacture.notes,
-          updated_at: new Date().toISOString(),
-          updated_by: currentUser?.id
-        })
-        .eq('id', selectedFacture.id);
-
-      if (error) throw error;
+      await enregistrerPaiement({
+        factureId: selectedFacture.id,
+        montant: amount,
+        modePaiement: paymentData.mode_paiement,
+        notes: paymentData.notes
+          ? `${selectedFacture.notes || ''}\n${paymentData.notes}`.trim()
+          : selectedFacture.notes,
+        caissierId: userProfile?.id ?? null,
+      });
 
       showSuccess(
         isDecaissement
           ? `Décaissement enregistré (${formatMontant(Math.abs(amount))})`
           : `Encaissement enregistré (${formatMontant(amount)})`,
       );
-      setFactures(prevFactures =>
-        prevFactures.map(f =>
-          f.id === selectedFacture.id
-            ? {
-                ...f,
-                montant_paye: newMontantPaye,
-                montant_restant: newMontantRestant,
-                statut_paiement: newStatut,
-                mode_paiement: paymentData.mode_paiement,
-                date_paiement: new Date().toISOString(),
-                notes: paymentData.notes ? `${f.notes || ''}\n${paymentData.notes}`.trim() : f.notes,
-                updated_at: new Date().toISOString(),
-              }
-            : f,
-        ),
-      );
       setShowPaymentModal(false);
       setSelectedFacture(null);
       fetchFactures();
     } catch (error) {
-      console.error('Erreur lors de l\'encaissement:', error);
-      showError('Erreur lors de l\'encaissement: ' + error.message);
+      console.error("Erreur lors de l'encaissement:", error);
+      showError("Erreur lors de l'encaissement : " + error.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -390,15 +225,15 @@ const EncaissementFactures = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <Receipt className="w-8 h-8 text-purple-600" />
-            Encaissement des Factures
+            Corrections comptables
           </h1>
           <p className="text-gray-600 mt-2">
-            Gérez les paiements des factures générées par les secrétaires
+            Ajustez un encaissement a posteriori (correction, décaissement) — hors guichet de caisse quotidien
           </p>
         </div>
-        
+
         <div className="flex gap-3">
-          <button 
+          <button
             onClick={() => fetchFactures()}
             className="btn btn-secondary flex items-center gap-2"
           >
@@ -407,6 +242,12 @@ const EncaissementFactures = () => {
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-800">
+          Erreur de chargement : {error}
+        </div>
+      )}
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
@@ -419,7 +260,7 @@ const EncaissementFactures = () => {
             <Receipt className="w-8 h-8 text-purple-600" />
           </div>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
@@ -429,7 +270,7 @@ const EncaissementFactures = () => {
             <TrendingUp className="w-8 h-8 text-blue-600" />
           </div>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
@@ -439,7 +280,7 @@ const EncaissementFactures = () => {
             <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
@@ -449,7 +290,7 @@ const EncaissementFactures = () => {
             <Clock className="w-8 h-8 text-orange-600" />
           </div>
         </div>
-        
+
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
@@ -482,7 +323,7 @@ const EncaissementFactures = () => {
               </button>
             )}
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Statut</label>
             <select
@@ -498,7 +339,7 @@ const EncaissementFactures = () => {
               <option value="impaye">Impayées</option>
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Période</label>
             <select
@@ -518,42 +359,20 @@ const EncaissementFactures = () => {
       {/* Liste des factures */}
       <div className="bg-white rounded-lg shadow-md border border-gray-200">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Factures à encaisser</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Factures</h2>
           <p className="text-sm text-gray-600">{filteredFactures.length} facture(s) trouvée(s)</p>
-          {factures.some(f => f.id >= 998) && (
-            <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>💡 Mode démonstration :</strong> Les factures avec le badge "Test" sont des données d'exemple.
-              </p>
-              <p className="text-xs text-blue-700 mt-1">
-                Vous pouvez tester l'encaissement sur ces factures pour voir comment le processus fonctionne.
-              </p>
-            </div>
-          )}
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Facture
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Patient
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Médecin
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Montant
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Statut
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Facture</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Médecin</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -567,14 +386,9 @@ const EncaissementFactures = () => {
                         <p className="text-xs text-gray-500">
                           {new Date(facture.date_facture).toLocaleDateString('fr-FR')}
                         </p>
-                        {facture.id >= 998 && (
-                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200 mt-1">
-                            Test
-                          </span>
-                        )}
                       </div>
                     </td>
-                    
+
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <p className="text-sm font-medium text-gray-900">
@@ -585,15 +399,13 @@ const EncaissementFactures = () => {
                         )}
                       </div>
                     </td>
-                    
+
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <p className="text-sm text-gray-900">
-                          Dr. {facture.consultations?.users?.prenom} {facture.consultations?.users?.nom}
-                        </p>
-                      </div>
+                      <p className="text-sm text-gray-900">
+                        Dr. {facture.consultations?.users?.prenom} {facture.consultations?.users?.nom}
+                      </p>
                     </td>
-                    
+
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <p className="text-sm font-medium text-gray-900">
@@ -611,33 +423,33 @@ const EncaissementFactures = () => {
                         </div>
                       </div>
                     </td>
-                    
+
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getStatusColor(facture.statut_paiement)}`}>
-                        {getStatusText(facture.statut_paiement)}
+                        {getStatusLabel(facture.statut_paiement)}
                       </span>
                     </td>
-                    
+
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center gap-2">
-                        <button 
+                        <button
                           onClick={() => handleViewDetails(facture)}
                           className="p-2 text-purple-600 rounded-lg hover:bg-purple-50"
                           title="Voir détails"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        
+
                         {facture.statut_paiement !== 'paye' && (
-                          <button 
+                          <button
                             onClick={() => handleEncaisser(facture)}
                             className="p-2 text-green-600 rounded-lg hover:bg-green-50"
-                            title="Encaisser"
+                            title="Corriger"
                           >
                             <Coins className="w-4 h-4" />
                           </button>
                         )}
-                        
+
                         {facture.mode_paiement && (
                           <div className="flex items-center gap-1 text-gray-500">
                             <PaymentIcon className="w-4 h-4" />
@@ -651,7 +463,7 @@ const EncaissementFactures = () => {
             </tbody>
           </table>
         </div>
-        
+
         {filteredFactures.length === 0 && (
           <div className="text-center py-12">
             <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -660,12 +472,12 @@ const EncaissementFactures = () => {
         )}
       </div>
 
-      {/* Modal de paiement */}
+      {/* Modal de correction */}
       {showPaymentModal && selectedFacture && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Encaisser la facture</h3>
+              <h3 className="text-lg font-semibold">Corriger la facture</h3>
               <button
                 onClick={() => setShowPaymentModal(false)}
                 className="p-1 text-gray-400 hover:text-gray-600"
@@ -673,7 +485,7 @@ const EncaissementFactures = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div className="bg-gray-50 p-4 rounded-lg">
                 <p className="text-sm font-medium text-gray-600">Facture {selectedFacture.numero_facture}</p>
@@ -692,7 +504,7 @@ const EncaissementFactures = () => {
                   </p>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Montant ({'>'}0 = encaissement, {'<'}0 = décaissement)
@@ -707,7 +519,7 @@ const EncaissementFactures = () => {
                   step="0.01"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Mode de paiement
@@ -717,13 +529,12 @@ const EncaissementFactures = () => {
                   onChange={(e) => setPaymentData(prev => ({ ...prev, mode_paiement: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 >
-                  <option value="especes">Espèces</option>
-                  <option value="carte">Carte bancaire</option>
-                  <option value="cheque">Chèque</option>
-                  <option value="monnaie_electronique">Monnaie électronique</option>
+                  {MODES_PAIEMENT.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
                 </select>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Notes (optionnel)
@@ -733,23 +544,25 @@ const EncaissementFactures = () => {
                   onChange={(e) => setPaymentData(prev => ({ ...prev, notes: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   rows="3"
-                  placeholder="Notes sur le paiement..."
+                  placeholder="Motif de la correction..."
                 />
               </div>
             </div>
-            
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowPaymentModal(false)}
                 className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                disabled={submitting}
               >
                 Annuler
               </button>
               <button
                 onClick={handlePaymentSubmit}
-                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                disabled={submitting}
               >
-                Valider l'opération
+                {submitting ? 'Enregistrement...' : "Valider l'opération"}
               </button>
             </div>
           </div>
@@ -769,7 +582,7 @@ const EncaissementFactures = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -781,7 +594,7 @@ const EncaissementFactures = () => {
                   <p className="text-lg">{new Date(showDetails.date_facture).toLocaleDateString('fr-FR')}</p>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Patient</p>
@@ -799,7 +612,7 @@ const EncaissementFactures = () => {
                   </p>
                 </div>
               </div>
-              
+
               <div className="border-t pt-4">
                 <div className="space-y-2">
                   <div className="flex justify-between">
@@ -822,9 +635,15 @@ const EncaissementFactures = () => {
                     <span className="text-gray-600">Reste à payer:</span>
                     <span className="font-medium text-orange-600">{formatMontant(showDetails.montant_restant)}</span>
                   </div>
+                  {showDetails.mode_paiement && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Dernier mode de paiement:</span>
+                      <span className="font-medium">{getModePaiementLabel(showDetails.mode_paiement)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
-              
+
               {showDetails.notes && (
                 <div>
                   <p className="text-sm font-medium text-gray-600 mb-2">Notes</p>
@@ -832,7 +651,7 @@ const EncaissementFactures = () => {
                 </div>
               )}
             </div>
-            
+
             <div className="flex gap-3 mt-6">
               {showDetails.statut_paiement !== 'paye' && (
                 <button
@@ -842,7 +661,7 @@ const EncaissementFactures = () => {
                   }}
                   className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
                 >
-                  Encaisser
+                  Corriger
                 </button>
               )}
               <button

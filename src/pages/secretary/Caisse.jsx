@@ -31,53 +31,16 @@ import {
   PrinterIcon,
   XMarkIcon as XIcon,
   MagnifyingGlassIcon,
-  CreditCardIcon,
-  DocumentCheckIcon,
-  ArrowsRightLeftIcon,
   LockClosedIcon,
   LockOpenIcon,
   CalendarIcon,
   DocumentTextIcon,
 } from '@heroicons/react/24/outline';
+import { MODES_PAIEMENT, ETAPES_MOBILE_MONEY as ETAPES_MOBILE_MONEY_BASE } from '../../config/modesPaiement';
+import { enregistrerPaiement } from '../../services/paiementService';
 
-// Icônes mobiles money (représentation visuelle, non des marques déposées)
-const OrangeMoneyIcon = ({ className = 'w-8 h-8' }) => (
-  <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="20" cy="20" r="18" fill="#FF6600" />
-    <path d="M12 20h4l2-6 2 10 2-6h4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-  </svg>
-);
-const WaveIcon = ({ className = 'w-8 h-8' }) => (
-  <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="20" cy="20" r="18" fill="#0066F5" />
-    <path d="M10 24c2-2 4-2 6 0s4 2 6 0 4-2 6 0" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" />
-    <path d="M10 20c2-2 4-2 6 0s4 2 6 0 4-2 6 0" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.9" />
-  </svg>
-);
-const YasIcon = ({ className = 'w-8 h-8' }) => (
-  <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="20" cy="20" r="18" fill="#00A651" />
-    <path d="M14 28V14l6 8 6-8v14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-  </svg>
-);
-
-const MODES_PAIEMENT = [
-  { value: 'especes', label: 'Espèces', Icon: BanknotesIcon, mobile: false },
-  { value: 'carte', label: 'Carte bancaire', Icon: CreditCardIcon, mobile: false },
-  { value: 'cheque', label: 'Chèque', Icon: DocumentCheckIcon, mobile: false },
-  { value: 'virement', label: 'Virement', Icon: ArrowsRightLeftIcon, mobile: false },
-  { value: 'orange_money', label: 'Orange Money', Icon: OrangeMoneyIcon, mobile: true },
-  { value: 'wave', label: 'Wave', Icon: WaveIcon, mobile: true },
-  { value: 'yas', label: 'Yas', Icon: YasIcon, mobile: true },
-];
-
-const ETAPES_MOBILE_MONEY = (nom, montant) => [
-  `1. Ouvrez l'application ${nom} sur votre téléphone.`,
-  `2. Choisissez « Payer » ou « Paiement marchand ».`,
-  `3. Scannez le QR code du caissier ou saisissez le code / numéro affiché.`,
-  `4. Montant à payer : ${formatMontant(Number(montant))} — vérifiez et validez.`,
-  `5. Validez le paiement puis montrez l'écran de confirmation au caissier.`,
-];
+const ETAPES_MOBILE_MONEY = (nom, montant) =>
+  ETAPES_MOBILE_MONEY_BASE(nom, formatMontant(Number(montant)));
 
 const getStatusBadge = (statut, montant_paye = 0, montant_ttc = 1) => {
   const config = {
@@ -1086,7 +1049,9 @@ const Caisse = () => {
   };
 
   useEffect(() => {
-    if (userProfile?.role === 'accounting' || userProfile?.role === 'admin') {
+    // Note : 'accounting' n'a jamais accès à /caisse (voir financeNavigation.js) — seul 'admin'
+    // atterrit réellement en mode supervision ici.
+    if (userProfile?.role === 'admin') {
       setViewMode('supervision');
       fetchSupervisionData();
     }
@@ -1385,27 +1350,17 @@ const Caisse = () => {
     setSubmitting(true);
 
     try {
-      const now = new Date().toISOString();
       const montantPaye = parseFloat(paiementData.montant_paye) || 0;
-      const montantTotal = parseFloat(selectedFacture.montant_ttc) || 0;
-      const montantDejaPaye = parseFloat(selectedFacture.montant_paye) || 0;
-      const totalPaye = montantDejaPaye + montantPaye;
-
       const caissierId = userProfile?.id ?? null;
 
-      // 1) Mise à jour de la facture principale (patient) : statut payé, pas de nouveau numéro
-      const { error: upErr } = await supabase
-        .from('factures')
-        .update({
-          montant_paye: totalPaye,
-          statut_paiement: 'paye',
-          date_paiement: now,
-          mode_paiement: paiementData.mode_paiement,
-          notes: paiementData.notes,
-        })
-        .eq('id', selectedFacture.id);
-
-      if (upErr) throw upErr;
+      // 1) Encaissement via le moteur unique (écrit factures + paiements de façon cohérente)
+      const { paiement: paiementDataResult } = await enregistrerPaiement({
+        factureId: selectedFacture.id,
+        montant: montantPaye,
+        modePaiement: paiementData.mode_paiement,
+        notes: paiementData.notes,
+        caissierId,
+      });
 
       // 2) Si couverture : créer une 2e facture, même numéro de base (suffixe -C en BDD pour unicité)
       if (montantAssurance > 0) {
@@ -1429,19 +1384,6 @@ const Caisse = () => {
 
         if (insErr) throw insErr;
       }
-
-      // 3) Enregistrement du paiement à la caisse
-      const { data: paiementDataResult, error: payErr } = await supabase.from('paiements').insert({
-        facture_id: selectedFacture.id,
-        montant: montantPaye,
-        mode_paiement: paiementData.mode_paiement,
-        date_paiement: now,
-        caissier_id: caissierId,
-        notes: paiementData.notes,
-        statut: 'effectue',
-      }).select().single();
-
-      if (payErr) throw payErr;
 
       // Notifier les caissiers du paiement effectué
       const patient = selectedFacture.consultations?.patients;
