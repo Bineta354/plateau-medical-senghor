@@ -1,19 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Search, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  X, 
-  Check, 
-  Clock, 
+import {
+  Search,
+  Plus,
+  Edit2,
+  Trash2,
+  X,
+  Check,
+  Clock,
   FileText,
   Calendar,
   User,
   CreditCard,
   Smartphone,
-  Building2
+  Building2,
+  ShieldCheck
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
@@ -63,6 +65,10 @@ const Caisse = () => {
   const caissierId = isCaissier ? (userProfile?.id ?? null) : null;
   const [factures, setFactures] = useState([]);
   const [facturesPayees, setFacturesPayees] = useState([]);
+  // Factures "couverture" (-C) déjà créées, indexées par facture_parent_id : sert à savoir,
+  // pour une facture patient donnée, si sa part assurance a déjà été détachée (auquel cas on
+  // n'affiche plus de répartition ni de flag — c'est déjà réglé) ou pas encore.
+  const [couvertureEnfantsParParent, setCouvertureEnfantsParParent] = useState({});
   const [loading, setLoading] = useState(true);
   const [selectedFacture, setSelectedFacture] = useState(null);
   const [showPaiementModal, setShowPaiementModal] = useState(false);
@@ -167,6 +173,27 @@ const Caisse = () => {
 
   // Factures en attente/partiel uniquement (exclure les factures "couverture" enfants)
   const facturesCaisse = (list) => (list || []).filter((f) => f.facture_parent_id == null);
+
+  // Répartition patient / assurance à l'affichage (liste + détail), AVANT tout encaissement :
+  // la part assurance n'est jamais payable à la caisse, seulement affichée en flag renvoyant
+  // vers Impayés & Relances (reflète le même état, sans dupliquer la logique de créance).
+  const computeSplitAffichage = (facture) => {
+    const patient = facture.consultations?.patients;
+    const assurance = patient?.assurances;
+    const total = parseFloat(facture.montant_ttc) || 0;
+    const deja = parseFloat(facture.montant_paye) || 0;
+    const restant = Math.max(0, total - deja);
+    const dejaScindee = facture.type === 'couverture' || !!couvertureEnfantsParParent[facture.id];
+    const taux = dejaScindee ? 0 : Number(assurance?.taux_remboursement) || 0;
+
+    let partPatient = restant;
+    let partAssurance = 0;
+    if (taux > 0 && restant > 0) {
+      partAssurance = Math.round(restant * (taux / 100) * 100) / 100;
+      partPatient = Math.round((restant - partAssurance) * 100) / 100;
+    }
+    return { total, deja, restant, partPatient, partAssurance, assuranceNom: assurance?.nom, dejaScindee };
+  };
 
   // Remplir les suggestions (selectSearch) quand on tape
   useEffect(() => {
@@ -1058,6 +1085,21 @@ const Caisse = () => {
       setFactures(enAttente || []);
       setSearchResults(list);
 
+      // Factures couverture déjà créées (quel que soit leur statut — payée ou non, ça reste
+      // "déjà scindée" côté facture patient) : sert à savoir si le flag "à réclamer à
+      // l'assurance" doit être affiché, ou si c'est déjà réglé.
+      const { data: enfantsCouverture, error: e3 } = await supabase
+        .from('factures')
+        .select('id, facture_parent_id, montant_ttc, statut_paiement')
+        .eq('type', 'couverture')
+        .not('facture_parent_id', 'is', null);
+      if (e3) throw e3;
+      const enfantsParParent = {};
+      (enfantsCouverture || []).forEach((c) => {
+        enfantsParParent[c.facture_parent_id] = c;
+      });
+      setCouvertureEnfantsParParent(enfantsParParent);
+
       const { data: payees, error: e2 } = await supabase
         .from('factures')
         .select(
@@ -1268,14 +1310,31 @@ const Caisse = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, sessionCaisse]);
 
-  const handleOpenModal = (facture) => {
+  const handleOpenModal = async (facture) => {
     setSelectedFacture(facture);
     const patient = facture.consultations?.patients;
     const assurance = patient?.assurances;
-    const taux = Number(assurance?.taux_remboursement) || 0;
     const total = parseFloat(facture.montant_ttc) || 0;
     const deja = parseFloat(facture.montant_paye) || 0;
     const restant = total - deja;
+
+    // La répartition patient / couverture ne doit se faire qu'une seule fois par facture
+    // patient : au premier encaissement, la part assurance est détachée dans une facture -C
+    // et le total de cette facture est ramené à la seule part patient (voir handlePaiementSubmit).
+    // Si on la refaisait à chaque réouverture, le solde restant — qui après ce premier partage
+    // appartient déjà entièrement au patient — serait de nouveau scindé et le patient se
+    // verrait facturer une part supplémentaire qui revient normalement à l'assurance.
+    let dejaScindee = facture.type === 'couverture';
+    if (!dejaScindee) {
+      const { data: enfantCouverture } = await supabase
+        .from('factures')
+        .select('id')
+        .eq('facture_parent_id', facture.id)
+        .eq('type', 'couverture')
+        .maybeSingle();
+      dejaScindee = !!enfantCouverture;
+    }
+    const taux = dejaScindee ? 0 : Number(assurance?.taux_remboursement) || 0;
 
     let partPatient = restant;
     let partCouverture = 0;
@@ -1450,7 +1509,58 @@ const Caisse = () => {
       const montantPaye = parseFloat(paiementData.montant_paye) || 0;
       const caissierId = userProfile?.id ?? null;
 
-      // 1) Encaissement via le moteur unique (écrit factures + paiements de façon cohérente)
+      // 1) Si couverture : détacher la part assurance dans une 2e facture (suffixe -C), et
+      // ramener le total de la facture patient à sa seule part réelle. Fait AVANT l'encaissement
+      // pour que celui-ci valide/calcule le statut sur le bon total (sinon la facture patient
+      // reste indéfiniment "partielle" sur la totalité — part assurance comprise — et invite à
+      // encaisser encore, ce qui fait payer au patient une part qui ne lui revient pas).
+      if (montantAssurance > 0) {
+        const consultationId = selectedFacture.consultation_id;
+        const patientId = selectedFacture.patient_id || selectedFacture.consultations?.patients?.id || selectedFacture.consultations?.patient_id;
+        const assuranceId = selectedFacture.consultations?.patients?.assurance_id || selectedFacture.consultations?.patients?.assurances?.id;
+        const numeroCouverture = `${selectedFacture.numero_facture}-C`;
+
+        // Idempotence : si un essai précédent (ex. échec de la notification ci-dessous, qui
+        // affichait alors l'encaissement comme en erreur alors qu'il était déjà enregistré)
+        // a déjà créé cette facture de couverture, on ne la recrée pas — sinon la contrainte
+        // d'unicité sur numero_facture rejette le nouvel essai avec "duplicate key value...".
+        const { data: factureCouvExistante } = await supabase
+          .from('factures')
+          .select('id')
+          .eq('numero_facture', numeroCouverture)
+          .maybeSingle();
+
+        if (!factureCouvExistante) {
+          const { error: insErr } = await supabase.from('factures').insert({
+            consultation_id: consultationId,
+            patient_id: patientId,
+            assurance_id: assuranceId || null,
+            numero_facture: numeroCouverture,
+            montant_ht: montantAssurance,
+            tva: 0,
+            montant_ttc: montantAssurance,
+            montant_paye: 0,
+            statut_paiement: 'en_attente',
+            type: 'couverture',
+            facture_parent_id: selectedFacture.id,
+          });
+
+          // Un doublon détecté malgré la vérification ci-dessus (double clic quasi simultané)
+          // signifie que la facture existe déjà : ce n'est pas un échec réel.
+          if (insErr && insErr.code !== '23505') throw insErr;
+
+          // La facture patient ne doit plus porter que la part patient : le reste (part
+          // assurance) est désormais entièrement suivi par la facture -C ci-dessus.
+          const nouveauMontantTtcPatient = (parseFloat(selectedFacture.montant_ttc) || 0) - montantAssurance;
+          const { error: majErr } = await supabase
+            .from('factures')
+            .update({ montant_ttc: nouveauMontantTtcPatient })
+            .eq('id', selectedFacture.id);
+          if (majErr) throw majErr;
+        }
+      }
+
+      // 2) Encaissement via le moteur unique (écrit factures + paiements de façon cohérente)
       const { paiement: paiementDataResult } = await enregistrerPaiement({
         factureId: selectedFacture.id,
         montant: montantPaye,
@@ -1459,40 +1569,23 @@ const Caisse = () => {
         caissierId,
       });
 
-      // 2) Si couverture : créer une 2e facture, même numéro de base (suffixe -C en BDD pour unicité)
-      if (montantAssurance > 0) {
-        const consultationId = selectedFacture.consultation_id;
-        const patientId = selectedFacture.patient_id || selectedFacture.consultations?.patients?.id || selectedFacture.consultations?.patient_id;
-        const assuranceId = selectedFacture.consultations?.patients?.assurance_id || selectedFacture.consultations?.patients?.assurances?.id;
-
-        const { error: insErr } = await supabase.from('factures').insert({
-          consultation_id: consultationId,
-          patient_id: patientId,
-          assurance_id: assuranceId || null,
-          numero_facture: `${selectedFacture.numero_facture}-C`,
-          montant_ht: montantAssurance,
-          tva: 0,
-          montant_ttc: montantAssurance,
-          montant_paye: 0,
-          statut_paiement: 'en_attente',
-          type: 'couverture',
-          facture_parent_id: selectedFacture.id,
-        });
-
-        if (insErr) throw insErr;
+      // Notifier les caissiers du paiement effectué. Non bloquant : un souci ici (réseau,
+      // service de notification indisponible) ne doit jamais faire passer pour un échec
+      // un paiement déjà enregistré avec succès ci-dessus, ni empêcher l'impression/fermeture.
+      try {
+        const patient = selectedFacture.consultations?.patients;
+        const patientName = patient ? `${patient.prenom} ${patient.nom}` : 'Patient';
+        const cashierName = userProfile ? `${userProfile.prenom} ${userProfile.nom}` : 'Caissier';
+        await notificationService.notifyCashierPaymentMade(
+          paiementDataResult.id,
+          patientName,
+          montantPaye,
+          cashierName,
+          userProfile?.tenant_id || null
+        );
+      } catch (notifErr) {
+        console.warn('notifyCashierPaymentMade a échoué (paiement déjà enregistré, non bloquant) :', notifErr);
       }
-
-      // Notifier les caissiers du paiement effectué
-      const patient = selectedFacture.consultations?.patients;
-      const patientName = patient ? `${patient.prenom} ${patient.nom}` : 'Patient';
-      const cashierName = userProfile ? `${userProfile.prenom} ${userProfile.nom}` : 'Caissier';
-      await notificationService.notifyCashierPaymentMade(
-        paiementDataResult.id,
-        patientName,
-        montantPaye,
-        cashierName,
-        userProfile?.tenant_id || null
-      );
 
       // Impression du reçu : uniquement si demandée (bouton "Enregistrer et imprimer").
       // L'enregistrement du paiement (ci-dessus) est déjà acquis à ce stade, qu'on
@@ -1989,6 +2082,7 @@ const Caisse = () => {
                     const p = f.consultations?.patients;
                     const dt = f.consultations?.date_consultation ? new Date(f.consultations.date_consultation) : null;
                     const statut = (f.montant_paye > 0) ? 'partiel' : 'en_attente';
+                    const { partPatient, partAssurance, assuranceNom } = computeSplitAffichage(f);
                     return (
                       <tr
                         key={f.id}
@@ -1999,8 +2093,25 @@ const Caisse = () => {
                         <td className="px-4 py-3"><span className="font-medium">{p?.prenom} {p?.nom}</span><br /><span className="text-xs text-gray-500">{p?.numero_secu}</span></td>
                         <td className="px-4 py-3 text-sm">{f.numero_facture}</td>
                         <td className="px-4 py-3 text-sm">{dt ? dt.toLocaleDateString('fr-FR') : '–'}</td>
-                        <td className="px-4 py-3 font-medium">{formatMontant(f.montant_ttc || 0)}</td>
-                        <td className="px-4 py-3">{getStatusBadge(statut, f.montant_paye, f.montant_ttc)}</td>
+                        <td className="px-4 py-3 font-medium">
+                          {formatMontant(partAssurance > 0 ? partPatient : (f.montant_ttc || 0))}
+                          {partAssurance > 0 && (
+                            <div className="text-xs font-normal text-gray-400">Total facture {formatMontant(f.montant_ttc || 0)}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {getStatusBadge(statut, f.montant_paye, f.montant_ttc)}
+                          {partAssurance > 0 && (
+                            <Link
+                              to="/comptabilite/impayes"
+                              onClick={(e) => e.stopPropagation()}
+                              title={`Part ${assuranceNom || 'assurance'} à réclamer — voir dans Impayés & Relances`}
+                              className="mt-1 flex w-fit items-center gap-1 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-full px-2 py-0.5 hover:bg-purple-100"
+                            >
+                              <ShieldCheck className="w-3 h-3" /> Assurance {formatMontant(partAssurance)}
+                            </Link>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <button
                             type="button"
@@ -2440,6 +2551,7 @@ const Caisse = () => {
         const deja = parseFloat(factureDetail.montant_paye) || 0;
         const restant = Math.max(0, total - deja);
         const statut = restant <= 0 ? 'paye' : deja > 0 ? 'partiel' : 'en_attente';
+        const { partPatient, partAssurance, assuranceNom } = computeSplitAffichage(factureDetail);
         return (
           <div className="fixed inset-0 z-50 overflow-y-auto">
             <div className="flex min-h-full items-center justify-center p-4">
@@ -2484,7 +2596,19 @@ const Caisse = () => {
                 <div className="border border-gray-200 rounded-lg p-4 mb-4 space-y-2">
                   <div className="flex justify-between text-sm"><span className="text-gray-600">Montant total</span><span className="font-medium">{formatMontant(total)}</span></div>
                   <div className="flex justify-between text-sm"><span className="text-gray-600">Déjà payé</span><span>{formatMontant(deja)}</span></div>
-                  <div className="flex justify-between text-sm pt-2 border-t border-gray-200"><span className="font-semibold">Reste à payer</span><span className="font-bold">{formatMontant(restant)}</span></div>
+                  <div className="flex justify-between text-sm pt-2 border-t border-gray-200"><span className="font-semibold">Reste à payer par le patient</span><span className="font-bold">{formatMontant(partPatient)}</span></div>
+                  {partAssurance > 0 && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Part {assuranceNom || 'assurance'}</span>
+                      <Link
+                        to="/comptabilite/impayes"
+                        title="Non payable à la caisse — voir dans Impayés & Relances"
+                        className="flex items-center gap-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-full px-2 py-0.5 hover:bg-purple-100"
+                      >
+                        <ShieldCheck className="w-3 h-3" /> {formatMontant(partAssurance)} à réclamer
+                      </Link>
+                    </div>
+                  )}
                   {factureDetail.mode_paiement && (
                     <div className="flex justify-between text-sm pt-2 border-t border-gray-200">
                       <span className="text-gray-600">Mode de paiement</span>
@@ -2501,7 +2625,7 @@ const Caisse = () => {
 
                 <div className="flex flex-wrap gap-3 justify-end">
                   <button type="button" onClick={() => setShowDetailModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Fermer</button>
-                  {restant > 0 && (
+                  {partPatient > 0 && (
                     <button
                       type="button"
                       onClick={handlePayFromDetail}

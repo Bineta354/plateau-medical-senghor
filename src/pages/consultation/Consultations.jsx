@@ -97,6 +97,22 @@ const Consultations = () => {
     }
   };
 
+  // Libellé affiché — "En consultation" plutôt que "En cours" pour matcher le
+  // vocabulaire déjà utilisé sur le tableau de bord médecin (carte "Patient
+  // Actuel", compteur, salle d'attente). Voir FIX_ETAPE_2_MEDECIN.md point 3.
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'en_cours':
+        return 'En consultation';
+      case 'terminee':
+        return 'Terminée';
+      case 'annulee':
+        return 'Annulée';
+      default:
+        return status;
+    }
+  };
+
   const getUrgenceColor = (urgence) => {
     switch (urgence) {
       case 'tres_urgente':
@@ -194,7 +210,7 @@ const Consultations = () => {
               <Clock className="w-6 h-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">En cours</p>
+              <p className="text-sm font-medium text-gray-600">En consultation</p>
               <p className="text-2xl font-bold text-blue-600">{stats.enCours}</p>
             </div>
           </div>
@@ -259,7 +275,7 @@ const Consultations = () => {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">Tous les statuts</option>
-              <option value="en_cours">En cours</option>
+              <option value="en_cours">En consultation</option>
               <option value="terminee">Terminées</option>
               <option value="annulee">Annulées</option>
             </select>
@@ -363,8 +379,8 @@ const Consultations = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(consultation.statut)}`}>
                       {getStatusIcon(consultation.statut)}
-                      <span className="ml-1 capitalize">
-                        {consultation.statut.replace('_', ' ')}
+                      <span className="ml-1">
+                        {getStatusLabel(consultation.statut)}
                       </span>
                     </span>
                   </td>

@@ -13,7 +13,8 @@ import {
   CalendarPlus,
   UserCheck,
   UserPlus,
-  X
+  X,
+  FlaskConical
 } from 'lucide-react';
 import GlobalWaitingQueue from './GlobalWaitingQueue';
 import DoctorSpecificQueue from './DoctorSpecificQueue';
@@ -208,6 +209,15 @@ const SecretaryDashboard = () => {
           >
             <Calendar className="w-4 h-4" />
             {showCalendarView ? "Voir file d'attente" : 'Calendrier'}
+          </button>
+          {/* Temporaire : accès direct à la page de test du composant KpiCard */}
+          <button
+            onClick={() => navigate('/test-kpi-card')}
+            title="Page de test du composant KpiCard"
+            className="flex items-center gap-1.5 px-3 py-2 bg-white text-gray-600 border border-gray-300 border-dashed text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <FlaskConical className="w-4 h-4" />
+            Test KPI
           </button>
           <button
             onClick={fetchData}

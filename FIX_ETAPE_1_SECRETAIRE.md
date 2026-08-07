@@ -5,9 +5,8 @@ Spéc issue de l'audit ergonomique fait après test navigateur du parcours
 pour le détail du test). Liste des points validés, à implémenter — pas encore fait,
 ce fichier sert de backlog/spéc pour quand on s'y attaque.
 
-Statut global : **en cours**. Points 1, 2, 3, 9 (tier "vite fait / fort
-impact") implémentés — voir statut par point ci-dessous. Reste à faire :
-4, 5, 6, 7, 8, 11.
+Statut global : **en cours**. Points 1, 2, 3, 4, 5, 9 implémentés — voir
+statut par point ci-dessous. Reste à faire : 6, 7, 8, 11.
 
 ---
 
@@ -121,6 +120,36 @@ dates mal faite ? logique de seuil mal calibrée ?) et corriger. C'est
 avant tout un bug, pas juste un souci d'ergonomie.
 
 **Priorité :** impact fort, à investiguer côté code (pas juste UI).
+
+**Statut : fait.** Cause racine identifiée dans
+`src/utils/waitingQueueStatus.js` (`hasPastAppointment`) : la fonction
+comparait l'heure de fin théorique du créneau d'origine (date_heure +
+durée, 30 min par défaut) à "maintenant" pour repérer les patients
+ajoutés à `waiting_queue` *avant* leur arrivée réelle par un trigger BDD
+auto (`trg_after_insert_appointment_to_queue`, exécuté à la création du
+RDV) — logique héritée pour détecter les "non honorés". Ce trigger a
+été supprimé (migration
+`20260731000000_remove_auto_waiting_queue_trigger.sql`) : désormais,
+**toute** ligne dans `waiting_queue` est créée uniquement au moment où
+le patient est physiquement présent (confirmation de présence,
+walk-in, ajout salle d'attente...). Le statut `waiting` ne veut donc
+plus dire "pas encore arrivé" mais "arrivé, en attente d'être appelé" —
+la comparaison au créneau théorique était devenue un faux positif
+garanti dès que le médecin prend du retard sur son planning.
+
+Impact réel, plus large que le seul badge : la même fonction était
+aussi utilisée pour réétiqueter silencieusement un patient toujours
+présent en "Terminé" (`DoctorSpecificQueue.jsx`) et, plus grave, pour le
+marquer automatiquement `non_honore` en base et le sortir de la file
+active (`GlobalWaitingQueue.jsx`) — un patient qui patientait simplement
+plus de 30 min pouvait donc disparaître de la file du médecin.
+
+**Fix appliqué :** `hasPastAppointment` neutralisée (retourne toujours
+`false`), avec commentaire explicatif dans le code renvoyant à cette
+note. Les 3 appelants (`SalleAttentePage.jsx`, `DoctorSpecificQueue.jsx`,
+`GlobalWaitingQueue.jsx`) redeviennent donc des no-op sans avoir eu
+besoin d'être modifiés individuellement. Build (`vite build`) vérifié
+sain après coup.
 
 ---
 
@@ -247,7 +276,7 @@ d'entrée (dashboard "Patient arrivé" vs. prise de RDV classique).
 
 ## Récapitulatif priorités
 
-**Vite fait / fort impact :** 1, 2, 3, 9
-**Impact fort / un peu de code :** 4, 5 (bug), 11
-**Cosmétique mais utile :** 6, 7, 8
+**Vite fait / fort impact :** 1, 2, 3, 9 — fait
+**Impact fort / un peu de code :** 4 — fait, 5 (bug) — fait, 11 — à faire
+**Cosmétique mais utile :** 6, 7, 8 — à faire
 **Non retenu (statu quo) :** 10

@@ -80,6 +80,7 @@ const TestSimple = lazy(() => import('./pages/TestSimple'));
 const TestAuth = lazy(() => import('./pages/TestAuth'));
 const DatabaseCheck = lazy(() => import('./components/admin/DatabaseCheck'));
 const TestSpecialityFilter = lazy(() => import('./pages/test/TestSpecialityFilter'));
+const TestKpiCard = lazy(() => import('./pages/test/TestKpiCard'));
 const CabinetWelcome = lazy(() => import('./pages/CabinetWelcome'));
 const CabinetWelcomePublic = lazy(() => import('./pages/CabinetWelcomePublic'));
 
@@ -194,6 +195,7 @@ const AccountingDashboard = lazy(() => import('./pages/AccountingDashboard'));
 const EncaissementFactures = lazy(() => import('./pages/comptabilite/EncaissementFactures'));
 const SuiviCaissiers = lazy(() => import('./pages/comptabilite/SuiviCaissiers'));
 const ImpayesRelances = lazy(() => import('./pages/comptabilite/ImpayesRelances'));
+const AssuranceCreanceDetail = lazy(() => import('./pages/comptabilite/AssuranceCreanceDetail'));
 const RechercheRapports = lazy(() => import('./pages/comptabilite/RechercheRapports'));
 const MyCalendar = lazy(() => import('./pages/doctor/MyCalendar'));
 const Profile = lazy(() => import('./pages/Profile'));
@@ -400,6 +402,11 @@ const AppContent = () => {
             <LazyPageWrapper Component={TestSpecialityFilter} message="Chargement du test de filtrage spécialité..." />
           </ProtectedRoute>
         } />
+        <Route path="/test-kpi-card" element={
+          <ProtectedRoute>
+            <LazyPageWrapper Component={TestKpiCard} message="Chargement du test KpiCard..." />
+          </ProtectedRoute>
+        } />
 
         <Route path="/dental-chart" element={
           <ProtectedRoute>
@@ -479,6 +486,12 @@ const AppContent = () => {
         <Route path="/comptabilite/impayes" element={
           <ProtectedRoute allowedRoles={getAllowedRoles('/comptabilite/impayes')}>
             <LazyPageWrapper Component={ImpayesRelances} message="Chargement des impayés..." />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/comptabilite/impayes/assurance/:assuranceId" element={
+          <ProtectedRoute allowedRoles={getAllowedRoles('/comptabilite/impayes')}>
+            <LazyPageWrapper Component={AssuranceCreanceDetail} message="Chargement du détail assureur..." />
           </ProtectedRoute>
         } />
 

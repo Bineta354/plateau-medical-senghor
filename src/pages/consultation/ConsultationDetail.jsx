@@ -101,6 +101,7 @@ const ConsultationDetail = () => {
   };
   const [showDocumentsModal, setShowDocumentsModal] = useState(false);
   const [documentsStatus, setDocumentsStatus] = useState('none'); // 'none', 'new_today', 'old_only'
+  const [antecedentsStatus, setAntecedentsStatus] = useState('none'); // 'none', 'new_today', 'old_only'
   const [showDevisModal, setShowDevisModal] = useState(false);
 
   // États pour les modals
@@ -228,6 +229,24 @@ const ConsultationDetail = () => {
       setDocumentsStatus('none');
     }
   }, [dossierMedical.documentsPatient]);
+
+  // Même logique que documentsStatus ci-dessus : signale au médecin que la
+  // secrétaire vient de saisir un antécédent en salle d'attente (via
+  // PatientAntecedentsModal), sans avoir à ouvrir l'onglet pour le découvrir.
+  useEffect(() => {
+    if (antecedents.length > 0) {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      const hasNewToday = antecedents.some(a => {
+        const createdDate = new Date(a.created_at);
+        return createdDate >= todayStart && createdDate <= todayEnd;
+      });
+      setAntecedentsStatus(hasNewToday ? 'new_today' : 'old_only');
+    } else {
+      setAntecedentsStatus('none');
+    }
+  }, [antecedents]);
 
 
   const handleFinishWorkflow = async () => {
@@ -697,13 +716,22 @@ const ConsultationDetail = () => {
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${activeTab === tab.id
+                className={`relative py-2 px-1 border-b-2 font-medium text-sm flex items-center ${activeTab === tab.id
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
               >
                 <tab.icon className="w-4 h-4 mr-2" />
                 {tab.name}
+                {/* Pin : la secrétaire vient de saisir un antécédent en salle d'attente
+                    aujourd'hui (voir antecedentsStatus) — même intention que le badge
+                    "Documents" du header, appliquée ici à l'onglet lui-même. */}
+                {tab.id === 'antecedents' && antecedentsStatus === 'new_today' && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 ring-2 ring-white animate-pulse"
+                    title="Nouvel antécédent saisi aujourd'hui"
+                  />
+                )}
               </button>
             ))}
           </nav>

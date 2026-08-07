@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ClipboardList, X } from 'lucide-react';
 import AntecedentsMedicaux from '../consultation/AntecedentsMedicaux';
 import * as consultationService from '../../services/consultation/consultationService';
+import { supabase } from '../../lib/supabase';
 
 const PatientAntecedentsModal = ({ patient, onClose }) => {
   const [antecedents, setAntecedents] = useState([]);
@@ -33,9 +34,16 @@ const PatientAntecedentsModal = ({ patient, onClose }) => {
 
   const loadAntecedentsRef = async () => {
     try {
-      const { data, error } = await consultationService.supabase
+      // `consultationService` n'exporte pas `supabase` — l'appel passait
+      // par `consultationService.supabase` (undefined), échouait
+      // silencieusement (catch ci-dessous) et laissait `antecedentsRef`
+      // vide en permanence : la secrétaire ne pouvait sélectionner aucun
+      // antécédent à ajouter. Utilise le client `supabase` importé
+      // directement, comme partout ailleurs dans l'app.
+      const { data, error } = await supabase
         .from('antecedents')
         .select('*')
+        .eq('actif', true)
         .order('nom');
 
       if (error) throw error;
