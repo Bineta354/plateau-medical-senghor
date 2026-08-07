@@ -1,26 +1,9 @@
 import React from 'react';
 import { Eye, Edit, Download, Printer, Trash2 } from 'lucide-react';
 import { formatMontant } from '../../utils/currency';
+import { getStatusColor, getStatusLabel } from '../../utils/factureStatus';
 
 const FactureCard = ({ facture, onView, onEdit, onDownload, onPrint, onDelete }) => {
-  const getStatusColor = (statut) => {
-    switch (statut) {
-      case 'payee': return 'bg-green-100 text-green-800';
-      case 'en_attente': return 'bg-yellow-100 text-yellow-800';
-      case 'impayee': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusText = (statut) => {
-    switch (statut) {
-      case 'payee': return 'Payée';
-      case 'en_attente': return 'En attente';
-      case 'impayee': return 'Impayée';
-      default: return statut;
-    }
-  };
-
   return (
     <tr className="hover:bg-gray-50">
       <td className="px-4 py-3 whitespace-nowrap">
@@ -57,8 +40,8 @@ const FactureCard = ({ facture, onView, onEdit, onDownload, onPrint, onDelete })
         </div>
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
-        <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(facture.statut)}`}>
-          {getStatusText(facture.statut)}
+        <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full border ${getStatusColor(facture.statut)}`}>
+          {getStatusLabel(facture.statut)}
         </span>
       </td>
       <td className="px-4 py-3 whitespace-nowrap text-xs font-medium">

@@ -19,14 +19,11 @@ import {
   LogOut,
   Archive,
   Activity,
-  FileSearch,
-  AlertTriangle,
   Search,
   Calculator,
   UserPlus,
   Stethoscope,
   ClipboardList,
-  CreditCard,
   CalendarDays,
   Clock3,
   Cog,
@@ -42,6 +39,15 @@ import {
 import { usePersonnalisation } from '../contexts/PersonnalisationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { ROLES, getRoleDisplayName, getRoleColor } from '../utils/permissions';
+import { getFinanceRoutesForRole } from '../config/financeNavigation';
+
+/** Convertit les entrées FINANCE_ROUTES d'une section en items de menu sidebar. */
+const financeSection = (roleKey, section, sectionLabel, sectionIcon) => {
+  const items = getFinanceRoutesForRole(roleKey)
+    .filter((r) => r.section === section)
+    .map((r) => ({ name: r.label, icon: r.icon, path: r.path }));
+  return items.length ? [{ name: sectionLabel, icon: sectionIcon, items }] : [];
+};
 
 const Sidebar = ({
   width = 256,
@@ -103,82 +109,17 @@ const Sidebar = ({
           { name: 'Consultations Terminées', icon: CheckCircle, path: '/consultations-terminees' },
         ]
       },
-      {
-        name: 'FACTURATION',
-        icon: Coins,
-        items: [
-          { name: 'Factures', icon: FileText, path: '/facturation/factures' },
-          { name: 'Actes', icon: Activity, path: '/facturation/actes' },
-          { name: 'Examens', icon: FileSearch, path: '/facturation/examens' },
-        ]
-      }
+      ...financeSection(ROLES.SECRETARY, 'facturation', 'FACTURATION', Coins),
     ],
     caissier: [
-      {
-        name: 'PRINCIPAL',
-        icon: LayoutDashboard,
-        items: [
-          { name: 'Caisse', icon: CreditCard, path: '/caisse' },
-          { name: 'Encaissement', icon: Coins, path: '/comptabilite/encaissement' },
-          { name: 'Alertes impayés', icon: AlertTriangle, path: '/comptabilite/alertes-impayes' },
-        ]
-      },
-      {
-        name: 'RELANCES & RÉCAP',
-        icon: FileText,
-        items: [
-          { name: 'Relances (email / SMS)', icon: MessageSquare, path: '/caissier/relances' },
-          { name: 'Récapitulatif', icon: BarChart3, path: '/caissier/recapitulatif' },
-        ]
-      },
-      {
-        name: 'COMPTABILITÉ CAISSE',
-        icon: Calculator,
-        items: [
-          { name: 'Arrêté mensuel', icon: FileText, path: '/caissier/arrete-mensuel' },
-          { name: 'Reversement bancaire', icon: CreditCard, path: '/caissier/reversement-bancaire' },
-        ]
-      }
+      ...financeSection(ROLES.CAISSIER, 'guichet', 'PRINCIPAL', LayoutDashboard),
+      ...financeSection(ROLES.CAISSIER, 'suivi', 'SUIVI & RELANCES', Calculator),
     ],
     accounting: [
-      {
-        name: 'PRINCIPAL',
-        icon: LayoutDashboard,
-        items: [
-          { name: 'Tableau de bord', icon: LayoutDashboard, path: '/accounting' },
-          { name: 'Suivi des caissiers', icon: Users, path: '/comptabilite/suivi-caissiers' }
-        ]
-      },
-      {
-        name: 'BUSINESS INTELLIGENCE',
-        icon: BarChart3,
-        items: [
-          { name: 'Stats Avancées', icon: BarChart3, path: '/comptabilite/tableau-bord' },
-          { name: 'Historique patients', icon: Users, path: '/comptabilite/historique-patients' },
-          { name: 'Alertes impayés', icon: AlertTriangle, path: '/comptabilite/alertes-impayes' },
-          { name: 'Recherche avancée', icon: Search, path: '/comptabilite/recherche-avancee' },
-          { name: 'Rapports financiers', icon: FileText, path: '/comptabilite/rapports-financiers' }
-        ]
-      },
-      {
-        name: 'FACTURATION',
-        icon: FileText,
-        items: [
-          { name: 'Factures', icon: FileText, path: '/facturation/factures' },
-          { name: 'Actes', icon: Activity, path: '/facturation/actes' },
-          { name: 'Examens', icon: FileSearch, path: '/facturation/examens' },
-        ]
-      }
-    ],
-    cashier: [
-      {
-        name: 'PRINCIPAL',
-        icon: LayoutDashboard,
-        items: [
-          { name: 'Caisse', icon: CreditCard, path: '/caisse' },
-          { name: 'Factures', icon: FileText, path: '/facturation/factures' }
-        ]
-      }
+      ...financeSection(ROLES.ACCOUNTING, 'pilotage', 'PRINCIPAL', LayoutDashboard),
+      ...financeSection(ROLES.ACCOUNTING, 'guichet', 'GUICHET & CORRECTIONS', Coins),
+      ...financeSection(ROLES.ACCOUNTING, 'suivi', 'SUIVI & IMPAYÉS', BarChart3),
+      ...financeSection(ROLES.ACCOUNTING, 'facturation', 'FACTURATION', FileText),
     ],
     medecin: [
       {
@@ -229,6 +170,10 @@ const Sidebar = ({
           { name: 'Recherche Rendez-vous', icon: Search, path: '/appointments/recherche' },
         ]
       },
+      ...financeSection(ROLES.ADMIN, 'guichet', 'CAISSE & CORRECTIONS', Coins),
+      ...financeSection(ROLES.ADMIN, 'suivi', 'SUIVI & IMPAYÉS', BarChart3),
+      ...financeSection(ROLES.ADMIN, 'pilotage', 'COMPTABILITÉ', Calculator),
+      ...financeSection(ROLES.ADMIN, 'facturation', 'FACTURATION', FileText),
       {
         name: 'GESTION',
         icon: Users,
@@ -276,7 +221,6 @@ const Sidebar = ({
     if (hasRole(ROLES.SECRETARY)) return 'secretaire';
     if (hasRole(ROLES.CAISSIER)) return 'caissier';
     if (hasRole(ROLES.ACCOUNTING)) return 'accounting';
-    if (hasRole(ROLES.CASHIER)) return 'cashier';
     return null; // Pas de rôle par défaut pour la sécurité
   };
 

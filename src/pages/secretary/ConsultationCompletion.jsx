@@ -748,7 +748,7 @@ const ConsultationCompletion = () => {
                           <div key={idx} className="flex justify-between mb-2 text-sm">
                             <span>{ligne.description}:</span>
                             <span className="font-semibold">
-                              {formatMontant(ligne.montant_total)}
+                              {formatMontant(ligne.montant_ligne)}
                             </span>
                           </div>
                         ))}

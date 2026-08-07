@@ -27,6 +27,10 @@ import SearchableSelect from '../../components/common/SearchableSelect';
 import { useAlert } from '../../contexts/AlertContext';
 import { generateFacturePDF } from '../../services/impression/facturePdf.js';
 import { formatMontant } from '../../utils/currency';
+import Pagination from '../../components/common/Pagination';
+import { getStatusColor, getStatusLabel, isOutstanding } from '../../utils/factureStatus';
+
+const ITEMS_PER_PAGE = 20;
 
 const FacturationFactures = () => {
   const location = useLocation();
@@ -38,6 +42,7 @@ const FacturationFactures = () => {
   const [showDetails, setShowDetails] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingFacture, setEditingFacture] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [factureData, setFactureData] = useState({
     patientId: '',
     type: '',
@@ -259,7 +264,7 @@ const FacturationFactures = () => {
       montantAssurance: 21600,
       montantPatient: 5400,
       total: 27000,
-      statut: 'payee',
+      statut: 'paye',
       medecin: 'Dr. Mamadou Diallo',
       dateEcheance: '2024-01-30'
     },
@@ -275,7 +280,7 @@ const FacturationFactures = () => {
       montantAssurance: 0,
       montantPatient: 23000,
       total: 23000,
-      statut: 'impayee',
+      statut: 'impaye',
       medecin: 'Dr. Moussa Seck',
       dateEcheance: '2024-01-28'
     },
@@ -291,7 +296,7 @@ const FacturationFactures = () => {
       montantAssurance: 7600,
       montantPatient: 1900,
       total: 9500,
-      statut: 'payee',
+      statut: 'paye',
       medecin: 'Dr. Aminata Fall',
       dateEcheance: '2024-01-27'
     },
@@ -307,7 +312,7 @@ const FacturationFactures = () => {
       montantAssurance: 37800,
       montantPatient: 16200,
       total: 54000,
-      statut: 'partiellement_payee',
+      statut: 'partiel',
       medecin: 'Dr. Cheikh Mbaye',
       dateEcheance: '2024-01-26'
     }
@@ -322,7 +327,7 @@ const FacturationFactures = () => {
     const matchesStatus = selectedStatus === 'all'
       ? true
       : selectedStatus === 'outstanding'
-        ? facture.statut !== 'payee' && facture.statut !== 'annulee'
+        ? isOutstanding(facture.statut)
         : facture.statut === selectedStatus;
     const matchesType = selectedType === 'all' || facture.type === selectedType;
 
@@ -357,27 +362,15 @@ const FacturationFactures = () => {
     return matchesSearch && matchesStatus && matchesType && matchesPeriod();
   });
 
-  const getStatusColor = (statut) => {
-    switch (statut) {
-      case 'payee': return 'bg-green-100 text-green-800';
-      case 'partiellement_payee': return 'bg-orange-100 text-orange-800';
-      case 'en_attente': return 'bg-yellow-100 text-yellow-800';
-      case 'impayee': return 'bg-red-100 text-red-800';
-      case 'annulee': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedStatus, selectedType, selectedPeriod]);
 
-  const getStatusText = (statut) => {
-    switch (statut) {
-      case 'payee': return 'Payée';
-      case 'partiellement_payee': return 'Partiellement payée';
-      case 'en_attente': return 'En attente';
-      case 'impayee': return 'Impayée';
-      case 'annulee': return 'Annulée';
-      default: return statut;
-    }
-  };
+  const totalPages = Math.max(1, Math.ceil(filteredFactures.length / ITEMS_PER_PAGE));
+  const paginatedFactures = filteredFactures.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const getTypeColor = (type) => {
     switch (type) {
@@ -393,9 +386,9 @@ const FacturationFactures = () => {
   const totalFactures = toutesFactures.length;
   const totalChiffre = toutesFactures.reduce((sum, f) => sum + f.total, 0);
   const totalEnAttente = toutesFactures
-    .filter(f => f.statut === 'en_attente' || f.statut === 'impayee' || f.statut === 'partiellement_payee')
+    .filter(f => f.statut === 'en_attente' || f.statut === 'impaye' || f.statut === 'partiel')
     .reduce((sum, f) => sum + f.montantPatient, 0);
-  const totalPayees = toutesFactures.filter(f => f.statut === 'payee').length;
+  const totalPayees = toutesFactures.filter(f => f.statut === 'paye').length;
 
   const handleEdit = (facture) => {
     setEditingFacture(facture);
@@ -729,11 +722,10 @@ const FacturationFactures = () => {
             >
               <option value="all">Tous les statuts</option>
               <option value="outstanding">À encaisser (non payées)</option>
-              <option value="payee">Payées</option>
-              <option value="partiellement_payee">Partiellement payées</option>
+              <option value="paye">Payées</option>
+              <option value="partiel">Partiellement payées</option>
               <option value="en_attente">En attente</option>
-              <option value="impayee">Impayées</option>
-              <option value="annulee">Annulées</option>
+              <option value="impaye">Impayées</option>
             </select>
           </div>
           
@@ -790,7 +782,7 @@ const FacturationFactures = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredFactures.map((facture) => (
+              {paginatedFactures.map((facture) => (
                 <tr key={facture.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
@@ -837,8 +829,8 @@ const FacturationFactures = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(facture.statut)}`}>
-                      {getStatusText(facture.statut)}
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getStatusColor(facture.statut)}`}>
+                      {getStatusLabel(facture.statut)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -871,7 +863,7 @@ const FacturationFactures = () => {
                       >
                         <FileText className="w-4 h-4" />
                       </button>
-                      {facture.statut !== 'payee' && (
+                      {facture.statut !== 'paye' && (
                         <button 
                           onClick={() => handleDelete(facture)}
                           className="text-red-600 hover:text-red-900"
@@ -887,6 +879,16 @@ const FacturationFactures = () => {
             </tbody>
           </table>
         </div>
+
+        {filteredFactures.length > 0 && (
+          <div className="border-t border-gray-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
       </div>
 
       {/* Modal de détails */}

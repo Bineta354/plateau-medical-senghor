@@ -1,44 +1,49 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Coins, 
-  FileText, 
-  TrendingUp, 
-  Calendar,
-  Users,
+import {
+  Coins,
+  FileText,
+  TrendingUp,
   AlertCircle,
   CheckCircle,
   Clock,
-  ArrowUpRight,
-  ArrowDownRight,
-  Eye
+  Stethoscope,
 } from 'lucide-react';
 import { ResponsiveContainer, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/useToast';
 import { formatMontant } from '../utils/currency';
+import { getStatusLabel, isOutstanding } from '../utils/factureStatus';
 
+/**
+ * Tableau de bord comptable unique — fusionne l'ancien AccountingDashboard.jsx
+ * (branché sur Supabase mais filtrait sur une nomenclature de statuts
+ * 'payee'/'partiellement_payee'/'impayee' qui n'a jamais existé côté base,
+ * le rendant silencieusement cassé) et TableauBordComptable.jsx (100% données
+ * factices). Les vraies valeurs de statut_paiement sont en_attente/partiel/
+ * paye/impaye (voir src/utils/factureStatus.js).
+ *
+ * Les widgets "Top médecins"/"Top services"/"Trésorerie" de l'ancien tableau
+ * de bord mock ne sont pas reconstitués ici : ils reposaient sur des données
+ * qui n'existent pas dans le schéma actuel (dépenses, satisfaction, service
+ * par acte) et les refaire avec des données inventées aurait reproduit le
+ * même problème. Seul un "Top médecins par chiffre facturé" (réel) est ajouté.
+ */
 const AccountingDashboard = () => {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
-  const { showSuccess, showError, showWarning, showInfo } = useToast();
-  
+  const { showError, showInfo } = useToast();
+
   const [stats, setStats] = useState({
     totalInvoices: 0,
     paidInvoices: 0,
     pendingInvoices: 0,
     unpaidInvoices: 0,
-    totalRevenue: 0,
-    monthlyRevenue: 0,
-    pendingAmount: 0,
-    unpaidAmount: 0
   });
-  
+
   const [recentInvoices, setRecentInvoices] = useState([]);
   const [periodInvoices, setPeriodInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState('month'); // 'week', 'month', 'year'
+  const [dateRange, setDateRange] = useState('month'); // 'week' | 'month' | 'quarter' | 'year'
 
   const [tableSearch, setTableSearch] = useState('');
   const [tableStatus, setTableStatus] = useState('all');
@@ -50,23 +55,25 @@ const AccountingDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // Calculer les dates selon la période
+
       const now = new Date();
-      let startDate = new Date();
-      
+      const startDate = new Date();
       switch (dateRange) {
         case 'week':
           startDate.setDate(now.getDate() - 7);
           break;
-        case 'month':
-          startDate.setMonth(now.getMonth() - 1);
+        case 'quarter':
+          startDate.setMonth(now.getMonth() - 3);
           break;
         case 'year':
           startDate.setFullYear(now.getFullYear() - 1);
           break;
+        case 'month':
+        default:
+          startDate.setMonth(now.getMonth() - 1);
+          break;
       }
-      
+
       const { data: factures, error: facturesError } = await supabase
         .from('factures')
         .select(`
@@ -79,11 +86,8 @@ const AccountingDashboard = () => {
           statut_paiement,
           created_at,
           patient_id,
-          patients (
-            id,
-            nom,
-            prenom
-          )
+          patients ( id, nom, prenom ),
+          consultations ( medecin_id, users ( id, nom, prenom ) )
         `)
         .gte('created_at', startDate.toISOString())
         .order('date_facture', { ascending: false })
@@ -95,48 +99,26 @@ const AccountingDashboard = () => {
       const allInvoices = factures || [];
       setPeriodInvoices(allInvoices);
 
-      const totalInvoices = allInvoices.length;
-      const paidInvoices = allInvoices.filter(inv => inv.statut_paiement === 'payee').length;
-      const pendingInvoices = allInvoices.filter(inv => inv.statut_paiement === 'en_attente' || inv.statut_paiement === 'partiellement_payee').length;
-      const unpaidInvoices = allInvoices.filter(inv => inv.statut_paiement === 'impayee').length;
-
-      const totalRevenue = allInvoices
-        .filter(inv => inv.statut_paiement === 'payee')
-        .reduce((sum, inv) => sum + (inv.montant_paye ?? inv.montant_ttc ?? 0), 0);
-
-      const pendingAmount = allInvoices
-        .filter(inv => inv.statut_paiement === 'en_attente' || inv.statut_paiement === 'partiellement_payee')
-        .reduce((sum, inv) => sum + (inv.montant_restant ?? inv.montant_ttc ?? 0), 0);
-
-      const unpaidAmount = allInvoices
-        .filter(inv => inv.statut_paiement === 'impayee')
-        .reduce((sum, inv) => sum + (inv.montant_restant ?? inv.montant_ttc ?? 0), 0);
-
       setStats({
-        totalInvoices,
-        paidInvoices,
-        pendingInvoices,
-        unpaidInvoices,
-        totalRevenue,
-        monthlyRevenue: totalRevenue,
-        pendingAmount,
-        unpaidAmount
+        totalInvoices: allInvoices.length,
+        paidInvoices: allInvoices.filter((inv) => inv.statut_paiement === 'paye').length,
+        pendingInvoices: allInvoices.filter((inv) => inv.statut_paiement === 'en_attente').length,
+        unpaidInvoices: allInvoices.filter((inv) => inv.statut_paiement === 'impaye').length,
       });
 
       const recentData = allInvoices.slice(0, 10);
-      const enrichedInvoices = recentData.map((inv) => ({
-        id: inv.id,
-        created_at: inv.created_at,
-        date_facture: inv.date_facture,
-        numero_facture: inv.numero_facture,
-        montant: inv.montant_ttc ?? 0,
-        statut_paiement: inv.statut_paiement,
-        patient_id: inv.patient_id,
-        patient: inv.patients
-      }));
-
-      setRecentInvoices(enrichedInvoices);
-
+      setRecentInvoices(
+        recentData.map((inv) => ({
+          id: inv.id,
+          created_at: inv.created_at,
+          date_facture: inv.date_facture,
+          numero_facture: inv.numero_facture,
+          montant: inv.montant_ttc ?? 0,
+          statut_paiement: inv.statut_paiement,
+          patient_id: inv.patient_id,
+          patient: inv.patients,
+        })),
+      );
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
       showError('Erreur lors du chargement des données du tableau de bord');
@@ -146,21 +128,18 @@ const AccountingDashboard = () => {
   };
 
   const statusColorByKey = useMemo(() => ({
-    payee: '#22C55E',
-    partiellement_payee: '#F97316',
+    paye: '#22C55E',
+    partiel: '#F97316',
     en_attente: '#F59E0B',
-    impayee: '#EF4444'
+    impaye: '#EF4444',
   }), []);
 
-  const statusSeries = useMemo(() => {
-    const partiel = periodInvoices.filter(inv => inv.statut_paiement === 'partiellement_payee').length;
-    return [
-      { name: 'Payées', value: stats.paidInvoices, key: 'payee', color: statusColorByKey.payee },
-      { name: 'Partielles', value: partiel, key: 'partiellement_payee', color: statusColorByKey.partiellement_payee },
-      { name: 'En attente', value: periodInvoices.filter(inv => inv.statut_paiement === 'en_attente').length, key: 'en_attente', color: statusColorByKey.en_attente },
-      { name: 'Impayées', value: stats.unpaidInvoices, key: 'impayee', color: statusColorByKey.impayee }
-    ];
-  }, [periodInvoices, stats.paidInvoices, stats.unpaidInvoices, statusColorByKey]);
+  const statusSeries = useMemo(() => ([
+    { name: 'Payées', value: stats.paidInvoices, key: 'paye', color: statusColorByKey.paye },
+    { name: 'Partielles', value: periodInvoices.filter((inv) => inv.statut_paiement === 'partiel').length, key: 'partiel', color: statusColorByKey.partiel },
+    { name: 'En attente', value: stats.pendingInvoices, key: 'en_attente', color: statusColorByKey.en_attente },
+    { name: 'Impayées', value: stats.unpaidInvoices, key: 'impaye', color: statusColorByKey.impaye },
+  ]), [periodInvoices, stats, statusColorByKey]);
 
   const kpis = useMemo(() => {
     const billed = periodInvoices.reduce((sum, inv) => sum + (inv.montant_ttc ?? 0), 0);
@@ -175,33 +154,30 @@ const AccountingDashboard = () => {
     const buckets = [
       { label: '0-7j', min: 0, max: 7, count: 0, amount: 0 },
       { label: '8-30j', min: 8, max: 30, count: 0, amount: 0 },
-      { label: '31j+', min: 31, max: Infinity, count: 0, amount: 0 }
+      { label: '31j+', min: 31, max: Infinity, count: 0, amount: 0 },
     ];
 
     for (const inv of periodInvoices) {
-      const isOutstanding = inv.statut_paiement !== 'payee' && inv.statut_paiement !== 'annulee';
-      if (!isOutstanding) continue;
-
+      if (!isOutstanding(inv.statut_paiement)) continue;
       const baseDate = inv.date_facture || inv.created_at;
       if (!baseDate) continue;
       const ageDays = Math.floor((now.getTime() - new Date(baseDate).getTime()) / (1000 * 60 * 60 * 24));
       const amount = inv.montant_restant ?? 0;
-      const bucket = buckets.find(b => ageDays >= b.min && ageDays <= b.max);
+      const bucket = buckets.find((b) => ageDays >= b.min && ageDays <= b.max);
       if (bucket) {
         bucket.count += 1;
         bucket.amount += amount;
       }
     }
 
-    const maxAmount = Math.max(1, ...buckets.map(b => b.amount));
-    return buckets.map(b => ({ ...b, ratio: Math.round((b.amount / maxAmount) * 100) }));
+    const maxAmount = Math.max(1, ...buckets.map((b) => b.amount));
+    return buckets.map((b) => ({ ...b, ratio: Math.round((b.amount / maxAmount) * 100) }));
   }, [periodInvoices]);
 
   const topOutstandingPatients = useMemo(() => {
     const map = new Map();
     for (const inv of periodInvoices) {
-      const isOutstanding = inv.statut_paiement !== 'payee' && inv.statut_paiement !== 'annulee';
-      if (!isOutstanding) continue;
+      if (!isOutstanding(inv.statut_paiement)) continue;
       const patient = inv.patients;
       if (!patient?.id) continue;
       const key = String(patient.id);
@@ -210,10 +186,21 @@ const AccountingDashboard = () => {
       prev.count += 1;
       map.set(key, prev);
     }
+    return Array.from(map.values()).sort((a, b) => b.amount - a.amount).slice(0, 5);
+  }, [periodInvoices]);
 
-    return Array.from(map.values())
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 5);
+  const topMedecins = useMemo(() => {
+    const map = new Map();
+    for (const inv of periodInvoices) {
+      const medecin = inv.consultations?.users;
+      if (!medecin?.id) continue;
+      const key = String(medecin.id);
+      const prev = map.get(key) || { medecin, montant: 0, count: 0 };
+      prev.montant += (inv.montant_ttc ?? 0);
+      prev.count += 1;
+      map.set(key, prev);
+    }
+    return Array.from(map.values()).sort((a, b) => b.montant - a.montant).slice(0, 5);
   }, [periodInvoices]);
 
   const filteredRecentInvoices = useMemo(() => {
@@ -221,16 +208,15 @@ const AccountingDashboard = () => {
     return recentInvoices.filter((inv) => {
       const matchesStatus = tableStatus === 'all' || inv.statut_paiement === tableStatus;
       if (!matchesStatus) return false;
-
       if (!q) return true;
       const patientName = inv.patient ? `${inv.patient.prenom || ''} ${inv.patient.nom || ''}`.toLowerCase() : '';
       const amountText = String(inv.montant || '').toLowerCase();
-      const numberText = String(inv.numero_facture || inv.numero || inv.id || '').toLowerCase();
+      const numberText = String(inv.numero_facture || inv.id || '').toLowerCase();
       return patientName.includes(q) || amountText.includes(q) || numberText.includes(q);
     });
   }, [recentInvoices, tableSearch, tableStatus]);
 
-  const getStatCard = (title, value, icon, color, trend = null, onClick = null) => (
+  const getStatCard = (title, value, icon, color, onClick = null) => (
     <button
       type="button"
       onClick={onClick || undefined}
@@ -240,44 +226,22 @@ const AccountingDashboard = () => {
         <div>
           <p className="text-sm font-medium text-gray-600">{title}</p>
           <p className="text-2xl font-bold text-gray-900">{value}</p>
-          {trend && (
-            <div className={`flex items-center text-sm mt-1 ${
-              trend.value > 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {trend.value > 0 ? (
-                <ArrowUpRight className="w-4 h-4 mr-1" />
-              ) : (
-                <ArrowDownRight className="w-4 h-4 mr-1" />
-              )}
-              {Math.abs(trend.value)}% {trend.label}
-            </div>
-          )}
         </div>
-        <div className={`p-3 rounded-full ${color}`}>
-          {icon}
-        </div>
+        <div className={`p-3 rounded-full ${color}`}>{icon}</div>
       </div>
     </button>
   );
 
   const getStatusBadge = (status) => {
     const styles = {
-      payee: 'bg-green-100 text-green-800',
-      partiellement_payee: 'bg-orange-100 text-orange-800',
+      paye: 'bg-green-100 text-green-800',
+      partiel: 'bg-orange-100 text-orange-800',
       en_attente: 'bg-yellow-100 text-yellow-800',
-      impayee: 'bg-red-100 text-red-800'
+      impaye: 'bg-red-100 text-red-800',
     };
-    
-    const labels = {
-      payee: 'Payée',
-      partiellement_payee: 'Partiellement payée',
-      en_attente: 'En attente',
-      impayee: 'Impayée'
-    };
-
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[status] || 'bg-gray-100 text-gray-800'}`}>
-        {labels[status] || status}
+        {getStatusLabel(status)}
       </span>
     );
   };
@@ -301,8 +265,7 @@ const AccountingDashboard = () => {
           <h1 className="text-2xl font-bold text-gray-900">Tableau de bord - Comptabilité</h1>
           <p className="text-gray-600">Vue d'ensemble de la situation financière</p>
         </div>
-        
-        {/* Sélecteur de période */}
+
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-gray-700">Période:</label>
           <select
@@ -310,67 +273,35 @@ const AccountingDashboard = () => {
             onChange={(e) => setDateRange(e.target.value)}
             className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
           >
-            <option value="week">Dernière semaine</option>
-            <option value="month">Dernier mois</option>
-            <option value="year">Dernière année</option>
+            <option value="week">Cette semaine</option>
+            <option value="month">Ce mois</option>
+            <option value="quarter">Ce trimestre</option>
+            <option value="year">Cette année</option>
           </select>
         </div>
       </div>
 
       {/* Statistiques principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {getStatCard(
-          "Total Factures",
-          stats.totalInvoices,
-          <FileText className="w-6 h-6 text-blue-600" />,
-          "bg-blue-100",
-          null,
-          () => navigate('/facturation/factures')
-        )}
-        
-        {getStatCard(
-          "Factures Payées",
-          stats.paidInvoices,
-          <CheckCircle className="w-6 h-6 text-green-600" />,
-          "bg-green-100",
-          null,
-          () => navigate('/facturation/factures?status=payee')
-        )}
-        
-        {getStatCard(
-          "En Attente",
-          stats.pendingInvoices,
-          <Clock className="w-6 h-6 text-yellow-600" />,
-          "bg-yellow-100",
-          null,
-          () => navigate('/facturation/factures?status=en_attente')
-        )}
-        
-        {getStatCard(
-          "Impayées",
-          stats.unpaidInvoices,
-          <AlertCircle className="w-6 h-6 text-red-600" />,
-          "bg-red-100",
-          null,
-          () => navigate('/facturation/factures?status=impayee')
-        )}
+        {getStatCard('Total Factures', stats.totalInvoices, <FileText className="w-6 h-6 text-blue-600" />, 'bg-blue-100', () => navigate('/facturation/factures'))}
+        {getStatCard('Factures Payées', stats.paidInvoices, <CheckCircle className="w-6 h-6 text-green-600" />, 'bg-green-100', () => navigate('/facturation/factures?status=paye'))}
+        {getStatCard('En Attente', stats.pendingInvoices, <Clock className="w-6 h-6 text-yellow-600" />, 'bg-yellow-100', () => navigate('/facturation/factures?status=en_attente'))}
+        {getStatCard('Impayées', stats.unpaidInvoices, <AlertCircle className="w-6 h-6 text-red-600" />, 'bg-red-100', () => navigate('/facturation/factures?status=impaye'))}
       </div>
 
       {/* Statistiques financières */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Répartition des statuts</h2>
-                <p className="text-sm text-gray-600">Synthèse rapide des factures</p>
-              </div>
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Répartition des statuts</h2>
+              <p className="text-sm text-gray-600">Synthèse rapide des factures</p>
             </div>
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={statusSeries.filter(s => s.value > 0)}
+                    data={statusSeries.filter((s) => s.value > 0)}
                     dataKey="value"
                     nameKey="name"
                     cx="50%"
@@ -379,7 +310,7 @@ const AccountingDashboard = () => {
                     outerRadius={70}
                     paddingAngle={3}
                   >
-                    {statusSeries.filter(s => s.value > 0).map((entry, index) => (
+                    {statusSeries.filter((s) => s.value > 0).map((entry) => (
                       <Cell key={`cell-${entry.key}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -388,7 +319,7 @@ const AccountingDashboard = () => {
               </ResponsiveContainer>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              {statusSeries.map((s, idx) => (
+              {statusSeries.map((s) => (
                 <button
                   key={s.key}
                   type="button"
@@ -406,11 +337,9 @@ const AccountingDashboard = () => {
           </div>
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Priorité relances</h2>
-                <p className="text-sm text-gray-600">Aging des restes à encaisser</p>
-              </div>
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Priorité relances</h2>
+              <p className="text-sm text-gray-600">Aging des restes à encaisser</p>
             </div>
             <div className="space-y-3">
               {aging.map((b) => (
@@ -425,55 +354,44 @@ const AccountingDashboard = () => {
                     <span className="text-gray-600">{formatMontant(b.amount)} ({b.count})</span>
                   </div>
                   <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-red-500 rounded-full"
-                      style={{ width: `${b.ratio}%` }}
-                    />
+                    <div className="h-full bg-red-500 rounded-full" style={{ width: `${b.ratio}%` }} />
                   </div>
                 </button>
               ))}
             </div>
           </div>
 
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Top médecins</h2>
+              <p className="text-sm text-gray-600">Chiffre facturé sur la période</p>
+            </div>
+            {topMedecins.length === 0 ? (
+              <div className="text-sm text-gray-600">Aucune donnée sur la période.</div>
+            ) : (
+              <div className="space-y-2">
+                {topMedecins.map((row) => (
+                  <div key={row.medecin.id} className="flex items-center justify-between px-3 py-2 rounded-md border border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <Stethoscope className="w-4 h-4 text-gray-400" />
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">Dr. {row.medecin.prenom} {row.medecin.nom}</div>
+                        <div className="text-xs text-gray-600">{row.count} facture(s)</div>
+                      </div>
+                    </div>
+                    <div className="text-sm font-semibold text-gray-900">{formatMontant(row.montant)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-6">
-
-          {getStatCard(
-            "Total facturé",
-            formatMontant(kpis.billed),
-            <Coins className="w-6 h-6 text-green-600" />,
-            "bg-green-100",
-            null,
-            () => navigate('/reports')
-          )}
-          
-          {getStatCard(
-            "Encaissements",
-            formatMontant(kpis.collected),
-            <Clock className="w-6 h-6 text-yellow-600" />,
-            "bg-yellow-100",
-            null,
-            () => navigate('/facturation/factures?status=payee')
-          )}
-          
-          {getStatCard(
-            "Reste à encaisser",
-            formatMontant(kpis.remaining),
-            <AlertCircle className="w-6 h-6 text-red-600" />,
-            "bg-red-100",
-            null,
-            () => navigate('/facturation/factures?status=outstanding')
-          )}
-
-          {getStatCard(
-            "Taux de recouvrement",
-            `${kpis.collectionRate}%`,
-            <TrendingUp className="w-6 h-6 text-purple-600" />,
-            "bg-purple-100",
-            null,
-            () => navigate('/reports')
-          )}
+          {getStatCard('Total facturé', formatMontant(kpis.billed), <Coins className="w-6 h-6 text-green-600" />, 'bg-green-100', () => navigate('/comptabilite/recherche-rapports'))}
+          {getStatCard('Encaissements', formatMontant(kpis.collected), <Clock className="w-6 h-6 text-yellow-600" />, 'bg-yellow-100', () => navigate('/facturation/factures?status=paye'))}
+          {getStatCard('Reste à encaisser', formatMontant(kpis.remaining), <AlertCircle className="w-6 h-6 text-red-600" />, 'bg-red-100', () => navigate('/facturation/factures?status=outstanding'))}
+          {getStatCard('Taux de recouvrement', `${kpis.collectionRate}%`, <TrendingUp className="w-6 h-6 text-purple-600" />, 'bg-purple-100', () => navigate('/comptabilite/recherche-rapports'))}
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
@@ -483,7 +401,7 @@ const AccountingDashboard = () => {
               </div>
               <button
                 type="button"
-                onClick={() => navigate('/facturation/factures?status=outstanding')}
+                onClick={() => navigate('/comptabilite/impayes')}
                 className="text-sm font-medium text-purple-700 hover:text-purple-900"
               >
                 Voir tout
@@ -522,83 +440,53 @@ const AccountingDashboard = () => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Actions Rapides</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <button
-            type="button"
-            onClick={() => navigate('/facturation/factures?new=1')}
-            className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:bg-gray-50 hover:border-gray-300 transition-colors"
-          >
+          <button type="button" onClick={() => navigate('/facturation/factures?new=1')} className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:bg-gray-50 hover:border-gray-300 transition-colors">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm font-semibold text-gray-900">Créer une facture</div>
                 <div className="text-xs text-gray-600 mt-1">Nouvelle facturation patient</div>
               </div>
-              <div className="p-2 rounded-full bg-purple-100">
-                <FileText className="w-5 h-5 text-purple-700" />
-              </div>
+              <div className="p-2 rounded-full bg-purple-100"><FileText className="w-5 h-5 text-purple-700" /></div>
             </div>
           </button>
 
-          <button
-            type="button"
-            onClick={() => navigate('/facturation/factures?status=outstanding')}
-            className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:bg-gray-50 hover:border-gray-300 transition-colors"
-          >
+          <button type="button" onClick={() => navigate('/comptabilite/impayes')} className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:bg-gray-50 hover:border-gray-300 transition-colors">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-semibold text-gray-900">Relances impayés</div>
+                <div className="text-sm font-semibold text-gray-900">Impayés & relances</div>
                 <div className="text-xs text-gray-600 mt-1">Suivre les montants dus</div>
               </div>
-              <div className="p-2 rounded-full bg-red-100">
-                <AlertCircle className="w-5 h-5 text-red-700" />
-              </div>
+              <div className="p-2 rounded-full bg-red-100"><AlertCircle className="w-5 h-5 text-red-700" /></div>
             </div>
           </button>
 
-          <button
-            type="button"
-            onClick={() => navigate('/facturation/factures?status=partiellement_payee')}
-            className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:bg-gray-50 hover:border-gray-300 transition-colors"
-          >
+          <button type="button" onClick={() => navigate('/facturation/factures?status=partiel')} className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:bg-gray-50 hover:border-gray-300 transition-colors">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm font-semibold text-gray-900">Paiements partiels</div>
                 <div className="text-xs text-gray-600 mt-1">Compléter les règlements</div>
               </div>
-              <div className="p-2 rounded-full bg-orange-100">
-                <Clock className="w-5 h-5 text-orange-700" />
-              </div>
+              <div className="p-2 rounded-full bg-orange-100"><Clock className="w-5 h-5 text-orange-700" /></div>
             </div>
           </button>
 
-          <button
-            type="button"
-            onClick={() => navigate('/facturation/factures?status=en_attente')}
-            className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:bg-gray-50 hover:border-gray-300 transition-colors"
-          >
+          <button type="button" onClick={() => navigate('/facturation/factures?status=en_attente')} className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:bg-gray-50 hover:border-gray-300 transition-colors">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm font-semibold text-gray-900">En attente</div>
                 <div className="text-xs text-gray-600 mt-1">Valider et encaisser</div>
               </div>
-              <div className="p-2 rounded-full bg-yellow-100">
-                <Clock className="w-5 h-5 text-yellow-700" />
-              </div>
+              <div className="p-2 rounded-full bg-yellow-100"><Clock className="w-5 h-5 text-yellow-700" /></div>
             </div>
           </button>
 
-          <button
-            type="button"
-            onClick={() => navigate('/reports')}
-            className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:bg-gray-50 hover:border-gray-300 transition-colors"
-          >
+          <button type="button" onClick={() => navigate('/comptabilite/recherche-rapports')} className="bg-white rounded-lg border border-gray-200 p-4 text-left hover:bg-gray-50 hover:border-gray-300 transition-colors">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm font-semibold text-gray-900">Rapports</div>
-                <div className="text-xs text-gray-600 mt-1">Synthèses et exports</div>
+                <div className="text-xs text-gray-600 mt-1">Recherche et exports</div>
               </div>
-              <div className="p-2 rounded-full bg-gray-100">
-                <TrendingUp className="w-5 h-5 text-gray-700" />
-              </div>
+              <div className="p-2 rounded-full bg-gray-100"><TrendingUp className="w-5 h-5 text-gray-700" /></div>
             </div>
           </button>
 
@@ -615,9 +503,7 @@ const AccountingDashboard = () => {
                 <div className="text-sm font-semibold text-gray-900">Exporter</div>
                 <div className="text-xs text-gray-600 mt-1">CSV / impression / envoi</div>
               </div>
-              <div className="p-2 rounded-full bg-blue-100">
-                <FileText className="w-5 h-5 text-blue-700" />
-              </div>
+              <div className="p-2 rounded-full bg-blue-100"><FileText className="w-5 h-5 text-blue-700" /></div>
             </div>
           </button>
         </div>
@@ -644,42 +530,30 @@ const AccountingDashboard = () => {
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
                 <option value="all">Tous statuts</option>
-                <option value="payee">Payée</option>
-                <option value="partiellement_payee">Partiellement payée</option>
+                <option value="paye">Payée</option>
+                <option value="partiel">Partiellement payée</option>
                 <option value="en_attente">En attente</option>
-                <option value="impayee">Impayée</option>
+                <option value="impaye">Impayée</option>
               </select>
             </div>
           </div>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Patient
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Montant
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Statut
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredRecentInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
-                    Aucune facture récente
-                  </td>
+                  <td colSpan="5" className="px-6 py-12 text-center text-gray-500">Aucune facture récente</td>
                 </tr>
               ) : (
                 filteredRecentInvoices.map((invoice) => (
@@ -690,12 +564,8 @@ const AccountingDashboard = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {invoice.patient ? `${invoice.patient.prenom} ${invoice.patient.nom}` : 'Patient inconnu'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatMontant(invoice.montant)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(invoice.statut_paiement)}
-                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatMontant(invoice.montant)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(invoice.statut_paiement)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <button
                         onClick={() => {

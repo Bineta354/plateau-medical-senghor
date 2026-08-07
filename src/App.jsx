@@ -11,6 +11,7 @@ import Dashboard from './pages/Dashboard';
 import AccessDenied from './components/AccessDenied';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ROLES } from './utils/permissions';
+import { getAllowedRoles } from './config/financeNavigation';
 import Register from './pages/Register';
 import ResetPassword from './pages/ResetPassword';
 import TemporaryPasswordGuard from './components/TemporaryPasswordGuard';
@@ -79,6 +80,7 @@ const TestSimple = lazy(() => import('./pages/TestSimple'));
 const TestAuth = lazy(() => import('./pages/TestAuth'));
 const DatabaseCheck = lazy(() => import('./components/admin/DatabaseCheck'));
 const TestSpecialityFilter = lazy(() => import('./pages/test/TestSpecialityFilter'));
+const TestKpiCard = lazy(() => import('./pages/test/TestKpiCard'));
 const CabinetWelcome = lazy(() => import('./pages/CabinetWelcome'));
 const CabinetWelcomePublic = lazy(() => import('./pages/CabinetWelcomePublic'));
 
@@ -138,7 +140,6 @@ const ConsultationDetail = lazy(() => import('./pages/consultation/ConsultationD
 // Pages du module Facturation
 const ActesPage = lazy(() => import('./pages/facturation/Actes'));
 const ExamensPage = lazy(() => import('./pages/facturation/Examens'));
-const FacturesPage = lazy(() => import('./pages/facturation/Factures'));
 const LaboPage = lazy(() => import('./pages/facturation/Labo'));
 const PharmaciePage = lazy(() => import('./pages/facturation/Pharmacie'));
 const DiversPage = lazy(() => import('./pages/facturation/Divers'));
@@ -151,7 +152,6 @@ const FacturationLabo = lazy(() => import('./pages/facturation/FacturationLabo')
 const ConsultationsTerminees = lazy(() => import('./pages/secretary/ConsultationsTerminees'));
 const ConsultationCompletion = lazy(() => import('./pages/secretary/ConsultationCompletion'));
 const Caisse = lazy(() => import('./pages/secretary/Caisse'));
-const Relances = lazy(() => import('./pages/caissier/Relances'));
 const Recapitulatif = lazy(() => import('./pages/caissier/Recapitulatif'));
 const ArreteMensuel = lazy(() => import('./pages/caissier/ArreteMensuel'));
 const ReversementBancaire = lazy(() => import('./pages/caissier/ReversementBancaire'));
@@ -194,11 +194,9 @@ const DoctorDashboard = lazy(() => import('./components/doctor/DoctorDashboard_F
 const AccountingDashboard = lazy(() => import('./pages/AccountingDashboard'));
 const EncaissementFactures = lazy(() => import('./pages/comptabilite/EncaissementFactures'));
 const SuiviCaissiers = lazy(() => import('./pages/comptabilite/SuiviCaissiers'));
-const TableauBordComptable = lazy(() => import('./pages/comptabilite/TableauBordComptable'));
-const HistoriquePatient = lazy(() => import('./pages/comptabilite/HistoriquePatient'));
-const AlertesImpayes = lazy(() => import('./pages/comptabilite/AlertesImpayes'));
-const RechercheAvancee = lazy(() => import('./pages/comptabilite/RechercheAvancee'));
-const RapportsFinanciers = lazy(() => import('./pages/comptabilite/RapportsFinanciers'));
+const ImpayesRelances = lazy(() => import('./pages/comptabilite/ImpayesRelances'));
+const AssuranceCreanceDetail = lazy(() => import('./pages/comptabilite/AssuranceCreanceDetail'));
+const RechercheRapports = lazy(() => import('./pages/comptabilite/RechercheRapports'));
 const MyCalendar = lazy(() => import('./pages/doctor/MyCalendar'));
 const Profile = lazy(() => import('./pages/Profile'));
 const SettingsPage = lazy(() => import('./pages/doctor/SettingsPage'));
@@ -404,6 +402,11 @@ const AppContent = () => {
             <LazyPageWrapper Component={TestSpecialityFilter} message="Chargement du test de filtrage spécialité..." />
           </ProtectedRoute>
         } />
+        <Route path="/test-kpi-card" element={
+          <ProtectedRoute>
+            <LazyPageWrapper Component={TestKpiCard} message="Chargement du test KpiCard..." />
+          </ProtectedRoute>
+        } />
 
         <Route path="/dental-chart" element={
           <ProtectedRoute>
@@ -463,51 +466,38 @@ const AppContent = () => {
         } />
         
         <Route path="/accounting" element={
-          <ProtectedRoute allowedRoles={[ROLES.ACCOUNTING]}>
+          <ProtectedRoute allowedRoles={getAllowedRoles('/accounting')}>
             <LazyPageWrapper Component={AccountingDashboard} message="Chargement dashboard comptabilité..." />
           </ProtectedRoute>
         } />
 
         <Route path="/comptabilite/encaissement" element={
-          <ProtectedRoute allowedRoles={[ROLES.ACCOUNTING, ROLES.ADMIN, ROLES.CASHIER, ROLES.CAISSIER]}>
-            <LazyPageWrapper Component={EncaissementFactures} message="Chargement encaissement factures..." />
+          <ProtectedRoute allowedRoles={getAllowedRoles('/comptabilite/encaissement')}>
+            <LazyPageWrapper Component={EncaissementFactures} message="Chargement des corrections comptables..." />
           </ProtectedRoute>
         } />
 
         <Route path="/comptabilite/suivi-caissiers" element={
-          <ProtectedRoute allowedRoles={[ROLES.ACCOUNTING, ROLES.ADMIN]}>
+          <ProtectedRoute allowedRoles={getAllowedRoles('/comptabilite/suivi-caissiers')}>
             <LazyPageWrapper Component={SuiviCaissiers} message="Chargement suivi caissiers..." />
           </ProtectedRoute>
         } />
 
-        {/* Business Intelligence et Reporting */}
-        <Route path="/comptabilite/tableau-bord" element={
-          <ProtectedRoute allowedRoles={[ROLES.ACCOUNTING]}>
-            <LazyPageWrapper Component={TableauBordComptable} message="Chargement tableau de bord..." />
+        <Route path="/comptabilite/impayes" element={
+          <ProtectedRoute allowedRoles={getAllowedRoles('/comptabilite/impayes')}>
+            <LazyPageWrapper Component={ImpayesRelances} message="Chargement des impayés..." />
           </ProtectedRoute>
         } />
 
-        <Route path="/comptabilite/historique-patients" element={
-          <ProtectedRoute allowedRoles={[ROLES.ACCOUNTING]}>
-            <LazyPageWrapper Component={HistoriquePatient} message="Chargement historique patients..." />
+        <Route path="/comptabilite/impayes/assurance/:assuranceId" element={
+          <ProtectedRoute allowedRoles={getAllowedRoles('/comptabilite/impayes')}>
+            <LazyPageWrapper Component={AssuranceCreanceDetail} message="Chargement du détail assureur..." />
           </ProtectedRoute>
         } />
 
-        <Route path="/comptabilite/alertes-impayes" element={
-          <ProtectedRoute allowedRoles={[ROLES.ACCOUNTING, ROLES.ADMIN, ROLES.CASHIER, ROLES.CAISSIER]}>
-            <LazyPageWrapper Component={AlertesImpayes} message="Chargement alertes impayés..." />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/comptabilite/recherche-avancee" element={
-          <ProtectedRoute allowedRoles={[ROLES.ACCOUNTING]}>
-            <LazyPageWrapper Component={RechercheAvancee} message="Chargement recherche avancée..." />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/comptabilite/rapports-financiers" element={
-          <ProtectedRoute allowedRoles={[ROLES.ACCOUNTING]}>
-            <LazyPageWrapper Component={RapportsFinanciers} message="Chargement rapports financiers..." />
+        <Route path="/comptabilite/recherche-rapports" element={
+          <ProtectedRoute allowedRoles={getAllowedRoles('/comptabilite/recherche-rapports')}>
+            <LazyPageWrapper Component={RechercheRapports} message="Chargement recherche & rapports..." />
           </ProtectedRoute>
         } />
 
@@ -1010,10 +1000,11 @@ const AppContent = () => {
           </ProtectedRoute>
         } />
         
+        {/* Route morte : le "Confirmer la présence" a migré sur /rendez-vous/prise-rendez-vous.
+            On redirige plutôt que de supprimer la route pour ne pas casser les anciens
+            favoris/liens (notifications "doctor_request", bouton dashboard historique). */}
         <Route path="/introduction-patient" element={
-          <ProtectedRoute allowedRoles={[ROLES.SECRETARY, ROLES.ADMIN]}>
-            <LazyPageWrapper Component={IntroductionPatientPage} message="Chargement introduction patient..." />
-          </ProtectedRoute>
+          <Navigate to="/rendez-vous/prise-rendez-vous" replace />
         } />
         
         <Route path="/fiche-identification" element={
@@ -1049,28 +1040,23 @@ const AppContent = () => {
           />
         } />
         
-        {/* Route pour la caisse (module caissier ; accès admin/secrétaire pour dépannage) */}
+        {/* Route pour la caisse (guichet quotidien : caissier + admin uniquement) */}
         <Route path="/caisse" element={
-          <ProtectedRoute allowedRoles={[ROLES.SECRETARY, ROLES.ADMIN, ROLES.CASHIER, ROLES.CAISSIER]}>
-            <LazyPageWrapper 
-              Component={Caisse} 
-              message="Chargement de la caisse..." 
-            />  
+          <ProtectedRoute allowedRoles={getAllowedRoles('/caisse')}>
+            <LazyPageWrapper
+              Component={Caisse}
+              message="Chargement de la caisse..."
+            />
           </ProtectedRoute>
         } />
         {/* Pages module caissier */}
-        <Route path="/caissier/relances" element={
-          <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.CAISSIER]}>
-            <LazyPageWrapper Component={Relances} message="Chargement des relances..." />
-          </ProtectedRoute>
-        } />
         <Route path="/caissier/recapitulatif" element={
-          <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.CAISSIER]}>
+          <ProtectedRoute allowedRoles={getAllowedRoles('/caissier/recapitulatif')}>
             <LazyPageWrapper Component={Recapitulatif} message="Chargement du récapitulatif..." />
           </ProtectedRoute>
         } />
         <Route path="/caissier/arrete-mensuel" element={
-          <ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.CAISSIER]}>
+          <ProtectedRoute allowedRoles={getAllowedRoles('/caissier/arrete-mensuel')}>
             <LazyPageWrapper Component={ArreteMensuel} message="Chargement de l'arrêté mensuel..." />
           </ProtectedRoute>
         } />

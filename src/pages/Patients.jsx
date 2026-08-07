@@ -88,6 +88,20 @@ const PatientsPage = () => {
     fetchAssurances();
   }, []);
 
+  // Ouvrir directement le modal "Nouveau patient" via ?new=true (ex. depuis
+  // le bouton "Créer fiche patient" du dashboard secrétaire). On attend que
+  // le chargement initial (patients, assurances) soit terminé — même
+  // condition qu'un clic réel sur "Nouveau Patient", qui n'arrive qu'une
+  // fois la page chargée.
+  useEffect(() => {
+    if (searchParams.get('new') === 'true' && !loading) {
+      handleAddPatient();
+      // Nettoyer le paramètre pour ne pas rouvrir le modal à chaque re-render
+      navigate('/patients', { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, loading]);
+
   // Gérer les paramètres URL pour l'édition/visualisation
   useEffect(() => {
     const patientId = searchParams.get('id');

@@ -17,7 +17,12 @@ export const useAppointmentForm = ({
   // if they are only used for UI (which will be in the component itself)
   editingAppointment: initialEditingAppointment, // Renamed to avoid conflict
 }) => {
-  const { showError: showDialogError, showConfirm, closeDialog } = useConfirmDialog();
+  // NB: useConfirmDialog() ici est une instance à part de celle du composant
+  // appelant — dialogState/closeDialog doivent être retournés (ci-dessous) et
+  // rendus par l'appelant, sinon les erreurs de validation du stepper
+  // (patient/spécialité/créneau requis, conflit de planning) ne s'affichent
+  // nulle part.
+  const { dialogState, showError: showDialogError, showConfirm, closeDialog } = useConfirmDialog();
 
   const [editingAppointment, setEditingAppointment] = useState(initialEditingAppointment);
   const [showForm, setShowForm] = useState(false);
@@ -488,6 +493,9 @@ export const useAppointmentForm = ({
     selectedDoctorStepper, setSelectedDoctorStepper,
     showSuccessToast, successMessage, setShowSuccessToast,
     error, setError,
+    // Dialog des erreurs de validation du stepper — à rendre via <ConfirmDialog>
+    // côté appelant (voir note plus haut).
+    dialogState, closeDialog,
     stepperSteps,
     availableDoctors,
     selectedDoctorData,

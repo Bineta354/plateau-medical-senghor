@@ -1,19 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Search, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  X, 
-  Check, 
-  Clock, 
+import {
+  Search,
+  Plus,
+  Edit2,
+  Trash2,
+  X,
+  Check,
+  Clock,
   FileText,
   Calendar,
   User,
   CreditCard,
   Smartphone,
-  Building2
+  Building2,
+  ShieldCheck
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
@@ -31,53 +33,16 @@ import {
   PrinterIcon,
   XMarkIcon as XIcon,
   MagnifyingGlassIcon,
-  CreditCardIcon,
-  DocumentCheckIcon,
-  ArrowsRightLeftIcon,
   LockClosedIcon,
   LockOpenIcon,
   CalendarIcon,
   DocumentTextIcon,
 } from '@heroicons/react/24/outline';
+import { MODES_PAIEMENT, ETAPES_MOBILE_MONEY as ETAPES_MOBILE_MONEY_BASE } from '../../config/modesPaiement';
+import { enregistrerPaiement } from '../../services/paiementService';
 
-// Icônes mobiles money (représentation visuelle, non des marques déposées)
-const OrangeMoneyIcon = ({ className = 'w-8 h-8' }) => (
-  <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="20" cy="20" r="18" fill="#FF6600" />
-    <path d="M12 20h4l2-6 2 10 2-6h4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-  </svg>
-);
-const WaveIcon = ({ className = 'w-8 h-8' }) => (
-  <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="20" cy="20" r="18" fill="#0066F5" />
-    <path d="M10 24c2-2 4-2 6 0s4 2 6 0 4-2 6 0" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" />
-    <path d="M10 20c2-2 4-2 6 0s4 2 6 0 4-2 6 0" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.9" />
-  </svg>
-);
-const YasIcon = ({ className = 'w-8 h-8' }) => (
-  <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="20" cy="20" r="18" fill="#00A651" />
-    <path d="M14 28V14l6 8 6-8v14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-  </svg>
-);
-
-const MODES_PAIEMENT = [
-  { value: 'especes', label: 'Espèces', Icon: BanknotesIcon, mobile: false },
-  { value: 'carte', label: 'Carte bancaire', Icon: CreditCardIcon, mobile: false },
-  { value: 'cheque', label: 'Chèque', Icon: DocumentCheckIcon, mobile: false },
-  { value: 'virement', label: 'Virement', Icon: ArrowsRightLeftIcon, mobile: false },
-  { value: 'orange_money', label: 'Orange Money', Icon: OrangeMoneyIcon, mobile: true },
-  { value: 'wave', label: 'Wave', Icon: WaveIcon, mobile: true },
-  { value: 'yas', label: 'Yas', Icon: YasIcon, mobile: true },
-];
-
-const ETAPES_MOBILE_MONEY = (nom, montant) => [
-  `1. Ouvrez l'application ${nom} sur votre téléphone.`,
-  `2. Choisissez « Payer » ou « Paiement marchand ».`,
-  `3. Scannez le QR code du caissier ou saisissez le code / numéro affiché.`,
-  `4. Montant à payer : ${formatMontant(Number(montant))} — vérifiez et validez.`,
-  `5. Validez le paiement puis montrez l'écran de confirmation au caissier.`,
-];
+const ETAPES_MOBILE_MONEY = (nom, montant) =>
+  ETAPES_MOBILE_MONEY_BASE(nom, formatMontant(Number(montant)));
 
 const getStatusBadge = (statut, montant_paye = 0, montant_ttc = 1) => {
   const config = {
@@ -100,9 +65,16 @@ const Caisse = () => {
   const caissierId = isCaissier ? (userProfile?.id ?? null) : null;
   const [factures, setFactures] = useState([]);
   const [facturesPayees, setFacturesPayees] = useState([]);
+  // Factures "couverture" (-C) déjà créées, indexées par facture_parent_id : sert à savoir,
+  // pour une facture patient donnée, si sa part assurance a déjà été détachée (auquel cas on
+  // n'affiche plus de répartition ni de flag — c'est déjà réglé) ou pas encore.
+  const [couvertureEnfantsParParent, setCouvertureEnfantsParParent] = useState({});
   const [loading, setLoading] = useState(true);
   const [selectedFacture, setSelectedFacture] = useState(null);
   const [showPaiementModal, setShowPaiementModal] = useState(false);
+  // Détail facture (clic sur une ligne, en attente ou payée)
+  const [factureDetail, setFactureDetail] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [showPayedInvoices, setShowPayedInvoices] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -115,6 +87,9 @@ const Caisse = () => {
   const [caissiers, setCaissiers] = useState([]);
   const [selectedCaissier, setSelectedCaissier] = useState('all');
   const [showAlerts, setShowAlerts] = useState(false);
+  // Onglets de la page (refonte structure : la tâche la plus fréquente —
+  // encaisser — reste visible sans scroll, le reste passe en onglets séparés)
+  const [activeTab, setActiveTab] = useState('encaisser'); // 'encaisser' | 'session' | 'journee'
   
   const [etatCaisse, setEtatCaisse] = useState({
     solde: 0,
@@ -147,16 +122,28 @@ const Caisse = () => {
   const [montantAssurance, setMontantAssurance] = useState(0);
   const [couvertureNom, setCouvertureNom] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Modal "Payer à la caisse" : repli des notes par défaut
+  const [notesOuvertes, setNotesOuvertes] = useState(false);
+  const montantPaiementInputRef = useRef(null);
   // DataTables-like: filtre tableau + pagination
   const [tableFilter, setTableFilter] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  // Idem pour l'historique des paiements (factures payées) — pagination séparée
+  const [payeesFilter, setPayeesFilter] = useState('');
+  // Accès rapide aux paiements du jour sans attendre la vérification de fin de journée
+  const [payeesScope, setPayeesScope] = useState('today'); // 'today' | 'all'
+  const [payeesPage, setPayeesPage] = useState(1);
+  const [payeesPageSize, setPayeesPageSize] = useState(25);
   // Session de caisse (ouverture/fermeture quotidienne)
   const [sessionCaisse, setSessionCaisse] = useState(null);
   const [showOpenCaisseModal, setShowOpenCaisseModal] = useState(false);
   const [showCloseCaisseModal, setShowCloseCaisseModal] = useState(false);
   const [showArreteModal, setShowArreteModal] = useState(false);
   const [fondCaisseInput, setFondCaisseInput] = useState('');
+  // Étape de relecture avant validation finale du fond de caisse (montant qui sert
+  // de base à toute la comptabilité du jour — pas de retour en arrière facile après)
+  const [openCaisseConfirming, setOpenCaisseConfirming] = useState(false);
   const [arreteMois, setArreteMois] = useState({ annee: new Date().getFullYear(), mois: new Date().getMonth() + 1 });
   const [arreteData, setArreteData] = useState([]);
   const [cabinet, setCabinet] = useState(null);
@@ -165,8 +152,6 @@ const Caisse = () => {
     totals: { factures: 0, patient: 0, couverture: 0 },
   });
   const [loadingDetailsJournee, setLoadingDetailsJournee] = useState(false);
-  const [showFinDeJournee, setShowFinDeJournee] = useState(false);
-  const [showDetailsJournee, setShowDetailsJournee] = useState(false);
   // Historiques Patient / Couverture
   const [historiqueTab, setHistoriqueTab] = useState('patient');
   const [patientsList, setPatientsList] = useState([]);
@@ -188,6 +173,27 @@ const Caisse = () => {
 
   // Factures en attente/partiel uniquement (exclure les factures "couverture" enfants)
   const facturesCaisse = (list) => (list || []).filter((f) => f.facture_parent_id == null);
+
+  // Répartition patient / assurance à l'affichage (liste + détail), AVANT tout encaissement :
+  // la part assurance n'est jamais payable à la caisse, seulement affichée en flag renvoyant
+  // vers Impayés & Relances (reflète le même état, sans dupliquer la logique de créance).
+  const computeSplitAffichage = (facture) => {
+    const patient = facture.consultations?.patients;
+    const assurance = patient?.assurances;
+    const total = parseFloat(facture.montant_ttc) || 0;
+    const deja = parseFloat(facture.montant_paye) || 0;
+    const restant = Math.max(0, total - deja);
+    const dejaScindee = facture.type === 'couverture' || !!couvertureEnfantsParParent[facture.id];
+    const taux = dejaScindee ? 0 : Number(assurance?.taux_remboursement) || 0;
+
+    let partPatient = restant;
+    let partAssurance = 0;
+    if (taux > 0 && restant > 0) {
+      partAssurance = Math.round(restant * (taux / 100) * 100) / 100;
+      partPatient = Math.round((restant - partAssurance) * 100) / 100;
+    }
+    return { total, deja, restant, partPatient, partAssurance, assuranceNom: assurance?.nom, dejaScindee };
+  };
 
   // Remplir les suggestions (selectSearch) quand on tape
   useEffect(() => {
@@ -283,13 +289,48 @@ const Caisse = () => {
   const start = (effectivePage - 1) * pageSize;
   const tablePaginated = tableFiltered.slice(start, start + pageSize);
 
+  // Filtrage + pagination pour l'historique des paiements (factures payées)
+  const isSameDayAsNow = (d) => {
+    if (!d) return false;
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  };
+  const payeesFilterLower = (payeesFilter || '').trim().toLowerCase();
+  const payeesFiltered = (() => {
+    const scoped = payeesScope === 'today'
+      ? facturesPayees.filter((f) => isSameDayAsNow(f.date_paiement ? new Date(f.date_paiement) : null))
+      : facturesPayees;
+    const base = payeesFilterLower
+      ? scoped.filter((f) => {
+          const p = f.consultations?.patients;
+          const nom = (p?.nom || '').toLowerCase();
+          const prenom = (p?.prenom || '').toLowerCase();
+          const num = (f.numero_facture || '').toLowerCase();
+          const dt = f.date_paiement ? new Date(f.date_paiement).toLocaleDateString('fr-FR') : '';
+          const montant = String(parseFloat(f.montant_ttc) || 0);
+          const haystack = `${nom} ${prenom} ${num} ${dt} ${montant}`;
+          return haystack.includes(payeesFilterLower);
+        })
+      : scoped;
+    return [...base].sort((a, b) => new Date(b.date_paiement || 0) - new Date(a.date_paiement || 0));
+  })();
+  const payeesTotalRows = payeesFiltered.length;
+  const payeesTotalPages = Math.max(1, Math.ceil(payeesTotalRows / payeesPageSize));
+  const payeesEffectivePage = Math.min(Math.max(1, payeesPage), payeesTotalPages);
+  const payeesStart = (payeesEffectivePage - 1) * payeesPageSize;
+  const payeesPaginated = payeesFiltered.slice(payeesStart, payeesStart + payeesPageSize);
+
   const selectedPatientForHisto = patientsList.find((p) => String(p.id) === String(filterPatientId));
   const selectedPatientLabel = selectedPatientForHisto ? `${selectedPatientForHisto.prenom || ''} ${selectedPatientForHisto.nom || ''}`.trim() : '';
+  const selectedAssuranceForHisto = assurancesList.find((a) => String(a.id) === String(filterAssuranceId));
 
   // Ramener la page dans les bornes si le filtre a réduit le nombre de pages
   useEffect(() => {
     if (totalPages >= 1 && page > totalPages) setPage(totalPages);
   }, [totalPages, page]);
+  useEffect(() => {
+    if (payeesTotalPages >= 1 && payeesPage > payeesTotalPages) setPayeesPage(payeesTotalPages);
+  }, [payeesTotalPages, payeesPage]);
 
   // Charger l'arrêté quand le modal s'ouvre ou quand mois/année change
   useEffect(() => {
@@ -610,22 +651,6 @@ const Caisse = () => {
     } finally {
       setLoadingDetailsJournee(false);
     }
-  };
-
-  const handleToggleDetailsJournee = () => {
-    setShowDetailsJournee((prev) => {
-      const next = !prev;
-      if (!prev) {
-        fetchDetailsJournee();
-      }
-      return next;
-    });
-  };
-
-  const handleOpenFinDeJournee = () => {
-    setShowFinDeJournee(true);
-    setShowDetailsJournee(true);
-    fetchDetailsJournee();
   };
 
   const fetchPatientsList = async () => {
@@ -1060,6 +1085,21 @@ const Caisse = () => {
       setFactures(enAttente || []);
       setSearchResults(list);
 
+      // Factures couverture déjà créées (quel que soit leur statut — payée ou non, ça reste
+      // "déjà scindée" côté facture patient) : sert à savoir si le flag "à réclamer à
+      // l'assurance" doit être affiché, ou si c'est déjà réglé.
+      const { data: enfantsCouverture, error: e3 } = await supabase
+        .from('factures')
+        .select('id, facture_parent_id, montant_ttc, statut_paiement')
+        .eq('type', 'couverture')
+        .not('facture_parent_id', 'is', null);
+      if (e3) throw e3;
+      const enfantsParParent = {};
+      (enfantsCouverture || []).forEach((c) => {
+        enfantsParParent[c.facture_parent_id] = c;
+      });
+      setCouvertureEnfantsParParent(enfantsParParent);
+
       const { data: payees, error: e2 } = await supabase
         .from('factures')
         .select(
@@ -1086,7 +1126,9 @@ const Caisse = () => {
   };
 
   useEffect(() => {
-    if (userProfile?.role === 'accounting' || userProfile?.role === 'admin') {
+    // Note : 'accounting' n'a jamais accès à /caisse (voir financeNavigation.js) — seul 'admin'
+    // atterrit réellement en mode supervision ici.
+    if (userProfile?.role === 'admin') {
       setViewMode('supervision');
       fetchSupervisionData();
     }
@@ -1144,7 +1186,7 @@ const Caisse = () => {
       if (checkErr && checkErr.code !== 'PGRST116') throw checkErr;
 
       if (existing) {
-        unifiedNotificationService.error('Votre session de caisse est déjà ouverte aujourd\'hui. Utilisez « Mise à jour caisse » pour rafraîchir ou fermez la session en fin de journée.');
+        unifiedNotificationService.error('Votre session de caisse est déjà ouverte aujourd\'hui. Utilisez « Rafraîchir » pour mettre à jour l\'affichage ou fermez la session en fin de journée.');
         return;
       }
 
@@ -1164,6 +1206,7 @@ const Caisse = () => {
 
       setSessionCaisse(data);
       setShowOpenCaisseModal(false);
+      setOpenCaisseConfirming(false);
       setFondCaisseInput('');
       await fetchSessionCaisse();
       fetchEtatCaisse();
@@ -1258,14 +1301,40 @@ const Caisse = () => {
     };
   }, []);
 
-  const handleOpenModal = (facture) => {
+  // Onglet "Fin de journée" : charge le détail dès l'arrivée sur l'onglet (plus besoin
+  // d'un clic "Vérification fin de journée" — c'est déjà la seule chose que fait cet onglet).
+  useEffect(() => {
+    if (activeTab === 'journee' && sessionCaisse) {
+      fetchDetailsJournee();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, sessionCaisse]);
+
+  const handleOpenModal = async (facture) => {
     setSelectedFacture(facture);
     const patient = facture.consultations?.patients;
     const assurance = patient?.assurances;
-    const taux = Number(assurance?.taux_remboursement) || 0;
     const total = parseFloat(facture.montant_ttc) || 0;
     const deja = parseFloat(facture.montant_paye) || 0;
     const restant = total - deja;
+
+    // La répartition patient / couverture ne doit se faire qu'une seule fois par facture
+    // patient : au premier encaissement, la part assurance est détachée dans une facture -C
+    // et le total de cette facture est ramené à la seule part patient (voir handlePaiementSubmit).
+    // Si on la refaisait à chaque réouverture, le solde restant — qui après ce premier partage
+    // appartient déjà entièrement au patient — serait de nouveau scindé et le patient se
+    // verrait facturer une part supplémentaire qui revient normalement à l'assurance.
+    let dejaScindee = facture.type === 'couverture';
+    if (!dejaScindee) {
+      const { data: enfantCouverture } = await supabase
+        .from('factures')
+        .select('id')
+        .eq('facture_parent_id', facture.id)
+        .eq('type', 'couverture')
+        .maybeSingle();
+      dejaScindee = !!enfantCouverture;
+    }
+    const taux = dejaScindee ? 0 : Number(assurance?.taux_remboursement) || 0;
 
     let partPatient = restant;
     let partCouverture = 0;
@@ -1283,7 +1352,59 @@ const Caisse = () => {
       mode_paiement: 'especes',
       notes: '',
     });
+    setNotesOuvertes(false);
     setShowPaiementModal(true);
+    // Le montant est le champ le plus consulté/modifié : focus direct pour une saisie au clavier immédiate
+    setTimeout(() => montantPaiementInputRef.current?.select(), 50);
+  };
+
+  const closeOpenCaisseModal = () => {
+    setShowOpenCaisseModal(false);
+    setOpenCaisseConfirming(false);
+  };
+
+  // Ouvre le panneau de détail d'une facture (clic sur la ligne, en attente ou payée)
+  const handleOpenDetail = (facture) => {
+    setFactureDetail(facture);
+    setShowDetailModal(true);
+  };
+
+  // Les tableaux "Fin de journée" et "Historique par Patient/Couverture" travaillent sur des
+  // lignes de paiement déjà réglées (pas des objets facture bruts) — on les remet à la forme
+  // attendue par le modal de détail avant de l'ouvrir. Ces lignes représentent toujours un
+  // paiement déjà effectué, donc montant_paye = montant total (reste à payer = 0, pas de
+  // bouton "Payer à la caisse" affiché, ce qui est le comportement correct ici).
+  const handleOpenDetailFromLigne = (l, { patient, montant } = {}) => {
+    const p = patient || l.patient || (l.assurance ? { prenom: l.patient_nom || '', nom: '' } : null);
+    const montantTotal = montant ?? l.montant_facture ?? l.montant_ttc ?? 0;
+    handleOpenDetail({
+      numero_facture: l.numero_facture,
+      montant_ttc: montantTotal,
+      montant_paye: montantTotal,
+      mode_paiement: l.mode_paiement,
+      date_paiement: l.date_paiement,
+      consultations: {
+        date_consultation: l.date_consultation || null,
+        patients: p
+          ? {
+              prenom: p.prenom,
+              nom: p.nom,
+              numero_secu: p.numero_secu,
+              assurances: p.assurances || (l.assurance
+                ? { nom: typeof l.assurance === 'string' ? l.assurance : l.assurance?.nom, taux_remboursement: l.taux }
+                : null),
+            }
+          : null,
+      },
+    });
+  };
+
+  // Depuis le détail, enchaîner directement sur le paiement
+  const handlePayFromDetail = () => {
+    const facture = factureDetail;
+    setShowDetailModal(false);
+    setFactureDetail(null);
+    if (facture) handleOpenModal(facture);
   };
 
   const handleMontantChange = (e) => {
@@ -1372,8 +1493,8 @@ const Caisse = () => {
     win.focus();
   };
 
-  const handlePaiementSubmit = async (e) => {
-    e.preventDefault();
+  const handlePaiementSubmit = async (e, doPrint = true) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!selectedFacture) return;
     
     // Vérifier que la caisse est ouverte
@@ -1385,92 +1506,107 @@ const Caisse = () => {
     setSubmitting(true);
 
     try {
-      const now = new Date().toISOString();
       const montantPaye = parseFloat(paiementData.montant_paye) || 0;
-      const montantTotal = parseFloat(selectedFacture.montant_ttc) || 0;
-      const montantDejaPaye = parseFloat(selectedFacture.montant_paye) || 0;
-      const totalPaye = montantDejaPaye + montantPaye;
-
       const caissierId = userProfile?.id ?? null;
 
-      // 1) Mise à jour de la facture principale (patient) : statut payé, pas de nouveau numéro
-      const { error: upErr } = await supabase
-        .from('factures')
-        .update({
-          montant_paye: totalPaye,
-          statut_paiement: 'paye',
-          date_paiement: now,
-          mode_paiement: paiementData.mode_paiement,
-          notes: paiementData.notes,
-        })
-        .eq('id', selectedFacture.id);
-
-      if (upErr) throw upErr;
-
-      // 2) Si couverture : créer une 2e facture, même numéro de base (suffixe -C en BDD pour unicité)
+      // 1) Si couverture : détacher la part assurance dans une 2e facture (suffixe -C), et
+      // ramener le total de la facture patient à sa seule part réelle. Fait AVANT l'encaissement
+      // pour que celui-ci valide/calcule le statut sur le bon total (sinon la facture patient
+      // reste indéfiniment "partielle" sur la totalité — part assurance comprise — et invite à
+      // encaisser encore, ce qui fait payer au patient une part qui ne lui revient pas).
       if (montantAssurance > 0) {
         const consultationId = selectedFacture.consultation_id;
         const patientId = selectedFacture.patient_id || selectedFacture.consultations?.patients?.id || selectedFacture.consultations?.patient_id;
         const assuranceId = selectedFacture.consultations?.patients?.assurance_id || selectedFacture.consultations?.patients?.assurances?.id;
+        const numeroCouverture = `${selectedFacture.numero_facture}-C`;
 
-        const { error: insErr } = await supabase.from('factures').insert({
-          consultation_id: consultationId,
-          patient_id: patientId,
-          assurance_id: assuranceId || null,
-          numero_facture: `${selectedFacture.numero_facture}-C`,
-          montant_ht: montantAssurance,
-          tva: 0,
-          montant_ttc: montantAssurance,
-          montant_paye: 0,
-          statut_paiement: 'en_attente',
-          type: 'couverture',
-          facture_parent_id: selectedFacture.id,
-        });
+        // Idempotence : si un essai précédent (ex. échec de la notification ci-dessous, qui
+        // affichait alors l'encaissement comme en erreur alors qu'il était déjà enregistré)
+        // a déjà créé cette facture de couverture, on ne la recrée pas — sinon la contrainte
+        // d'unicité sur numero_facture rejette le nouvel essai avec "duplicate key value...".
+        const { data: factureCouvExistante } = await supabase
+          .from('factures')
+          .select('id')
+          .eq('numero_facture', numeroCouverture)
+          .maybeSingle();
 
-        if (insErr) throw insErr;
+        if (!factureCouvExistante) {
+          const { error: insErr } = await supabase.from('factures').insert({
+            consultation_id: consultationId,
+            patient_id: patientId,
+            assurance_id: assuranceId || null,
+            numero_facture: numeroCouverture,
+            montant_ht: montantAssurance,
+            tva: 0,
+            montant_ttc: montantAssurance,
+            montant_paye: 0,
+            statut_paiement: 'en_attente',
+            type: 'couverture',
+            facture_parent_id: selectedFacture.id,
+          });
+
+          // Un doublon détecté malgré la vérification ci-dessus (double clic quasi simultané)
+          // signifie que la facture existe déjà : ce n'est pas un échec réel.
+          if (insErr && insErr.code !== '23505') throw insErr;
+
+          // La facture patient ne doit plus porter que la part patient : le reste (part
+          // assurance) est désormais entièrement suivi par la facture -C ci-dessus.
+          const nouveauMontantTtcPatient = (parseFloat(selectedFacture.montant_ttc) || 0) - montantAssurance;
+          const { error: majErr } = await supabase
+            .from('factures')
+            .update({ montant_ttc: nouveauMontantTtcPatient })
+            .eq('id', selectedFacture.id);
+          if (majErr) throw majErr;
+        }
       }
 
-      // 3) Enregistrement du paiement à la caisse
-      const { data: paiementDataResult, error: payErr } = await supabase.from('paiements').insert({
-        facture_id: selectedFacture.id,
+      // 2) Encaissement via le moteur unique (écrit factures + paiements de façon cohérente)
+      const { paiement: paiementDataResult } = await enregistrerPaiement({
+        factureId: selectedFacture.id,
         montant: montantPaye,
-        mode_paiement: paiementData.mode_paiement,
-        date_paiement: now,
-        caissier_id: caissierId,
+        modePaiement: paiementData.mode_paiement,
         notes: paiementData.notes,
-        statut: 'effectue',
-      }).select().single();
+        caissierId,
+      });
 
-      if (payErr) throw payErr;
+      // Notifier les caissiers du paiement effectué. Non bloquant : un souci ici (réseau,
+      // service de notification indisponible) ne doit jamais faire passer pour un échec
+      // un paiement déjà enregistré avec succès ci-dessus, ni empêcher l'impression/fermeture.
+      try {
+        const patient = selectedFacture.consultations?.patients;
+        const patientName = patient ? `${patient.prenom} ${patient.nom}` : 'Patient';
+        const cashierName = userProfile ? `${userProfile.prenom} ${userProfile.nom}` : 'Caissier';
+        await notificationService.notifyCashierPaymentMade(
+          paiementDataResult.id,
+          patientName,
+          montantPaye,
+          cashierName,
+          userProfile?.tenant_id || null
+        );
+      } catch (notifErr) {
+        console.warn('notifyCashierPaymentMade a échoué (paiement déjà enregistré, non bloquant) :', notifErr);
+      }
 
-      // Notifier les caissiers du paiement effectué
-      const patient = selectedFacture.consultations?.patients;
-      const patientName = patient ? `${patient.prenom} ${patient.nom}` : 'Patient';
-      const cashierName = userProfile ? `${userProfile.prenom} ${userProfile.nom}` : 'Caissier';
-      await notificationService.notifyCashierPaymentMade(
-        paiementDataResult.id,
-        patientName,
-        montantPaye,
-        cashierName,
-        userProfile?.tenant_id || null
+      // Impression du reçu : uniquement si demandée (bouton "Enregistrer et imprimer").
+      // L'enregistrement du paiement (ci-dessus) est déjà acquis à ce stade, qu'on
+      // imprime ou non — un souci d'imprimante ne remet jamais en cause le paiement.
+      if (doPrint) {
+        const facturePaiementHtml = buildFacturePaiementHtml(
+          selectedFacture,
+          { montant_paye: montantPaye, mode_paiement: paiementData.mode_paiement, notes: paiementData.notes },
+          montantAssurance,
+          couvertureNom,
+          true
+        );
+        setTimeout(() => {
+          openFacturePaiementWindow(facturePaiementHtml);
+        }, 200);
+      }
+
+      unifiedNotificationService.success(
+        doPrint ? 'Paiement enregistré, impression du reçu en cours.' : 'Paiement enregistré.'
       );
 
-      // Générer la facture pour ce paiement (même modèle que Récapitulatif)
-      const facturePaiementHtml = buildFacturePaiementHtml(
-        selectedFacture,
-        { montant_paye: montantPaye, mode_paiement: paiementData.mode_paiement, notes: paiementData.notes },
-        montantAssurance,
-        couvertureNom,
-        true
-      );
-
-      // Désactiver l'impression automatique pour éviter les plantages
-      // TODO: Réactiver quand react-to-print sera stable
-      console.log('Impression du reçu désactivée temporairement');
-      
-      setTimeout(() => {
-        openFacturePaiementWindow(facturePaiementHtml);
-      }, 200);
       setTimeout(() => {
         setShowPaiementModal(false);
         setSelectedFacture(null);
@@ -1559,24 +1695,72 @@ const Caisse = () => {
     }
   );
 
+  const refreshAll = () => { fetchFactures(); fetchEtatCaisse(); fetchSessionCaisse(); fetchDetailsJournee(); };
+
+  const TABS = [
+    { id: 'encaisser', label: 'Encaisser' },
+    { id: 'session', label: 'Ma session' },
+    { id: 'journee', label: 'Fin de journée' },
+  ];
+
   return (
     <div className="container mx-auto px-4 py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Caisse</h1>
-        <div className="flex flex-col items-end gap-0.5">
-          <button
-            type="button"
-            onClick={() => { fetchFactures(); fetchEtatCaisse(); fetchSessionCaisse(); fetchDetailsJournee(); }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-            Mise à jour caisse
-          </button>
-          <p className="text-xs text-gray-500">Récupère l&apos;état actuel (session et fond de caisse inchangés).</p>
+      {/* Zone haute : titre + statut caisse + 1 ligne de KPI, toujours visible quel que soit l'onglet */}
+      <div className="flex flex-wrap justify-between items-start gap-3 mb-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold">Caisse</h1>
+            {sessionCaisse ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                <LockOpenIcon className="w-3.5 h-3.5" /> Ouverte
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                <LockClosedIcon className="w-3.5 h-3.5" /> Fermée
+              </span>
+            )}
+          </div>
+          {sessionCaisse && (
+            <p className="text-sm text-gray-600 mt-1">
+              Solde actuel : <strong className="text-gray-900">{formatMontant(etatCaisse.solde)}</strong>
+              <span className="mx-2 text-gray-300">•</span>
+              Total journée : <strong className="text-gray-900">{formatMontant(etatCaisse.totalAujourdhui)}</strong>
+            </p>
+          )}
         </div>
+        <button
+          type="button"
+          onClick={refreshAll}
+          title="Rafraîchit les données affichées (n'ouvre ni ne ferme aucune session, le fond de caisse reste inchangé)"
+          className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+          Rafraîchir
+        </button>
       </div>
 
-      {/* État de la caisse avec session (fond de caisse, total journée, solde actuel) */}
+      {/* Onglets : la tâche la plus fréquente ("Encaisser") est l'onglet par défaut.
+          overflow-x-auto + flex-shrink-0 : sur petit écran les onglets défilent
+          horizontalement dans leur propre bandeau plutôt que de déborder la page. */}
+      <div className="flex gap-1 border-b border-gray-200 mb-6 overflow-x-auto">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setActiveTab(t.id)}
+            className={`flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === t.id
+                ? 'border-indigo-600 text-indigo-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Onglet "Ma session" : ouverture/fermeture de caisse, fond de caisse, répartition par mode */}
+      {activeTab === 'session' && (
       <div className="bg-white rounded-xl shadow p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">État de la caisse</h2>
@@ -1665,140 +1849,156 @@ const Caisse = () => {
           </div>
         )}
       </div>
+      )}
 
-      {/* Fin de journée : vérification puis fermeture (visible uniquement quand la caisse est ouverte) */}
-      {sessionCaisse && (
+      {/* Onglet "Fin de journée" : vérification, détail, historiques (visible uniquement quand la caisse est ouverte) */}
+      {activeTab === 'journee' && !sessionCaisse && (
+        <div className="bg-white rounded-xl shadow p-6 mb-6 text-center text-gray-500 border-2 border-dashed border-gray-300">
+          <LockClosedIcon className="w-10 h-10 mx-auto mb-2 text-gray-400" />
+          <p className="font-medium">La caisse est fermée</p>
+          <p className="text-sm mt-1">Ouvrez une session dans l&apos;onglet « Ma session » pour accéder à la fin de journée.</p>
+        </div>
+      )}
+      {activeTab === 'journee' && sessionCaisse && (
         <div className="bg-white rounded-xl shadow p-6 mb-6 border-2 border-orange-200">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-wrap justify-between items-center gap-2 mb-1">
             <h2 className="text-lg font-semibold text-orange-900 flex items-center gap-2">
               <CalendarIcon className="w-5 h-5" />
               Fin de journée
+              {isCaissier && <span className="text-xs font-normal text-orange-700 opacity-80">(vos encaissements)</span>}
             </h2>
-            {!showFinDeJournee ? (
-              <button
-                type="button"
-                onClick={handleOpenFinDeJournee}
-                className="px-3 py-1.5 bg-orange-100 text-orange-800 rounded-lg text-sm font-medium hover:bg-orange-200 flex items-center gap-1.5"
-              >
-                <CheckCircleIcon className="w-4 h-4" />
-                Vérification fin de journée
-                {isCaissier && <span className="ml-1 text-xs opacity-90">(vos encaissements)</span>}
-              </button>
-            ) : (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setShowDetailsJournee((v) => !v); if (!showDetailsJournee) fetchDetailsJournee(); }}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
-                >
-                  {showDetailsJournee ? 'Masquer détail' : 'Voir détail de la journée'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowFinDeJournee(false)}
-                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
-                >
-                  <XIcon className="w-4 h-4 inline mr-1" /> Fermer le panneau
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCloseCaisseModal(true)}
-                  className="px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium"
-                >
-                  <LockClosedIcon className="w-4 h-4 inline mr-1" /> Fermer la caisse
-                </button>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={fetchDetailsJournee}
+              className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              Actualiser
+            </button>
           </div>
           <p className="text-sm text-gray-600 mb-4">
-            {!showFinDeJournee
-              ? 'En fin de journée, lancez la vérification pour voir le détail des paiements du jour, puis fermez la caisse.'
-              : 'Vérifiez les totaux ci-dessous, puis cliquez sur « Fermer la caisse » pour enregistrer la session.'}
+            Vérifiez les totaux du jour ci-dessous, puis fermez la caisse pour clôturer la session.
           </p>
 
-          {showFinDeJournee && showDetailsJournee && (
+          {loadingDetailsJournee ? (
+            <div className="flex justify-center py-10">
+              <div className="w-10 h-10 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : detailsJournee.lignes.length === 0 ? (
+            <p className="text-gray-500 text-center py-6">Aucun paiement enregistré pour aujourd&apos;hui.</p>
+          ) : (
             <>
-              {loadingDetailsJournee ? (
-                <div className="flex justify-center py-10">
-                  <div className="w-10 h-10 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <p className="text-sm text-gray-600">Total factures (jour)</p>
+                  <p className="text-xl font-bold text-blue-800">{formatMontant(detailsJournee.totals.factures)}</p>
                 </div>
-              ) : detailsJournee.lignes.length === 0 ? (
-                <p className="text-gray-500 text-center py-6">Aucun paiement enregistré pour aujourd&apos;hui.</p>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-600">Total factures (jour)</p>
-                      <p className="text-xl font-bold text-blue-800">{formatMontant(detailsJournee.totals.factures)}</p>
-                    </div>
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-600">Part patient</p>
-                      <p className="text-xl font-bold text-green-800">{formatMontant(detailsJournee.totals.patient)}</p>
-                    </div>
-                    <div className="bg-amber-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-600">Part couverture (IPM / assurance / mutuelle)</p>
-                      <p className="text-xl font-bold text-amber-800">{formatMontant(detailsJournee.totals.couverture)}</p>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <p className="text-sm text-gray-600">Par mode (jour)</p>
-                      <div className="flex flex-wrap gap-1.5 mt-1">
-                        {Object.entries(etatCaisse.parModePaiement).filter(([, v]) => v > 0).map(([k, v]) => (
-                          <span key={k} className="text-xs bg-white px-2 py-0.5 rounded border border-gray-200">
-                            {MODES_PAIEMENT.find((m) => m.value === k)?.label || k} {formatMontant(v)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <p className="text-sm text-gray-600">Part patient</p>
+                  <p className="text-xl font-bold text-green-800">{formatMontant(detailsJournee.totals.patient)}</p>
+                </div>
+                <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                  <p className="text-sm text-gray-600">Part couverture (IPM / assurance / mutuelle)</p>
+                  <p className="text-xl font-bold text-amber-800">{formatMontant(detailsJournee.totals.couverture)}</p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <p className="text-sm text-gray-600">Par mode (jour)</p>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {Object.entries(etatCaisse.parModePaiement).filter(([, v]) => v > 0).map(([k, v]) => (
+                      <span key={k} className="text-xs bg-white px-2 py-0.5 rounded border border-gray-200">
+                        {MODES_PAIEMENT.find((m) => m.value === k)?.label || k} {formatMontant(v)}
+                      </span>
+                    ))}
                   </div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-gray-500">Export CSV pour archivage ou contrôle comptable.</span>
-                    <button
-                      type="button"
-                      onClick={handleExportJourneeCsv}
-                      className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      Exporter (CSV)
-                    </button>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left font-medium text-gray-700">Patient</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-700">N° facture</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-700">Montant facture</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-700">Part patient</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-700">Part couverture</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-700">Mode</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-700">Heure</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {detailsJournee.lignes.map((l) => (
-                          <tr key={l.id} className="hover:bg-gray-50">
-                            <td className="px-3 py-2">
-                              <div className="font-medium">{l.patient?.prenom} {l.patient?.nom}</div>
-                              {l.patient?.numero_secu && <div className="text-xs text-gray-500">N° secu: {l.patient.numero_secu}</div>}
-                              {l.assurance && <div className="text-xs text-blue-700">{l.assurance.nom} ({l.assurance.taux_remboursement}%)</div>}
-                            </td>
-                            <td className="px-3 py-2">{l.numero_facture}</td>
-                            <td className="px-3 py-2 font-medium">{formatMontant(l.montant_facture)}</td>
-                            <td className="px-3 py-2">{formatMontant(l.partPatient)}</td>
-                            <td className="px-3 py-2">{formatMontant(l.partCouverture)}</td>
-                            <td className="px-3 py-2">{MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement}</td>
-                            <td className="px-3 py-2">{l.date_paiement ? new Date(l.date_paiement).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '–'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-gray-500">Export CSV pour archivage ou contrôle comptable.</span>
+                <button
+                  type="button"
+                  onClick={handleExportJourneeCsv}
+                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Exporter (CSV)
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Patient</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">N° facture</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Montant facture</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Part patient</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Part couverture</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Mode</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Heure</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {detailsJournee.lignes.map((l) => (
+                      <tr
+                        key={l.id}
+                        onClick={() => handleOpenDetailFromLigne(l, { patient: l.patient, montant: l.montant_facture })}
+                        title="Voir le détail de la facture"
+                        className="hover:bg-gray-50 cursor-pointer"
+                      >
+                        <td className="px-3 py-2">
+                          <div className="font-medium">{l.patient?.prenom} {l.patient?.nom}</div>
+                          {l.patient?.numero_secu && <div className="text-xs text-gray-500">N° secu: {l.patient.numero_secu}</div>}
+                          {l.assurance && <div className="text-xs text-blue-700">{l.assurance.nom} ({l.assurance.taux_remboursement}%)</div>}
+                        </td>
+                        <td className="px-3 py-2">{l.numero_facture}</td>
+                        <td className="px-3 py-2 font-medium">{formatMontant(l.montant_facture)}</td>
+                        <td className="px-3 py-2">{formatMontant(l.partPatient)}</td>
+                        <td className="px-3 py-2">{formatMontant(l.partCouverture)}</td>
+                        <td className="px-3 py-2">{MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement}</td>
+                        <td className="px-3 py-2">{l.date_paiement ? new Date(l.date_paiement).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '–'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
+
+          {/* Clôture : action de conclusion du rituel de fin de journée, toujours visible et
+              clairement séparée du reste une fois qu'il y a quelque chose à clôturer. */}
+          <div className="mt-6 pt-4 border-t border-orange-200 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-gray-600">
+              Une fois les totaux vérifiés, clôturez la journée : le montant sera enregistré et la session fermée.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowCloseCaisseModal(true)}
+              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium flex items-center gap-1.5 flex-shrink-0"
+            >
+              <LockClosedIcon className="w-4 h-4" /> Fermer la caisse
+            </button>
+          </div>
         </div>
       )}
 
+      {/* Onglet "Encaisser" : la tâche principale, visible par défaut sans avoir à scroller */}
+      {activeTab === 'encaisser' && (
+      <>
+      {!sessionCaisse && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <LockClosedIcon className="w-5 h-5 text-amber-700 flex-shrink-0" />
+            <p className="text-sm text-amber-800">
+              La caisse est fermée. Ouvrez-la pour pouvoir encaisser les patients.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowOpenCaisseModal(true)}
+            className="px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-1.5 text-sm flex-shrink-0"
+          >
+            <LockOpenIcon className="w-4 h-4" /> Ouvrir la caisse
+          </button>
+        </div>
+      )}
       {/* Recherche + SelectSearch (suggestions) */}
       <div className="bg-white rounded-xl shadow p-6 mb-6">
         <h2 className="text-lg font-semibold mb-4">Rechercher une facture (nom, prénom ou n° facture)</h2>
@@ -1853,14 +2053,14 @@ const Caisse = () => {
                 </select>
                 <span className="text-sm text-gray-600">entrées</span>
               </div>
-              <div className="ml-auto flex items-center gap-2">
+              <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
                 <span className="text-sm text-gray-600">Filtrer:</span>
                 <input
                   type="text"
                   value={tableFilter}
                   onChange={(e) => { setTableFilter(e.target.value); setPage(1); }}
                   placeholder="Patient, n° facture, date, montant..."
-                  className="border border-gray-300 rounded px-3 py-1.5 text-sm w-64 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="border border-gray-300 rounded px-3 py-1.5 text-sm flex-1 min-w-0 sm:w-64 sm:flex-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
             </div>
@@ -1882,15 +2082,50 @@ const Caisse = () => {
                     const p = f.consultations?.patients;
                     const dt = f.consultations?.date_consultation ? new Date(f.consultations.date_consultation) : null;
                     const statut = (f.montant_paye > 0) ? 'partiel' : 'en_attente';
+                    const { partPatient, partAssurance, assuranceNom } = computeSplitAffichage(f);
                     return (
-                      <tr key={f.id} className="hover:bg-gray-50">
+                      <tr
+                        key={f.id}
+                        onClick={() => handleOpenDetail(f)}
+                        title="Voir le détail de la facture"
+                        className="hover:bg-gray-50 cursor-pointer"
+                      >
                         <td className="px-4 py-3"><span className="font-medium">{p?.prenom} {p?.nom}</span><br /><span className="text-xs text-gray-500">{p?.numero_secu}</span></td>
                         <td className="px-4 py-3 text-sm">{f.numero_facture}</td>
                         <td className="px-4 py-3 text-sm">{dt ? dt.toLocaleDateString('fr-FR') : '–'}</td>
-                        <td className="px-4 py-3 font-medium">{formatMontant(f.montant_ttc || 0)}</td>
-                        <td className="px-4 py-3">{getStatusBadge(statut, f.montant_paye, f.montant_ttc)}</td>
+                        <td className="px-4 py-3 font-medium">
+                          {formatMontant(partAssurance > 0 ? partPatient : (f.montant_ttc || 0))}
+                          {partAssurance > 0 && (
+                            <div className="text-xs font-normal text-gray-400">Total facture {formatMontant(f.montant_ttc || 0)}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {getStatusBadge(statut, f.montant_paye, f.montant_ttc)}
+                          {partAssurance > 0 && (
+                            <Link
+                              to="/comptabilite/impayes"
+                              onClick={(e) => e.stopPropagation()}
+                              title={`Part ${assuranceNom || 'assurance'} à réclamer — voir dans Impayés & Relances`}
+                              className="mt-1 flex w-fit items-center gap-1 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-full px-2 py-0.5 hover:bg-purple-100"
+                            >
+                              <ShieldCheck className="w-3 h-3" /> Assurance {formatMontant(partAssurance)}
+                            </Link>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-right">
-                          <button type="button" onClick={() => handleOpenModal(f)} className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">Payer à la caisse</button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleOpenModal(f); }}
+                            disabled={!sessionCaisse}
+                            title={!sessionCaisse ? 'Ouvrez la caisse pour pouvoir encaisser' : undefined}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg ${
+                              sessionCaisse
+                                ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            }`}
+                          >
+                            <BanknotesIcon className="w-4 h-4" /> Payer à la caisse
+                          </button>
                         </td>
                       </tr>
                     );
@@ -1930,7 +2165,7 @@ const Caisse = () => {
         )}
       </div>
 
-      {/* Historique des paiements (liste récente) */}
+      {/* Historique des paiements (liste récente), avec filtre + pagination comme "Factures en attente" */}
       <div className="mt-8">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Historique des paiements</h2>
@@ -1942,35 +2177,131 @@ const Caisse = () => {
           facturesPayees.length === 0 ? (
             <div className="bg-white rounded-xl shadow p-6 text-center text-gray-500">Aucun paiement enregistré.</div>
           ) : (
-            <div className="bg-white rounded-xl shadow overflow-hidden">
-              <table className="min-w-full">
-                <thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Patient</th><th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Date</th><th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Montant</th><th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Statut</th></tr></thead>
-                <tbody className="divide-y divide-gray-200">
-                  {facturesPayees.map((f) => {
-                    const p = f.consultations?.patients;
-                    const d = f.date_paiement ? new Date(f.date_paiement) : null;
-                    return (
-                      <tr key={f.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3">{p?.prenom} {p?.nom}</td>
-                        <td className="px-4 py-3 text-sm">{d ? d.toLocaleString('fr-FR') : '–'}</td>
-                        <td className="px-4 py-3 font-medium">{formatMontant(f.montant_ttc || 0)}</td>
-                        <td className="px-4 py-3">{getStatusBadge('paye', f.montant_paye, f.montant_ttc)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="bg-white rounded-xl shadow p-6">
+              <div className="flex flex-wrap items-center gap-4 mb-4">
+                <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => { setPayeesScope('today'); setPayeesPage(1); }}
+                    className={`px-3 py-1.5 text-sm font-medium ${payeesScope === 'today' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    Aujourd&apos;hui
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPayeesScope('all'); setPayeesPage(1); }}
+                    className={`px-3 py-1.5 text-sm font-medium border-l border-gray-300 ${payeesScope === 'all' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    Tout l&apos;historique
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Afficher</span>
+                  <select
+                    value={payeesPageSize}
+                    onChange={(e) => { setPayeesPageSize(Number(e.target.value)); setPayeesPage(1); }}
+                    className="border border-gray-300 rounded px-2 py-1 text-sm"
+                  >
+                    {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <span className="text-sm text-gray-600">entrées</span>
+                </div>
+                <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Filtrer:</span>
+                  <input
+                    type="text"
+                    value={payeesFilter}
+                    onChange={(e) => { setPayeesFilter(e.target.value); setPayeesPage(1); }}
+                    placeholder="Patient, n° facture, date, montant..."
+                    className="border border-gray-300 rounded px-3 py-1.5 text-sm flex-1 min-w-0 sm:w-64 sm:flex-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {payeesTotalRows === 0 ? (
+                <p className="text-gray-500 text-center py-8">
+                  {payeesScope === 'today' ? "Aucun paiement encaissé aujourd'hui." : 'Aucun paiement ne correspond à ce filtre.'}
+                </p>
+              ) : (
+              <>
+              <div className="overflow-x-auto -mx-6">
+                <table className="min-w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-2 text-left text-xs font-medium text-gray-600 uppercase">Patient</th>
+                      <th className="px-6 py-2 text-left text-xs font-medium text-gray-600 uppercase">N° facture</th>
+                      <th className="px-6 py-2 text-left text-xs font-medium text-gray-600 uppercase">Date</th>
+                      <th className="px-6 py-2 text-left text-xs font-medium text-gray-600 uppercase">Montant</th>
+                      <th className="px-6 py-2 text-left text-xs font-medium text-gray-600 uppercase">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {payeesPaginated.map((f) => {
+                      const p = f.consultations?.patients;
+                      const d = f.date_paiement ? new Date(f.date_paiement) : null;
+                      return (
+                        <tr
+                          key={f.id}
+                          onClick={() => handleOpenDetail(f)}
+                          title="Voir le détail de la facture"
+                          className="hover:bg-gray-50 cursor-pointer"
+                        >
+                          <td className="px-6 py-3">{p?.prenom} {p?.nom}</td>
+                          <td className="px-6 py-3 text-sm">{f.numero_facture}</td>
+                          <td className="px-6 py-3 text-sm">{d ? d.toLocaleString('fr-FR') : '–'}</td>
+                          <td className="px-6 py-3 font-medium">{formatMontant(f.montant_ttc || 0)}</td>
+                          <td className="px-6 py-3">{getStatusBadge('paye', f.montant_paye, f.montant_ttc)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-200">
+                <p className="text-sm text-gray-600">
+                  Affichage de {payeesTotalRows === 0 ? 0 : payeesStart + 1} à {Math.min(payeesStart + payeesPageSize, payeesTotalRows)} sur {payeesTotalRows} entrées
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPayeesPage((p) => Math.max(1, p - 1))}
+                    disabled={payeesPage <= 1}
+                    className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    Précédent
+                  </button>
+                  <span className="px-3 py-1.5 text-sm text-gray-600">
+                    Page {payeesEffectivePage} / {payeesTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPayeesPage((p) => Math.min(payeesTotalPages, p + 1))}
+                    disabled={payeesPage >= payeesTotalPages}
+                    className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    Suivant
+                  </button>
+                </div>
+              </div>
+              </>
+              )}
             </div>
           )
         )}
       </div>
+      </>
+      )}
 
-      {/* Historique paiement par Patient et par Couverture (filtres + stats + facture globale) */}
+      {/* Historique paiement par Patient et par Couverture (filtres + stats + facture globale) — regroupé
+          avec la fin de journée : consultation ponctuelle, pas la tâche principale de la page. */}
+      {activeTab === 'journee' && sessionCaisse && (
       <div className="bg-white rounded-xl shadow p-6 mb-6 mt-8">
-        <h2 className="text-lg font-semibold mb-4">
+        <h2 className="text-lg font-semibold">
           Historique paiement par Patient / par Couverture
           {isCaissier && <span className="ml-2 text-sm font-normal text-gray-500">(uniquement vos encaissements)</span>}
         </h2>
+        <p className="text-xs text-gray-500 mb-4">Recherche ponctuelle, indépendante de la clôture du jour ci-dessus.</p>
         <div className="flex border-b border-gray-200 mb-4">
           <button
             type="button"
@@ -1991,7 +2322,7 @@ const Caisse = () => {
         {historiqueTab === 'patient' && (
           <>
             <div className="mb-4 flex flex-wrap items-end gap-3">
-              <div className="min-w-[280px] relative" ref={patientSearchRef}>
+              <div className="w-full sm:w-auto sm:min-w-[280px] relative" ref={patientSearchRef}>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Filtrer par patient</label>
                 <div className="relative">
                   <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -2097,7 +2428,12 @@ const Caisse = () => {
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {historiquePatientData.lignes.map((l) => (
-                          <tr key={l.id} className="hover:bg-gray-50">
+                          <tr
+                            key={l.id}
+                            onClick={() => handleOpenDetailFromLigne(l, { patient: selectedPatientForHisto, montant: l.montant_ttc })}
+                            title="Voir le détail de la facture"
+                            className="hover:bg-gray-50 cursor-pointer"
+                          >
                             <td className="px-3 py-2">{l.numero_facture}</td>
                             <td className="px-3 py-2">{l.date_paiement ? new Date(l.date_paiement).toLocaleDateString('fr-FR') : '–'}</td>
                             <td className="px-3 py-2 font-medium">{formatMontant(l.montant_ttc)}</td>
@@ -2118,7 +2454,7 @@ const Caisse = () => {
         {historiqueTab === 'couverture' && (
           <>
             <div className="mb-4 flex flex-wrap items-end gap-3">
-              <div className="min-w-[220px]">
+              <div className="w-full sm:w-auto sm:min-w-[220px]">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Filtrer par couverture</label>
                 <select
                   value={filterAssuranceId}
@@ -2172,7 +2508,19 @@ const Caisse = () => {
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {historiqueCouvertureData.lignes.map((l) => (
-                          <tr key={l.id} className="hover:bg-gray-50">
+                          <tr
+                            key={l.id}
+                            onClick={() => handleOpenDetailFromLigne(l, {
+                              patient: {
+                                prenom: l.patient,
+                                nom: '',
+                                assurances: l.assurance ? { nom: l.assurance, taux_remboursement: selectedAssuranceForHisto?.taux_remboursement } : null,
+                              },
+                              montant: l.montant_ttc,
+                            })}
+                            title="Voir le détail de la facture"
+                            className="hover:bg-gray-50 cursor-pointer"
+                          >
                             <td className="px-3 py-2">{l.date_paiement ? new Date(l.date_paiement).toLocaleDateString('fr-FR') : '–'}</td>
                             <td className="px-3 py-2 font-medium">{l.patient}</td>
                             <td className="px-3 py-2">{l.numero_facture}</td>
@@ -2191,135 +2539,274 @@ const Caisse = () => {
           </>
         )}
       </div>
+      )}
+
+      {/* Modal : détail d'une facture (clic sur une ligne, en attente ou payée) */}
+      {showDetailModal && factureDetail && (() => {
+        const p = factureDetail.consultations?.patients;
+        const assurance = p?.assurances;
+        const dt = factureDetail.consultations?.date_consultation ? new Date(factureDetail.consultations.date_consultation) : null;
+        const dp = factureDetail.date_paiement ? new Date(factureDetail.date_paiement) : null;
+        const total = parseFloat(factureDetail.montant_ttc) || 0;
+        const deja = parseFloat(factureDetail.montant_paye) || 0;
+        const restant = Math.max(0, total - deja);
+        const statut = restant <= 0 ? 'paye' : deja > 0 ? 'partiel' : 'en_attente';
+        const { partPatient, partAssurance, assuranceNom } = computeSplitAffichage(factureDetail);
+        return (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4">
+              <div className="fixed inset-0 bg-black/50" onClick={() => setShowDetailModal(false)} />
+              <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center"><DocumentTextIcon className="w-6 h-6 text-blue-600" /></div>
+                    <div>
+                      <h3 className="text-lg font-semibold">Détail de la facture</h3>
+                      <p className="text-sm text-gray-500">N° {factureDetail.numero_facture}</p>
+                    </div>
+                  </div>
+                  {getStatusBadge(statut, deja, total)}
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Patient</span>
+                    <span className="font-medium">{p?.prenom} {p?.nom}</span>
+                  </div>
+                  {p?.numero_secu && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">N° Sécurité sociale</span>
+                      <span>{p.numero_secu}</span>
+                    </div>
+                  )}
+                  {assurance && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Couverture</span>
+                      <span>{assurance.nom} ({assurance.taux_remboursement || 0} %)</span>
+                    </div>
+                  )}
+                  {dt && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Date de consultation</span>
+                      <span>{dt.toLocaleDateString('fr-FR')}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border border-gray-200 rounded-lg p-4 mb-4 space-y-2">
+                  <div className="flex justify-between text-sm"><span className="text-gray-600">Montant total</span><span className="font-medium">{formatMontant(total)}</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-gray-600">Déjà payé</span><span>{formatMontant(deja)}</span></div>
+                  <div className="flex justify-between text-sm pt-2 border-t border-gray-200"><span className="font-semibold">Reste à payer par le patient</span><span className="font-bold">{formatMontant(partPatient)}</span></div>
+                  {partAssurance > 0 && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Part {assuranceNom || 'assurance'}</span>
+                      <Link
+                        to="/comptabilite/impayes"
+                        title="Non payable à la caisse — voir dans Impayés & Relances"
+                        className="flex items-center gap-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-full px-2 py-0.5 hover:bg-purple-100"
+                      >
+                        <ShieldCheck className="w-3 h-3" /> {formatMontant(partAssurance)} à réclamer
+                      </Link>
+                    </div>
+                  )}
+                  {factureDetail.mode_paiement && (
+                    <div className="flex justify-between text-sm pt-2 border-t border-gray-200">
+                      <span className="text-gray-600">Mode de paiement</span>
+                      <span>{MODES_PAIEMENT.find((m) => m.value === factureDetail.mode_paiement)?.label || factureDetail.mode_paiement}</span>
+                    </div>
+                  )}
+                  {dp && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Payé le</span>
+                      <span>{dp.toLocaleString('fr-FR')}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-3 justify-end">
+                  <button type="button" onClick={() => setShowDetailModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Fermer</button>
+                  {partPatient > 0 && (
+                    <button
+                      type="button"
+                      onClick={handlePayFromDetail}
+                      disabled={!sessionCaisse}
+                      title={!sessionCaisse ? 'Ouvrez la caisse pour pouvoir encaisser' : undefined}
+                      className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                        sessionCaisse
+                          ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <BanknotesIcon className="w-5 h-5" /> Payer à la caisse
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal paiement (prérempli: patient, montant, mode, répartition si couverture) */}
-      {showPaiementModal && selectedFacture && (
+      {showPaiementModal && selectedFacture && (() => {
+        const montantSaisi = parseFloat(paiementData.montant_paye) || 0;
+        const montantInvalide = montantSaisi <= 0;
+        const formatEntier = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(n || 0);
+
+        return (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex min-h-full items-center justify-center p-4">
             <div className="fixed inset-0 bg-black/50" onClick={() => !submitting && setShowPaiementModal(false)} />
-            <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center"><BanknotesIcon className="w-6 h-6 text-green-600" /></div>
-                <div>
-                  <h3 className="text-lg font-semibold">Enregistrer un paiement</h3>
-                  <p className="text-sm text-gray-500">N° {selectedFacture.numero_facture} – {selectedFacture.consultations?.patients?.prenom} {selectedFacture.consultations?.patients?.nom}</p>
+            <div className="relative bg-white rounded-xl shadow-xl max-w-xl w-full max-h-[92vh] flex flex-col">
+              {/* En-tête fixe */}
+              <div className="flex items-start justify-between gap-3 p-6 pb-4 border-b border-gray-100 flex-shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0"><BanknotesIcon className="w-6 h-6 text-green-600" /></div>
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-semibold">Payer à la caisse</h3>
+                    <p className="text-sm text-gray-500 truncate">N° {selectedFacture.numero_facture} – {selectedFacture.consultations?.patients?.prenom} {selectedFacture.consultations?.patients?.nom}</p>
+                  </div>
                 </div>
+                <button type="button" onClick={() => !submitting && setShowPaiementModal(false)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex-shrink-0" aria-label="Fermer">
+                  <XIcon className="w-5 h-5" />
+                </button>
               </div>
 
-              {/* Bloc prérempli: montant total, répartition, à payer */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <div className="flex justify-between text-sm mb-1"><span>Montant total (facture)</span><span className="font-medium">{formatMontant(selectedFacture.montant_ttc || 0)}</span></div>
-                {assuranceTaux > 0 && (
-                  <>
-                    <div className="flex justify-between text-sm text-blue-700"><span>Prise en charge ({couvertureNom} {assuranceTaux} %)</span><span>-{formatMontant(montantAssurance)}</span></div>
-                    <div className="flex justify-between text-sm mt-2 pt-2 border-t border-gray-200"><span>À payer par le patient</span><span className="font-bold">{formatMontant(montantPatient)}</span></div>
-                  </>
-                )}
-                {assuranceTaux === 0 && <div className="flex justify-between text-sm mt-2 pt-2 border-t border-gray-200"><span>À payer</span><span className="font-bold">{formatMontant(montantPatient)}</span></div>}
-              </div>
-
-              <form onSubmit={handlePaiementSubmit}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Montant à payer</label>
-                  <div className="relative">
-                    <BanknotesIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input 
-                      type="text" 
-                      step="0.01" 
-                      min="0" 
-                      max={montantPatient} 
-                      value={new Intl.NumberFormat('fr-FR', {
-                        maximumFractionDigits: 2,
-                        minimumFractionDigits: 2,
-                        useGrouping: true
-                      }).format(paiementData.montant_paye).replace(/\u00A0/g, ' ')}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\s/g, '');
-                        const numValue = parseFloat(value) || 0;
-                        handleMontantChange({ target: { value: numValue } });
-                      }}
-                      required 
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg" 
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">/ {formatMontant(montantPatient)}</span>
+              {/* Montant dû — mis en avant pour une lecture immédiate, avant même le formulaire */}
+              <form onSubmit={handlePaiementSubmit} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+                  <div className="rounded-xl bg-indigo-50 border border-indigo-100 p-4 text-center">
+                    <p className="text-xs font-medium text-indigo-700 uppercase tracking-wide">
+                      {assuranceTaux > 0 ? 'À payer par le patient' : 'Montant à payer'}
+                    </p>
+                    <p className="text-3xl font-bold text-indigo-900 mt-1">{formatMontant(montantPatient)}</p>
+                    {assuranceTaux > 0 && (
+                      <p className="text-xs text-indigo-600 mt-1.5">
+                        Total facture {formatMontant(selectedFacture.montant_ttc || 0)} · Prise en charge {couvertureNom} ({assuranceTaux} %) : -{formatMontant(montantAssurance)}
+                      </p>
+                    )}
                   </div>
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Mode de paiement</label>
-                  {/* Ligne 1 : Espèces, Carte, Chèque, Virement */}
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {MODES_PAIEMENT.filter((m) => !m.mobile).map((m) => {
-                      const sel = paiementData.mode_paiement === m.value;
-                      const Icon = m.Icon;
-                      return (
+                  {/* Montant encaissé */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-medium text-gray-700">Montant encaissé</label>
+                      {montantSaisi !== montantPatient && (
                         <button
-                          key={m.value}
                           type="button"
-                          onClick={() => setPaiementData((d) => ({ ...d, mode_paiement: m.value }))}
-                          className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border-2 transition-all ${sel ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+                          onClick={() => setPaiementData((d) => ({ ...d, montant_paye: montantPatient }))}
+                          className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
                         >
-                          <Icon className="w-8 h-8 text-gray-700" />
-                          <span className="text-xs font-medium">{m.label}</span>
+                          Montant exact ({formatMontant(montantPatient)})
                         </button>
-                      );
-                    })}
-                  </div>
-                  {/* Ligne 2 (en bas) : Orange Money, Wave, Yas — icônes dédiées, rangées en ligne */}
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {MODES_PAIEMENT.filter((m) => m.mobile).map((m) => {
-                      const sel = paiementData.mode_paiement === m.value;
-                      const Icon = m.Icon;
-                      return (
-                        <button
-                          key={m.value}
-                          type="button"
-                          onClick={() => setPaiementData((d) => ({ ...d, mode_paiement: m.value }))}
-                          className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border-2 transition-all ${sel ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
-                        >
-                          <Icon className="w-9 h-9" />
-                          <span className="text-xs font-medium">{m.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Étapes scan / paiement lorsque Orange Money, Wave ou Yas est sélectionné */}
-                {['orange_money', 'wave', 'yas'].includes(paiementData.mode_paiement) && (() => {
-                  const m = MODES_PAIEMENT.find((x) => x.value === paiementData.mode_paiement);
-                  const montant = parseFloat(paiementData.montant_paye) || 0;
-                  const steps = ETAPES_MOBILE_MONEY(m?.label || 'mobile', montant);
-                  return (
-                    <div className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                      <h4 className="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-2">
-                        <CheckCircleIcon className="w-5 h-5 text-indigo-600" />
-                        Étapes de paiement {m?.label || ''}
-                      </h4>
-                      <ol className="list-decimal list-inside space-y-1.5 text-sm text-slate-700">
-                        {steps.map((s, i) => (
-                          <li key={i}>{s}</li>
-                        ))}
-                      </ol>
+                      )}
                     </div>
-                  );
-                })()}
+                    <div className="relative">
+                      <BanknotesIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        ref={montantPaiementInputRef}
+                        type="text"
+                        inputMode="numeric"
+                        value={formatEntier(paiementData.montant_paye)}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^\d]/g, '');
+                          handleMontantChange({ target: { value: value ? parseInt(value, 10) : 0 } });
+                        }}
+                        required
+                        className="w-full pl-10 pr-28 py-2.5 border border-gray-300 rounded-lg text-lg font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">/ {formatMontant(montantPatient)}</span>
+                    </div>
+                    {montantInvalide && (
+                      <p className="text-xs text-red-600 mt-1">Le montant encaissé doit être supérieur à 0.</p>
+                    )}
+                  </div>
 
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
-                  <textarea rows={2} value={paiementData.notes} onChange={(e) => setPaiementData((d) => ({ ...d, notes: e.target.value }))} placeholder="Référence chèque, n° transaction…" className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                  {/* Mode de paiement — grille unique, alignée */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Mode de paiement</label>
+                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                      {MODES_PAIEMENT.map((m) => {
+                        const sel = paiementData.mode_paiement === m.value;
+                        const Icon = m.Icon;
+                        return (
+                          <button
+                            key={m.value}
+                            type="button"
+                            onClick={() => setPaiementData((d) => ({ ...d, mode_paiement: m.value }))}
+                            className={`flex flex-col items-center justify-center gap-1.5 px-2 py-3 rounded-xl border-2 transition-all ${sel ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-200' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+                          >
+                            <Icon className="w-7 h-7 text-gray-700" />
+                            <span className="text-[11px] font-medium text-center leading-tight">{m.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Étapes scan / paiement lorsque Orange Money, Wave ou Yas est sélectionné */}
+                  {['orange_money', 'wave', 'yas'].includes(paiementData.mode_paiement) && (() => {
+                    const m = MODES_PAIEMENT.find((x) => x.value === paiementData.mode_paiement);
+                    const montant = parseFloat(paiementData.montant_paye) || 0;
+                    const steps = ETAPES_MOBILE_MONEY(m?.label || 'mobile', montant);
+                    return (
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                        <h4 className="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                          <CheckCircleIcon className="w-5 h-5 text-indigo-600" />
+                          Étapes de paiement {m?.label || ''}
+                        </h4>
+                        <ol className="list-decimal list-inside space-y-1.5 text-sm text-slate-700">
+                          {steps.map((s, i) => (
+                            <li key={i}>{s}</li>
+                          ))}
+                        </ol>
+                      </div>
+                    );
+                  })()}
+
+                  {assuranceTaux > 0 && montantAssurance > 0 && (
+                    <div className="flex gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <ExclamationCircleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-amber-800">Une facture de <strong>{formatMontant(montantAssurance)}</strong> (même n° {selectedFacture.numero_facture}) sera créée pour la couverture {couvertureNom}.</p>
+                    </div>
+                  )}
+
+                  {/* Notes — repliées par défaut pour ne pas encombrer le cas courant */}
+                  {notesOuvertes || paiementData.notes ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
+                      <textarea
+                        rows={2}
+                        autoFocus={notesOuvertes && !paiementData.notes}
+                        value={paiementData.notes}
+                        onChange={(e) => setPaiementData((d) => ({ ...d, notes: e.target.value }))}
+                        placeholder="Référence chèque, n° transaction…"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setNotesOuvertes(true)}
+                      className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                    >
+                      + Ajouter une note (référence chèque, n° transaction…)
+                    </button>
+                  )}
                 </div>
 
-                {assuranceTaux > 0 && montantAssurance > 0 && (
-                  <div className="mb-4 flex gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <ExclamationCircleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-amber-800">Une facture de <strong>{formatMontant(montantAssurance)}</strong> (même n° {selectedFacture.numero_facture}) sera créée pour la couverture {couvertureNom}.</p>
-                  </div>
-                )}
-
-                <div className="flex gap-3 justify-end pt-2">
+                {/* Pied fixe avec les actions */}
+                <div className="flex flex-wrap gap-3 justify-end px-6 py-4 border-t border-gray-100 flex-shrink-0">
                   <button type="button" onClick={() => setShowPaiementModal(false)} disabled={submitting} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50">Annuler</button>
-                  <button type="submit" disabled={submitting} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50">
+                  <button
+                    type="button"
+                    onClick={(e) => handlePaiementSubmit(e, false)}
+                    disabled={submitting || montantInvalide}
+                    title="Enregistre le paiement sans ouvrir de fenêtre d'impression"
+                    className="px-4 py-2 border border-indigo-600 text-indigo-700 rounded-lg hover:bg-indigo-50 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <CheckCircleIcon className="w-5 h-5" /> Enregistrer
+                  </button>
+                  <button type="submit" disabled={submitting || montantInvalide} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                     <PrinterIcon className="w-5 h-5" /> Enregistrer et imprimer
                   </button>
                 </div>
@@ -2327,21 +2814,24 @@ const Caisse = () => {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Modal : Ouvrir la caisse (réinitialisation matinale + fond de caisse) */}
       {showOpenCaisseModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex min-h-full items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black/50" onClick={() => setShowOpenCaisseModal(false)} />
+            <div className="fixed inset-0 bg-black/50" onClick={closeOpenCaisseModal} />
             <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <LockOpenIcon className="w-6 h-6 text-green-600" />
                 Ouvrir la caisse
               </h3>
+              {!openCaisseConfirming ? (
+              <>
               <p className="text-sm text-gray-600 mb-2">Définissez le fond de caisse pour cette journée (une seule fois par jour).</p>
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mb-4">
-                Pour reprendre une session déjà ouverte (après coupure ou erreur), utilisez « Mise à jour caisse » : le fond de caisse ne sera pas redemandé.
+                Pour reprendre une session déjà ouverte (après coupure ou erreur), utilisez « Rafraîchir » : le fond de caisse ne sera pas redemandé.
               </p>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Fond de caisse (F CFA)</label>
@@ -2364,10 +2854,40 @@ const Caisse = () => {
                 />
                 <p className="text-xs text-gray-500 mt-1">Montant initial mis en caisse (pour la monnaie)</p>
               </div>
-              <div className="flex gap-3 justify-end">
-                <button type="button" onClick={() => setShowOpenCaisseModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-                <button type="button" onClick={handleOpenCaisse} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Ouvrir</button>
+              <div className="flex flex-wrap gap-3 justify-end">
+                <button type="button" onClick={closeOpenCaisseModal} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const fondCaisse = parseFloat(fondCaisseInput) || 0;
+                    if (fondCaisse < 0) {
+                      unifiedNotificationService.error('Le fond de caisse doit être positif ou nul');
+                      return;
+                    }
+                    setOpenCaisseConfirming(true);
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Continuer
+                </button>
               </div>
+              </>
+              ) : (
+              <>
+                <p className="text-sm text-gray-600 mb-4">
+                  Ce montant sert de base au calcul du solde de toute la journée et ne pourra pas être
+                  modifié facilement une fois la caisse ouverte. Vérifiez-le avant de confirmer.
+                </p>
+                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+                  <p className="text-sm text-gray-600 mb-1">Fond de caisse à l&apos;ouverture</p>
+                  <p className="text-3xl font-bold text-green-800">{formatMontant(parseFloat(fondCaisseInput) || 0)}</p>
+                </div>
+                <div className="flex flex-wrap gap-3 justify-end">
+                  <button type="button" onClick={() => setOpenCaisseConfirming(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Modifier le montant</button>
+                  <button type="button" onClick={handleOpenCaisse} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">Confirmer l&apos;ouverture</button>
+                </div>
+              </>
+              )}
             </div>
           </div>
         </div>
@@ -2389,7 +2909,7 @@ const Caisse = () => {
                 <div className="flex justify-between pt-2 border-t"><span className="text-sm font-semibold">Solde final</span><span className="font-bold text-lg">{formatMontant(etatCaisse.solde)}</span></div>
               </div>
               <p className="text-sm text-gray-600 mb-4">Le montant journalier sera enregistré et la session fermée.</p>
-              <div className="flex gap-3 justify-end">
+              <div className="flex flex-wrap gap-3 justify-end">
                 <button type="button" onClick={() => setShowCloseCaisseModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
                 <button type="button" onClick={handleCloseCaisse} className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">Fermer la caisse</button>
               </div>
@@ -2408,7 +2928,7 @@ const Caisse = () => {
                 <DocumentTextIcon className="w-6 h-6 text-indigo-600" />
                 Arrêté comptable mensuel
               </h3>
-              <div className="mb-4 flex gap-3 items-end">
+              <div className="mb-4 flex flex-wrap gap-3 items-end">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Mois</label>
                   <select

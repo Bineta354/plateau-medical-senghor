@@ -109,41 +109,37 @@ export const matchesQueueFilterStatus = (filterStatus, patientStatus) => {
   }
 };
 
-/** Vérifie si un patient en file d'attente a un rendez-vous passé */
-export const hasPastAppointment = (queueItem, now = new Date()) => {
-  // Une ligne presente dans waiting_queue signifie que le patient est
-  // deja arrive physiquement. Le nettoyage "non honore" ne doit donc
-  // jamais s'appliquer ici, quel que soit le statut actif en cours
-  // (waiting, called, present, in_consultation, etc.).
-  // Le nettoyage "non honore" ne doit concerner que les patients
-  // strictement encore en attente (jamais appeles, jamais recus).
-  // Tout le reste (appele, present, en consultation, deja termine,
-  // deja absent, etc.) ne doit jamais etre reclasse ici.
-  if (!isStrictlyWaitingStatus(queueItem?.status)) {
-    return false;
-  }
-  // Gérer différentes structures de données
-  const appointment = queueItem?.appointment || queueItem?.appointments;
-  
-  // Récupérer la date du rendez-vous depuis différentes structures possibles
-  const appointmentDate = appointment?.date_heure || queueItem?.date_heure;
-  
-  if (!appointmentDate) return false;
-  
-  const appointmentTime = new Date(appointmentDate);
-  
-  // Récupérer la durée depuis différentes structures possibles
-  const durationMinutes = Number(
-    appointment?.duree || 
-    queueItem?.duree || 
-    queueItem?.appointment?.duree || 
-    30
-  );
-  
-  const appointmentEndTime = new Date(appointmentTime.getTime() + durationMinutes * 60000);
-  
-  return appointmentEndTime.getTime() < now.getTime();
-};
+/**
+ * Vérifie si un patient en file d'attente a un rendez-vous "passé".
+ *
+ * Historique / pourquoi cette fonction ne fait plus rien :
+ * Elle comparait l'heure de fin théorique du RDV (date_heure + durée) à
+ * "maintenant" pour détecter les patients ajoutés automatiquement à
+ * waiting_queue par un trigger BDD (trg_after_insert_appointment_to_queue,
+ * exécuté à la CRÉATION du rendez-vous, avant toute arrivée réelle) qui
+ * ne s'étaient jamais présentés — d'où le statut "non honoré".
+ *
+ * Ce trigger a été supprimé (migration
+ * 20260731000000_remove_auto_waiting_queue_trigger.sql). Depuis, toute
+ * ligne dans waiting_queue est créée exclusivement au moment où le
+ * patient est physiquement présent (confirmation de présence secrétaire,
+ * accueil d'un walk-in, ajout depuis la salle d'attente, etc.) — jamais
+ * à la simple création du RDV. Le statut "waiting" ne signifie donc plus
+ * "pas encore arrivé", mais "arrivé, en attente d'être appelé".
+ *
+ * Comparer ces lignes à l'heure de fin théorique du créneau initial est
+ * donc devenu un faux positif garanti : dès que le créneau d'origine
+ * (souvent 30 min) est dépassé — ce qui arrive dès que le médecin prend
+ * du retard — un patient pourtant bien présent se voyait badgé "Retard"
+ * (SalleAttentePage), réétiqueté "Terminé" (DoctorSpecificQueue) ou pire,
+ * automatiquement marqué "non_honore" en base et sorti de la file active
+ * (GlobalWaitingQueue) alors qu'il attendait toujours sur place.
+ *
+ * On neutralise donc volontairement cette fonction (retourne toujours
+ * false) plutôt que de supprimer tous les appelants un par un — voir
+ * FIX_ETAPE_1_SECRETAIRE.md, point 5.
+ */
+export const hasPastAppointment = () => false;
 
 /** Vérifie si une consultation est bloquée depuis trop longtemps (plus de 2 heures) */
 export const isStuckInConsultation = (queueItem, now = new Date(), maxHours = 2) => {

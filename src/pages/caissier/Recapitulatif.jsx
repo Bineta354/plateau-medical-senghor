@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { BarChart3, FileText, Printer } from 'lucide-react';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import { formatMontant } from '../../utils/currency';
+import { getStatusColor, getStatusLabel } from '../../utils/factureStatus';
 
 const PERIODS = [
   { value: 'all', label: 'Toutes les dates' },
@@ -289,9 +290,9 @@ const Recapitulatif = () => {
       <tbody>${rows}</tbody>
     </table>
     <div class="totaux">
-      <p><strong>Total TTC :</strong> ${formatCurrency(totalTTC)}</p>
-      <p><strong>Total payé :</strong> ${formatCurrency(totalPaye)}</p>
-      <p><strong>Total restant :</strong> ${formatCurrency(totalRestant)}</p>
+      <p><strong>Total TTC :</strong> ${formatMontant(totalTTC)}</p>
+      <p><strong>Total payé :</strong> ${formatMontant(totalPaye)}</p>
+      <p><strong>Total restant :</strong> ${formatMontant(totalRestant)}</p>
     </div>
     <div class="footer">Document généré depuis le récapitulatif caisse.</div>
     ${doPrint ? '<script>window.onload=function(){setTimeout(function(){window.print();},400);}</script>' : ''}
@@ -345,9 +346,9 @@ const Recapitulatif = () => {
       <tbody>${rows}</tbody>
     </table>
     <div class="totaux">
-      <p><strong>Total somme partielle :</strong> ${formatCurrency(totalPayeC)}</p>
-      <p><strong>Total reste à payer :</strong> ${formatCurrency(totalRestantC)}</p>
-      <p><strong>Somme totale due par la couverture :</strong> ${formatCurrency(totalPayeC + totalRestantC)}</p>
+      <p><strong>Total somme partielle :</strong> ${formatMontant(totalPayeC)}</p>
+      <p><strong>Total reste à payer :</strong> ${formatMontant(totalRestantC)}</p>
+      <p><strong>Somme totale due par la couverture :</strong> ${formatMontant(totalPayeC + totalRestantC)}</p>
     </div>
     <div class="footer">Document généré depuis le récapitulatif caisse.</div>
     ${doPrint ? '<script>window.onload=function(){setTimeout(function(){window.print();},400);}</script>' : ''}
@@ -387,17 +388,17 @@ const Recapitulatif = () => {
         </tr>`;
       }).join('');
       totauxSection = `
-        <p><strong>Somme partielle payée :</strong> ${formatCurrency(totalPaye)}</p>
-        <p><strong>Somme restante à payer :</strong> ${formatCurrency(totalRestant)}</p>
-        <p><strong>Somme totale payée :</strong> ${formatCurrency(totalPaye)}</p>
-        <p><strong>Total TTC :</strong> ${formatCurrency(totalTTC)}</p>`;
+        <p><strong>Somme partielle payée :</strong> ${formatMontant(totalPaye)}</p>
+        <p><strong>Somme restante à payer :</strong> ${formatMontant(totalRestant)}</p>
+        <p><strong>Somme totale payée :</strong> ${formatMontant(totalPaye)}</p>
+        <p><strong>Total TTC :</strong> ${formatMontant(totalTTC)}</p>`;
       if (tauxCouverture > 0 && patientAssurance) {
         couvertureSection = `
         <div class="couverture-section">
           <h3>Détails de couverture</h3>
           <p><strong>Couverture :</strong> ${patientAssurance.nom || '–'}</p>
           <p><strong>Pourcentage de couverture :</strong> ${tauxCouverture} %</p>
-          <p><strong>Montant à charge de la couverture :</strong> ${formatCurrency(montantChargeCouverture)}</p>
+          <p><strong>Montant à charge de la couverture :</strong> ${formatMontant(montantChargeCouverture)}</p>
         </div>`;
       }
     } else if (type === 'couverture' && couvertureLabel) {
@@ -420,7 +421,7 @@ const Recapitulatif = () => {
       totauxSection = `
         <p><strong>Total somme partielle :</strong> ${formatNumberOnly(totalPayeCouv)}</p>
         <p><strong>Total reste à payer :</strong> ${formatNumberOnly(totalRestantCouv)}</p>
-        <p><strong>Somme totale due par la couverture :</strong> ${formatCurrency(totalPayeCouv + totalRestantCouv)}</p>`;
+        <p><strong>Somme totale due par la couverture :</strong> ${formatMontant(totalPayeCouv + totalRestantCouv)}</p>`;
     }
 
     const tableHeader = type === 'patient'
@@ -937,11 +938,8 @@ const Recapitulatif = () => {
                           <td className="px-4 py-3 text-right">{formatMontant(parseFloat(f.montant_paye || 0))}</td>
                           <td className="px-4 py-3 text-right font-medium text-amber-700">{formatMontant(restant)}</td>
                           <td className="px-4 py-3">
-                            <span className={`px-2 py-0.5 rounded text-xs ${
-                              f.statut_paiement === 'paye' ? 'bg-green-100 text-green-800' :
-                              f.statut_paiement === 'partiel' ? 'bg-orange-100 text-orange-800' : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {f.statut_paiement}
+                            <span className={`px-2 py-0.5 rounded text-xs border ${getStatusColor(f.statut_paiement)}`}>
+                              {getStatusLabel(f.statut_paiement)}
                             </span>
                           </td>
                           <td className="px-4 py-3 print:hidden">

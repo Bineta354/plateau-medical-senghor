@@ -11,6 +11,9 @@ import {
   Clock
 } from 'lucide-react';
 import { formatDoctorSpecialties } from '../../utils/doctorUtils';
+import Pagination from '../../components/common/Pagination';
+
+const ITEMS_PER_PAGE = 20;
 
 const formatISODate = (date) => date.toISOString().split('T')[0];
 
@@ -39,6 +42,7 @@ const RechercheRendezVousPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isInitialMount, setIsInitialMount] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const specialitesDisponibles = useMemo(() => {
     const values = doctors
@@ -173,6 +177,7 @@ const RechercheRendezVousPage = () => {
       }
 
       setAppointments(filtered);
+      setCurrentPage(1);
     } catch (err) {
       console.error('Erreur lors de la recherche de rendez-vous:', err);
       setError("Une erreur est survenue lors de la recherche des rendez-vous.");
@@ -211,6 +216,12 @@ const RechercheRendezVousPage = () => {
       minute: '2-digit'
     });
   };
+
+  const totalPages = Math.max(1, Math.ceil(appointments.length / ITEMS_PER_PAGE));
+  const paginatedAppointments = appointments.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const renderStatusBadge = (statut) => {
     const config = {
@@ -428,7 +439,7 @@ const RechercheRendezVousPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {appointments.map((appointment) => (
+              {paginatedAppointments.map((appointment) => (
                 <tr key={appointment.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -484,6 +495,16 @@ const RechercheRendezVousPage = () => {
             </div>
           )}
         </div>
+
+        {!loading && appointments.length > 0 && (
+          <div className="border-t border-gray-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

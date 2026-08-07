@@ -127,12 +127,30 @@ const DoctorDashboard = () => {
       if (appointmentsError) throw appointmentsError;
       setTodayAppointments(appointmentsData || []);
 
+      // Consultations terminées aujourd'hui — requête séparée et volontaire :
+      // `queueData` ci-dessus est filtré sur les statuts actifs uniquement
+      // (.in('status', [...]) ne contient pas 'termine'), donc un filtre
+      // `q.status === 'termine'` dessus ne matchait jamais rien et le
+      // compteur "Terminées" du dashboard restait bloqué à 0. Voir
+      // FIX_ETAPE_2_MEDECIN.md point 1.
+      const { count: finishedCount, error: finishedError } = await supabase
+        .from('waiting_queue')
+        .select('id', { count: 'exact', head: true })
+        .eq('medecin_id', userProfile.id)
+        .eq('status', 'termine')
+        .gte('updated_at', today.toISOString())
+        .lt('updated_at', tomorrow.toISOString());
+
+      if (finishedError) {
+        console.warn('Erreur récupération consultations terminées:', finishedError);
+      }
+
       // Calculer les statistiques
       const queueStats = {
         totalWaiting: queueData?.filter(q => ['waiting', 'present', 'authorized'].includes(q.status)).length || 0,
         inConsultation: queueData?.filter(q => q.status === 'in_consultation').length || 0,
         newPatients: queueData?.filter(q => q.nouveau_en_attente).length || 0,
-        consultationsFinished: queueData?.filter(q => q.status === 'termine' && q.updated_at > new Date(Date.now() - 2 * 60 * 60 * 1000)).length || 0
+        consultationsFinished: finishedCount || 0
       };
       setStats(queueStats);
 
@@ -470,6 +488,33 @@ const DoctorDashboard = () => {
   useEffect(() => {
     console.log('currentPatient changé:', currentPatient);
   }, [currentPatient]);
+
+  // Badge de statut pour le widget "RDV du jour" — harmonisé avec le pattern
+  // déjà utilisé côté secrétaire (Prise de Rendez-vous). `appointments.statut`
+  // seul ne suffit pas : il reste à 'arrive' pendant toute la consultation
+  // (medecin_recoit_patient_simplifie ne touche que waiting_queue.status),
+  // donc on regarde d'abord l'entrée waiting_queue liée pour détecter
+  // "En consultation". Voir FIX_ETAPE_2_MEDECIN.md point 2.
+  const getAppointmentStatusBadge = (appointment) => {
+    const linkedQueue = Array.isArray(appointment.waiting_queue)
+      ? appointment.waiting_queue[0]
+      : appointment.waiting_queue;
+
+    if (linkedQueue?.status === 'in_consultation') {
+      return { label: 'En consultation', color: 'bg-green-100 text-green-800' };
+    }
+
+    const statusConfig = {
+      confirme: { label: 'Confirmé', color: 'bg-blue-100 text-blue-800' },
+      en_attente: { label: 'En attente', color: 'bg-yellow-100 text-yellow-800' },
+      arrive: { label: 'Arrivé', color: 'bg-orange-100 text-orange-800' },
+      termine: { label: 'Terminée', color: 'bg-gray-200 text-gray-700' },
+      annule: { label: 'Annulé', color: 'bg-red-100 text-red-800' },
+      non_honore: { label: 'Non honoré', color: 'bg-red-100 text-red-800' }
+    };
+
+    return statusConfig[appointment.statut] || { label: appointment.statut, color: 'bg-gray-100 text-gray-800' };
+  };
 
   if (loading) {
     return (
@@ -926,22 +971,30 @@ const DoctorDashboard = () => {
               <div className="p-4 max-h-64 overflow-y-auto">
                 {todayAppointments.length > 0 ? (
                   <div className="space-y-2">
-                    {todayAppointments.map((appointment) => (
-                      <div key={appointment.id} className="p-2 border rounded text-sm">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">
-                            {appointment.patient?.prenom} {appointment.patient?.nom}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(appointment.date_heure).toLocaleTimeString('fr-FR', { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}
-                          </span>
+                    {todayAppointments.map((appointment) => {
+                      const badge = getAppointmentStatusBadge(appointment);
+                      return (
+                        <div key={appointment.id} className="p-2 border rounded text-sm">
+                          <div className="flex justify-between items-center gap-2">
+                            <span className="font-medium truncate">
+                              {appointment.patient?.prenom} {appointment.patient?.nom}
+                            </span>
+                            <span className="flex items-center gap-2 flex-shrink-0">
+                              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${badge.color}`}>
+                                {badge.label}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {new Date(appointment.date_heure).toLocaleTimeString('fr-FR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600">{appointment.motif}</p>
                         </div>
-                        <p className="text-xs text-gray-600">{appointment.motif}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-4">

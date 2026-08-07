@@ -4,7 +4,7 @@ import {
     Save
 } from 'lucide-react';
 import { unifiedNotificationService } from '../../../services/unifiedNotificationService';
-import { updateFacture } from '../../../services/factureService';
+import { updateFacture } from '../../../services/paiementService';
 import { Receipt } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { formatMontant } from '../../../utils/currency';

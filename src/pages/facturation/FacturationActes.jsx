@@ -34,6 +34,9 @@ import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import FactureCard from '../../components/facturation/FactureCard';
 import FactureDetailsModal from '../../components/facturation/FactureDetailsModal';
+import Pagination from '../../components/common/Pagination';
+
+const ITEMS_PER_PAGE = 20;
 
 const FacturationActes = () => {
   const { tenantId } = useAuth();
@@ -44,6 +47,7 @@ const FacturationActes = () => {
   const [selectedActe, setSelectedActe] = useState(null);
   const [showDetails, setShowDetails] = useState(null);
   const [editingFacture, setEditingFacture] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [factureData, setFactureData] = useState({
     patientId: '',
     actesSelectionnes: [], // Tableau pour plusieurs actes
@@ -211,7 +215,7 @@ const FacturationActes = () => {
           montantAssurance: montantAssurance,
           montantPatient: montantPatient,
           total: montantTotal,
-          statut: 'payee', // À adapter selon votre logique
+          statut: 'paye', // À adapter selon votre logique
           medecin: medecin ? `Dr. ${medecin.prenom} ${medecin.nom}` : 'Non spécifié'
         };
       }) || [];
@@ -234,6 +238,16 @@ const FacturationActes = () => {
     const matchesStatus = selectedStatus === 'all' || facture.statut === selectedStatus;
     return matchesSearch && matchesStatus;
   });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedStatus]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredFacturations.length / ITEMS_PER_PAGE));
+  const paginatedFacturations = filteredFacturations.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -1051,7 +1065,7 @@ const FacturationActes = () => {
                   </td>
                 </tr>
               ) : (
-                filteredFacturations.map((facture) => (
+                paginatedFacturations.map((facture) => (
                   <FactureCard
                     key={facture.id}
                     facture={facture}
@@ -1066,6 +1080,16 @@ const FacturationActes = () => {
             </tbody>
           </table>
         </div>
+
+        {!loading && filteredFacturations.length > 0 && (
+          <div className="border-t border-gray-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
       </div>
 
       {/* Modal de détails compact */}
