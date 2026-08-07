@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { motion } from 'framer-motion';
-import { 
-    PlusIcon, 
-    PencilIcon, 
-    TrashIcon, 
+import KpiCard from '../../components/common/KpiCard';
+import {
+    PlusIcon,
+    PencilIcon,
+    TrashIcon,
     ExclamationTriangleIcon,
     CalendarIcon,
     UserIcon,
@@ -256,51 +257,11 @@ const ExamensPage = () => {
 
                 {/* Statistiques */}
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-                    <div className="bg-white p-6 rounded-lg shadow-md">
-                        <div className="flex items-center">
-                            <CalendarIcon className="h-8 w-8 text-blue-600 mr-3" />
-                            <div>
-                                <p className="text-sm text-gray-600">Total</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow-md">
-                        <div className="flex items-center">
-                            <ClockIcon className="h-8 w-8 text-blue-600 mr-3" />
-                            <div>
-                                <p className="text-sm text-gray-600">Prescrits</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats.prescrits}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow-md">
-                        <div className="flex items-center">
-                            <ClockIcon className="h-8 w-8 text-yellow-600 mr-3" />
-                            <div>
-                                <p className="text-sm text-gray-600">En Cours</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats.enCours}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow-md">
-                        <div className="flex items-center">
-                            <ClockIcon className="h-8 w-8 text-green-600 mr-3" />
-                            <div>
-                                <p className="text-sm text-gray-600">Terminés</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats.termines}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow-md">
-                        <div className="flex items-center">
-                            <ExclamationTriangleIcon className="h-8 w-8 text-red-600 mr-3" />
-                            <div>
-                                <p className="text-sm text-gray-600">Urgents</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats.urgents}</p>
-                            </div>
-                        </div>
-                    </div>
+                    <KpiCard icon={CalendarIcon} tone="blue" label="Total" value={stats.total} />
+                    <KpiCard icon={ClockIcon} tone="blue" label="Prescrits" value={stats.prescrits} />
+                    <KpiCard icon={ClockIcon} tone="yellow" label="En Cours" value={stats.enCours} />
+                    <KpiCard icon={ClockIcon} tone="green" label="Terminés" value={stats.termines} />
+                    <KpiCard icon={ExclamationTriangleIcon} tone="red" label="Urgents" value={stats.urgents} />
                 </div>
 
                 {/* Filtres */}

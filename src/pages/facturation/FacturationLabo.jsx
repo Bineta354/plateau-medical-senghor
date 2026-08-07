@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import SearchableSelect from '../../components/common/SearchableSelect';
+import KpiCard from '../../components/common/KpiCard';
 import { useAlert } from '../../contexts/AlertContext';
 import { formatMontant } from '../../utils/currency';
 
@@ -463,51 +464,28 @@ const FacturationLabo = () => {
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <TestTube className="w-8 h-8 text-blue-600 mr-4" />
-            <div>
-              <p className="text-sm font-medium text-gray-500">Total analyses</p>
-              <p className="text-2xl font-semibold text-gray-900">{facturationLabo.length}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <CheckCircle className="w-8 h-8 text-green-600 mr-4" />
-            <div>
-              <p className="text-sm font-medium text-gray-500">Terminées</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {facturationLabo.filter(f => f.statut === 'termine').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <Clock className="w-8 h-8 text-yellow-600 mr-4" />
-            <div>
-              <p className="text-sm font-medium text-gray-500">En cours</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {facturationLabo.filter(f => f.statut === 'en_cours').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <Coins className="w-8 h-8 text-medical-primary mr-4" />
-            <div>
-              <p className="text-sm font-medium text-gray-500">Chiffre d'affaires</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {formatMontant(facturationLabo.reduce((sum, f) => sum + f.total, 0))}
-              </p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={TestTube} tone="blue" label="Total analyses" value={facturationLabo.length} />
+        <KpiCard
+          icon={CheckCircle}
+          tone="green"
+          label="Terminées"
+          value={facturationLabo.filter(f => f.statut === 'termine').length}
+        />
+        <KpiCard
+          icon={Clock}
+          tone="yellow"
+          label="En cours"
+          value={facturationLabo.filter(f => f.statut === 'en_cours').length}
+        />
+        <KpiCard
+          icon={Coins}
+          label="Chiffre d'affaires"
+          value={formatMontant(facturationLabo.reduce((sum, f) => sum + f.total, 0))}
+          className="rounded-lg p-4 bg-medical-primary/10 hover:shadow-md"
+          iconClassName="text-medical-primary"
+          valueClassName="text-medical-primary"
+          labelClassName="text-medical-primary"
+        />
       </div>
 
       {/* Formulaire */}

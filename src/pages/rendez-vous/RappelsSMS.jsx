@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import KpiCard from '../../components/common/KpiCard';
 
 const RappelsSMS = () => {
   const [rappels, setRappels] = useState([]);
@@ -362,30 +363,10 @@ const RappelsSMS = () => {
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="text-2xl font-bold text-blue-600">
-            {rappels.filter(r => r.statut === 'en_attente').length}
-          </div>
-          <div className="text-sm text-gray-600">En attente</div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="text-2xl font-bold text-green-600">
-            {rappels.filter(r => r.statut === 'envoye').length}
-          </div>
-          <div className="text-sm text-gray-600">Envoyés</div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="text-2xl font-bold text-blue-600">
-            {rappels.filter(r => r.statut === 'delivre').length}
-          </div>
-          <div className="text-sm text-gray-600">Délivrés</div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="text-2xl font-bold text-red-600">
-            {rappels.filter(r => r.statut === 'erreur').length}
-          </div>
-          <div className="text-sm text-gray-600">Erreurs</div>
-        </div>
+        <KpiCard tone="blue" label="En attente" value={rappels.filter(r => r.statut === 'en_attente').length} />
+        <KpiCard tone="green" label="Envoyés" value={rappels.filter(r => r.statut === 'envoye').length} />
+        <KpiCard tone="blue" label="Délivrés" value={rappels.filter(r => r.statut === 'delivre').length} />
+        <KpiCard tone="red" label="Erreurs" value={rappels.filter(r => r.statut === 'erreur').length} />
       </div>
 
       {/* Liste des rappels */}

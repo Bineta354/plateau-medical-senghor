@@ -13,6 +13,7 @@ import {
 } from '../../lib/notifications';
 import useUserProfile from '../../hooks/useUserProfile';
 import { Bell, AlertTriangle, CheckCircle, Clock, Filter, Search, RefreshCw, Trash2, Check } from 'lucide-react';
+import KpiCard from '../../components/common/KpiCard';
 
 const NotificationsRealtime = () => {
   const [notifications, setNotifications] = useState([]);
@@ -209,68 +210,32 @@ const NotificationsRealtime = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</p>
-            </div>
-            <div className="p-3 rounded-full bg-blue-100">
-              <Bell className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
+          <KpiCard icon={Bell} tone="blue" label="Total" value={stats.total} />
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Non lues</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.nonLues}</p>
-            </div>
-            <div className="p-3 rounded-full bg-yellow-100">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
-          </div>
+          <KpiCard icon={Clock} tone="yellow" label="Non lues" value={stats.nonLues} />
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Urgentes</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.urgentes}</p>
-            </div>
-            <div className="p-3 rounded-full bg-red-100">
-              <AlertTriangle className="w-6 h-6 text-red-600" />
-            </div>
-          </div>
+          <KpiCard icon={AlertTriangle} tone="red" label="Urgentes" value={stats.urgentes} />
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Aujourd'hui</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.aujourdhui}</p>
-            </div>
-            <div className="p-3 rounded-full bg-green-100">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
+          <KpiCard icon={CheckCircle} tone="green" label="Aujourd'hui" value={stats.aujourdhui} />
         </motion.div>
       </div>
 

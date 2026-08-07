@@ -23,6 +23,7 @@ import {
   ClipboardList,
   Activity
 } from 'lucide-react';
+import KpiCard from '../components/common/KpiCard';
 
 const BcdsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -185,53 +186,13 @@ const BcdsPage = () => {
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-md p-6 border border-blue-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 bg-blue-500 p-3 rounded-lg">
-              <FileText className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-blue-700">Total BCDS</p>
-              <p className="text-2xl font-bold text-blue-900">{bcdsEntries.length}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-md p-6 border border-purple-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 bg-purple-500 p-3 rounded-lg">
-              <Brain className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-purple-700">Spécialités</p>
-              <p className="text-2xl font-bold text-purple-900">{categories.length}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-md p-6 border border-green-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 bg-green-500 p-3 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-green-700">Validées</p>
-              <p className="text-2xl font-bold text-green-900">{bcdsEntries.length}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl shadow-md p-6 border border-yellow-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 bg-yellow-500 p-3 rounded-lg">
-              <Lightbulb className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-yellow-700">Consultations</p>
-              <p className="text-2xl font-bold text-yellow-900">156</p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={FileText} tone="blue" label="Total BCDS" value={bcdsEntries.length} />
+
+        <KpiCard icon={Brain} tone="purple" label="Spécialités" value={categories.length} />
+
+        <KpiCard icon={CheckCircle} tone="green" label="Validées" value={bcdsEntries.length} />
+
+        <KpiCard icon={Lightbulb} tone="yellow" label="Consultations" value={156} />
       </div>
 
       {/* Barre de recherche et filtres */}

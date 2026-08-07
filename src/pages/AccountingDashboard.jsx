@@ -14,6 +14,7 @@ import { supabase } from '../lib/supabase';
 import { useToast } from '../hooks/useToast';
 import { formatMontant } from '../utils/currency';
 import { getStatusLabel, isOutstanding } from '../utils/factureStatus';
+import KpiCard from '../components/common/KpiCard';
 
 /**
  * Tableau de bord comptable unique — fusionne l'ancien AccountingDashboard.jsx
@@ -216,22 +217,6 @@ const AccountingDashboard = () => {
     });
   }, [recentInvoices, tableSearch, tableStatus]);
 
-  const getStatCard = (title, value, icon, color, onClick = null) => (
-    <button
-      type="button"
-      onClick={onClick || undefined}
-      className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-left ${onClick ? 'hover:shadow-md hover:border-gray-300 transition-shadow' : ''}`}
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
-        </div>
-        <div className={`p-3 rounded-full ${color}`}>{icon}</div>
-      </div>
-    </button>
-  );
-
   const getStatusBadge = (status) => {
     const styles = {
       paye: 'bg-green-100 text-green-800',
@@ -283,10 +268,38 @@ const AccountingDashboard = () => {
 
       {/* Statistiques principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {getStatCard('Total Factures', stats.totalInvoices, <FileText className="w-6 h-6 text-blue-600" />, 'bg-blue-100', () => navigate('/facturation/factures'))}
-        {getStatCard('Factures Payées', stats.paidInvoices, <CheckCircle className="w-6 h-6 text-green-600" />, 'bg-green-100', () => navigate('/facturation/factures?status=paye'))}
-        {getStatCard('En Attente', stats.pendingInvoices, <Clock className="w-6 h-6 text-yellow-600" />, 'bg-yellow-100', () => navigate('/facturation/factures?status=en_attente'))}
-        {getStatCard('Impayées', stats.unpaidInvoices, <AlertCircle className="w-6 h-6 text-red-600" />, 'bg-red-100', () => navigate('/facturation/factures?status=impaye'))}
+        <KpiCard
+          icon={FileText}
+          tone="blue"
+          label="Total Factures"
+          value={stats.totalInvoices}
+          hoverMessage="Voir toutes les factures"
+          onClick={() => navigate('/facturation/factures')}
+        />
+        <KpiCard
+          icon={CheckCircle}
+          tone="green"
+          label="Factures Payées"
+          value={stats.paidInvoices}
+          hoverMessage="Voir les factures payées"
+          onClick={() => navigate('/facturation/factures?status=paye')}
+        />
+        <KpiCard
+          icon={Clock}
+          tone="yellow"
+          label="En Attente"
+          value={stats.pendingInvoices}
+          hoverMessage="Voir les factures en attente"
+          onClick={() => navigate('/facturation/factures?status=en_attente')}
+        />
+        <KpiCard
+          icon={AlertCircle}
+          tone="red"
+          label="Impayées"
+          value={stats.unpaidInvoices}
+          hoverMessage="Voir les factures impayées"
+          onClick={() => navigate('/facturation/factures?status=impaye')}
+        />
       </div>
 
       {/* Statistiques financières */}
@@ -388,10 +401,38 @@ const AccountingDashboard = () => {
         </div>
 
         <div className="space-y-6">
-          {getStatCard('Total facturé', formatMontant(kpis.billed), <Coins className="w-6 h-6 text-green-600" />, 'bg-green-100', () => navigate('/comptabilite/recherche-rapports'))}
-          {getStatCard('Encaissements', formatMontant(kpis.collected), <Clock className="w-6 h-6 text-yellow-600" />, 'bg-yellow-100', () => navigate('/facturation/factures?status=paye'))}
-          {getStatCard('Reste à encaisser', formatMontant(kpis.remaining), <AlertCircle className="w-6 h-6 text-red-600" />, 'bg-red-100', () => navigate('/facturation/factures?status=outstanding'))}
-          {getStatCard('Taux de recouvrement', `${kpis.collectionRate}%`, <TrendingUp className="w-6 h-6 text-purple-600" />, 'bg-purple-100', () => navigate('/comptabilite/recherche-rapports'))}
+          <KpiCard
+            icon={Coins}
+            tone="green"
+            label="Total facturé"
+            value={formatMontant(kpis.billed)}
+            hoverMessage="Voir les rapports détaillés (période non pré-filtrée)"
+            onClick={() => navigate('/comptabilite/recherche-rapports')}
+          />
+          <KpiCard
+            icon={Clock}
+            tone="yellow"
+            label="Encaissements"
+            value={formatMontant(kpis.collected)}
+            hoverMessage="Voir les factures payées"
+            onClick={() => navigate('/facturation/factures?status=paye')}
+          />
+          <KpiCard
+            icon={AlertCircle}
+            tone="red"
+            label="Reste à encaisser"
+            value={formatMontant(kpis.remaining)}
+            hoverMessage="Voir les factures non soldées"
+            onClick={() => navigate('/facturation/factures?status=outstanding')}
+          />
+          <KpiCard
+            icon={TrendingUp}
+            tone="purple"
+            label="Taux de recouvrement"
+            value={`${kpis.collectionRate}%`}
+            hoverMessage="Voir les rapports détaillés (période non pré-filtrée)"
+            onClick={() => navigate('/comptabilite/recherche-rapports')}
+          />
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">

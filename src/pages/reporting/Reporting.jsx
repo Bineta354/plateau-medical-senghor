@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { formatMontant } from '../../utils/currency';
+import KpiCard from '../../components/common/KpiCard';
 
 const Reporting = () => {
   const { currentUser, userProfile } = useAuth();
@@ -307,12 +308,11 @@ const Reporting = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {resumeGlobal.map((item, index) => (
-                <div key={`resume-${index}`} className="bg-gray-50 rounded-lg p-4">
-                  <div className="text-sm font-medium text-gray-500">{item.metrique}</div>
-                  <div className="mt-2 text-2xl font-bold text-gray-900">
-                    {item.valeur ? formaterNombre(item.valeur) : formatMontant(item.montant)}
-                  </div>
-                </div>
+                <KpiCard
+                  key={`resume-${index}`}
+                  label={item.metrique}
+                  value={item.valeur ? formaterNombre(item.valeur) : formatMontant(item.montant)}
+                />
               ))}
             </div>
 

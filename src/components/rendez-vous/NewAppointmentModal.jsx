@@ -167,7 +167,7 @@ export const NewAppointmentModal = ({
       )}
 
       {isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 !m-0 h-screen w-screen bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[92vh] overflow-y-auto">
             {dataLoading || !dataLoaded ? (
               <div className="flex items-center justify-center p-16">

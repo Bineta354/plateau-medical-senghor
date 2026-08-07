@@ -25,7 +25,7 @@ import {
   matchesQueueFilterStatus,
   hasPastAppointment,
 } from '../../utils/waitingQueueStatus';
-import ClickableStatCard from '../common/ClickableStatCard';
+import KpiCard from '../common/KpiCard';
 
 const DoctorSpecificQueue = ({
   doctor,
@@ -422,41 +422,41 @@ const DoctorSpecificQueue = ({
 
         {/* Statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <ClickableStatCard
+          <KpiCard
             tone="blue"
             icon={UserCheck}
             label="Patients actifs"
             value={queueStats.total}
             onClick={() => handleStatCardClick('all')}
             active={statFilter === 'all'}
-            title="Afficher tous les patients actifs"
+            hoverMessage="Afficher tous les patients actifs"
           />
-          <ClickableStatCard
+          <KpiCard
             tone="yellow"
             icon={Clock}
             label="En salle"
             value={queueStats.onBench}
             onClick={() => handleStatCardClick('waiting')}
             active={statFilter === 'waiting'}
-            title="Filtrer les patients en salle"
+            hoverMessage="Filtrer les patients en salle"
           />
-          <ClickableStatCard
+          <KpiCard
             tone="purple"
             icon={Stethoscope}
             label="En consultation"
             value={queueStats.inConsultation}
             onClick={() => handleStatCardClick('in_consultation')}
             active={statFilter === 'in_consultation'}
-            title="Filtrer les patients en consultation"
+            hoverMessage="Filtrer les patients en consultation"
           />
-          <ClickableStatCard
+          <KpiCard
             tone="green"
             icon={Calendar}
             label="Rendez-vous"
             value={appointments.length}
             onClick={() => handleStatCardClick('appointments')}
             active={statFilter === 'appointments'}
-            title="Voir les rendez-vous du jour"
+            hoverMessage="Voir les rendez-vous du jour"
           />
         </div>
       </div>

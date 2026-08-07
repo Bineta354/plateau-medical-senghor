@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { formatMontant } from '../../utils/currency';
 import { getStatusColor, getStatusLabel } from '../../utils/factureStatus';
 import { MODES_PAIEMENT, getModePaiementLabel } from '../../config/modesPaiement';
+import KpiCard from '../../components/common/KpiCard';
 
 /**
  * Recherche & Rapports — fusionne RechercheAvancee.jsx, RapportsFinanciers.jsx
@@ -186,28 +187,17 @@ const RechercheRapports = () => {
 
       {/* Rapport / synthèse sur le résultat filtré */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <p className="text-sm font-medium text-gray-600">Factures trouvées</p>
-          <p className="text-2xl font-bold text-gray-900">{rapport.nombre}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <p className="text-sm font-medium text-gray-600">Total facturé</p>
-          <p className="text-2xl font-bold text-gray-900">{formatMontant(rapport.totalFacture)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <p className="text-sm font-medium text-gray-600">Encaissé</p>
-          <p className="text-2xl font-bold text-green-600">{formatMontant(rapport.totalEncaisse)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <p className="text-sm font-medium text-gray-600">Reste à encaisser</p>
-          <p className="text-2xl font-bold text-orange-600">{formatMontant(rapport.totalRestant)}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <p className="text-sm font-medium text-gray-600">Taux de recouvrement</p>
-          <p className="text-2xl font-bold text-purple-600 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" /> {rapport.tauxRecouvrement}%
-          </p>
-        </div>
+        <KpiCard label="Factures trouvées" value={rapport.nombre} tone="gray" />
+        <KpiCard label="Total facturé" value={formatMontant(rapport.totalFacture)} tone="gray" />
+        <KpiCard label="Encaissé" value={formatMontant(rapport.totalEncaisse)} tone="green" />
+        <KpiCard
+          label="Reste à encaisser"
+          value={formatMontant(rapport.totalRestant)}
+          className="rounded-lg p-4 bg-orange-50 hover:shadow-md"
+          valueClassName="text-orange-600"
+          labelClassName="text-orange-700"
+        />
+        <KpiCard icon={TrendingUp} label="Taux de recouvrement" value={`${rapport.tauxRecouvrement}%`} tone="purple" />
       </div>
 
       {/* Filtres */}

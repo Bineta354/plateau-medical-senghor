@@ -40,6 +40,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { MODES_PAIEMENT, ETAPES_MOBILE_MONEY as ETAPES_MOBILE_MONEY_BASE } from '../../config/modesPaiement';
 import { enregistrerPaiement } from '../../services/paiementService';
+import KpiCard from '../../components/common/KpiCard';
 
 const ETAPES_MOBILE_MONEY = (nom, montant) =>
   ETAPES_MOBILE_MONEY_BASE(nom, formatMontant(Number(montant)));
@@ -1809,26 +1810,30 @@ const Caisse = () => {
         {sessionCaisse ? (
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                <p className="text-sm text-gray-600">Fond de caisse</p>
-                <p className="text-xl font-bold text-yellow-800">{formatMontant(sessionCaisse.fond_caisse || 0)}</p>
-                <p className="text-xs text-gray-500 mt-1">Ouvert le {new Date(sessionCaisse.heure_ouverture).toLocaleString('fr-FR')}</p>
-              </div>
-              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                <p className="text-sm text-gray-600">Total journée</p>
-                <p className="text-xl font-bold text-green-800">{formatMontant(etatCaisse.totalAujourdhui)}</p>
-                <p className="text-xs text-gray-500 mt-1">Paiements aujourd'hui</p>
-              </div>
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <p className="text-sm text-gray-600">Solde actuel</p>
-                <p className="text-xl font-bold text-blue-800">{formatMontant(etatCaisse.solde)}</p>
-                <p className="text-xs text-gray-500 mt-1">Fond + Total journée</p>
-              </div>
-              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                <p className="text-sm text-gray-600">Ce mois</p>
-                <p className="text-xl font-bold text-purple-800">{formatMontant(etatCaisse.totalMois)}</p>
-                <p className="text-xs text-gray-500 mt-1">Total mensuel</p>
-              </div>
+              <KpiCard
+                tone="yellow"
+                label="Fond de caisse"
+                value={formatMontant(sessionCaisse.fond_caisse || 0)}
+                hint={`Ouvert le ${new Date(sessionCaisse.heure_ouverture).toLocaleString('fr-FR')}`}
+              />
+              <KpiCard
+                tone="green"
+                label="Total journée"
+                value={formatMontant(etatCaisse.totalAujourdhui)}
+                hint="Paiements aujourd'hui"
+              />
+              <KpiCard
+                tone="blue"
+                label="Solde actuel"
+                value={formatMontant(etatCaisse.solde)}
+                hint="Fond + Total journée"
+              />
+              <KpiCard
+                tone="purple"
+                label="Ce mois"
+                value={formatMontant(etatCaisse.totalMois)}
+                hint="Total mensuel"
+              />
             </div>
             <div className="bg-gray-50 p-3 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Répartition par mode (aujourd'hui)</p>
@@ -1889,18 +1894,15 @@ const Caisse = () => {
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                  <p className="text-sm text-gray-600">Total factures (jour)</p>
-                  <p className="text-xl font-bold text-blue-800">{formatMontant(detailsJournee.totals.factures)}</p>
-                </div>
-                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                  <p className="text-sm text-gray-600">Part patient</p>
-                  <p className="text-xl font-bold text-green-800">{formatMontant(detailsJournee.totals.patient)}</p>
-                </div>
-                <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-                  <p className="text-sm text-gray-600">Part couverture (IPM / assurance / mutuelle)</p>
-                  <p className="text-xl font-bold text-amber-800">{formatMontant(detailsJournee.totals.couverture)}</p>
-                </div>
+                <KpiCard label="Total factures (jour)" value={formatMontant(detailsJournee.totals.factures)} tone="blue" />
+                <KpiCard label="Part patient" value={formatMontant(detailsJournee.totals.patient)} tone="green" />
+                <KpiCard
+                  label="Part couverture (IPM / assurance / mutuelle)"
+                  value={formatMontant(detailsJournee.totals.couverture)}
+                  className="rounded-lg p-4 bg-amber-50 hover:shadow-md"
+                  valueClassName="text-amber-600"
+                  labelClassName="text-amber-700"
+                />
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                   <p className="text-sm text-gray-600">Par mode (jour)</p>
                   <div className="flex flex-wrap gap-1.5 mt-1">

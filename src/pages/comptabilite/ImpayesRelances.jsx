@@ -6,6 +6,7 @@ import {
   Mail, Smartphone, TrendingUp, Users, ShieldCheck, Inbox
 } from 'lucide-react';
 import { formatMontant } from '../../utils/currency';
+import KpiCard from '../../components/common/KpiCard';
 
 /**
  * Impayés & Relances — fusion de AlertesImpayes.jsx (comptabilité) et
@@ -59,26 +60,6 @@ const getSeveriteAvatarColor = (severite) => {
 const initiales = (prenom, nom) => `${(prenom || '?')[0] || '?'}${(nom || '')[0] || ''}`.toUpperCase();
 
 const formatDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR') : '—');
-
-/** Petite carte de statistique, réutilisée par les deux onglets. */
-const StatCard = ({ icon: Icon, label, value, tone = 'purple' }) => {
-  const tones = {
-    purple: 'bg-purple-100 text-purple-600',
-    red: 'bg-red-100 text-red-600',
-    blue: 'bg-blue-100 text-blue-600',
-  };
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-center gap-4">
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${tones[tone]}`}>
-        <Icon className="w-5 h-5" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-gray-500">{label}</p>
-        <p className="text-xl font-bold text-gray-900 truncate">{value}</p>
-      </div>
-    </div>
-  );
-};
 
 const ExpandChevron = ({ open }) => (
   <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -438,9 +419,9 @@ const ImpayesRelances = () => {
         <>
           {/* Statistiques */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <StatCard icon={Users} label="Patients concernés" value={statsPatients.total} tone="purple" />
-            <StatCard icon={AlertTriangle} label="Situations critiques (> 60 j)" value={statsPatients.critiques} tone="red" />
-            <StatCard icon={TrendingUp} label="Montant total dû" value={formatMontant(statsPatients.montantTotal)} tone="blue" />
+            <KpiCard icon={Users} label="Patients concernés" value={statsPatients.total} tone="purple" />
+            <KpiCard icon={AlertTriangle} label="Situations critiques (> 60 j)" value={statsPatients.critiques} tone="red" />
+            <KpiCard icon={TrendingUp} label="Montant total dû" value={formatMontant(statsPatients.montantTotal)} tone="blue" />
           </div>
 
           {/* Filtres */}
@@ -496,9 +477,9 @@ const ImpayesRelances = () => {
         <>
           {/* Statistiques assurance */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <StatCard icon={ShieldCheck} label="Assureurs concernés" value={statsAssurance.total} tone="purple" />
-            <StatCard icon={AlertTriangle} label="Factures en attente" value={statsAssurance.factures} tone="red" />
-            <StatCard icon={TrendingUp} label="Montant total dû" value={formatMontant(statsAssurance.montantTotal)} tone="blue" />
+            <KpiCard icon={ShieldCheck} label="Assureurs concernés" value={statsAssurance.total} tone="purple" />
+            <KpiCard icon={AlertTriangle} label="Factures en attente" value={statsAssurance.factures} tone="red" />
+            <KpiCard icon={TrendingUp} label="Montant total dû" value={formatMontant(statsAssurance.montantTotal)} tone="blue" />
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">

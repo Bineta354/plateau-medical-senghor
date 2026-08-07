@@ -1,9 +1,10 @@
 import { useConsultations } from '../../hooks/consultation/useConsultations';
 import { supabase } from '../../lib/supabase';
-import { 
-  PlusIcon, 
-  PencilIcon, 
-  TrashIcon, 
+import KpiCard from '../../components/common/KpiCard';
+import {
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
   DocumentTextIcon,
@@ -293,34 +294,19 @@ const Labo = () => {
 
       {/* Statistiques */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-          <div className="text-sm text-gray-600">Total</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-blue-500">{stats.prescrit}</div>
-          <div className="text-sm text-gray-600">Prescrites</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-yellow-500">{stats.preleve}</div>
-          <div className="text-sm text-gray-600">Prélevées</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-orange-500">{stats.en_cours}</div>
-          <div className="text-sm text-gray-600">En cours</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-green-500">{stats.termine}</div>
-          <div className="text-sm text-gray-600">Terminées</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-red-500">{stats.annule}</div>
-          <div className="text-sm text-gray-600">Annulées</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-red-600">{stats.urgent}</div>
-          <div className="text-sm text-gray-600">Urgentes</div>
-        </div>
+        <KpiCard tone="blue" label="Total" value={stats.total} />
+        <KpiCard tone="blue" label="Prescrites" value={stats.prescrit} />
+        <KpiCard tone="yellow" label="Prélevées" value={stats.preleve} />
+        <KpiCard
+          label="En cours"
+          value={stats.en_cours}
+          className="rounded-lg p-4 bg-orange-50 hover:shadow-md"
+          valueClassName="text-orange-600"
+          labelClassName="text-orange-700"
+        />
+        <KpiCard tone="green" label="Terminées" value={stats.termine} />
+        <KpiCard tone="red" label="Annulées" value={stats.annule} />
+        <KpiCard tone="red" label="Urgentes" value={stats.urgent} />
       </div>
 
       {/* Filtres et recherche */}

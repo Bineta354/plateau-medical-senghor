@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { DocumentTextIcon, CalendarIcon, PrinterIcon } from '@heroicons/react/24/outline';
 import { formatMontant } from '../../utils/currency';
+import KpiCard from '../../components/common/KpiCard';
 
 const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
@@ -113,18 +114,15 @@ const ArreteMensuel = () => {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-              <p className="text-sm text-gray-600">Total fonds de caisse</p>
-              <p className="text-xl font-bold text-amber-800">{formatMontant(totalFond)}</p>
-            </div>
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-              <p className="text-sm text-gray-600">Total encaissements</p>
-              <p className="text-xl font-bold text-green-800">{formatMontant(totalJournalier)}</p>
-            </div>
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <p className="text-sm text-gray-600">Total soldes fin de jour</p>
-              <p className="text-xl font-bold text-blue-800">{formatMontant(totalSolde)}</p>
-            </div>
+            <KpiCard
+              label="Total fonds de caisse"
+              value={formatMontant(totalFond)}
+              className="rounded-lg p-4 bg-amber-50 hover:shadow-md"
+              valueClassName="text-amber-600"
+              labelClassName="text-amber-700"
+            />
+            <KpiCard label="Total encaissements" value={formatMontant(totalJournalier)} tone="green" />
+            <KpiCard label="Total soldes fin de jour" value={formatMontant(totalSolde)} tone="blue" />
           </div>
 
           <div ref={printRef} className="bg-white rounded-xl shadow overflow-hidden print:shadow-none">

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { formatMontant } from '../../utils/currency';
+import KpiCard from '../../components/common/KpiCard';
 
 const PERIODS = [
   { value: 'today', label: "Aujourd'hui" },
@@ -229,57 +230,31 @@ const SuiviCaissiers = () => {
 
       {/* Enhanced stats cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total encaissé</p>
-              <p className="text-2xl font-bold text-gray-900">{formatMontant(grandTotal)}</p>
-            </div>
-            <TrendingUp className="w-8 h-8 text-purple-600" />
-          </div>
-        </div>
+        <KpiCard icon={TrendingUp} label="Total encaissé" value={formatMontant(grandTotal)} tone="purple" />
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Paiements</p>
-              <p className="text-2xl font-bold text-gray-900">{filteredPaiements.length}</p>
-            </div>
-            <CreditCard className="w-8 h-8 text-indigo-600" />
-          </div>
-        </div>
+        <KpiCard
+          icon={CreditCard}
+          label="Paiements"
+          value={filteredPaiements.length}
+          className="rounded-lg p-4 bg-indigo-50 hover:shadow-md"
+          iconClassName="text-indigo-600"
+          valueClassName="text-indigo-600"
+          labelClassName="text-indigo-700"
+        />
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Ticket moyen</p>
-              <p className="text-2xl font-bold text-gray-900">{formatMontant(averageTicket)}</p>
-            </div>
-            <Coins className="w-8 h-8 text-green-600" />
-          </div>
-        </div>
+        <KpiCard icon={Coins} label="Ticket moyen" value={formatMontant(averageTicket)} tone="green" />
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Caissiers actifs</p>
-              <p className="text-2xl font-bold text-gray-900">{totalsByCaissier.length}</p>
-            </div>
-            <User className="w-8 h-8 text-blue-600" />
-          </div>
-        </div>
+        <KpiCard icon={User} label="Caissiers actifs" value={totalsByCaissier.length} tone="blue" />
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Période</p>
-              <p className="text-lg font-bold text-gray-900">
-                {PERIODS.find((p) => p.value === period)?.label || period}
-              </p>
-            </div>
-            <Calendar className="w-8 h-8 text-orange-600" />
-          </div>
-        </div>
+        <KpiCard
+          icon={Calendar}
+          label="Période"
+          value={PERIODS.find((p) => p.value === period)?.label || period}
+          className="rounded-lg p-4 bg-orange-50 hover:shadow-md"
+          iconClassName="text-orange-600"
+          valueClassName="text-orange-600"
+          labelClassName="text-orange-700"
+        />
       </div>
 
       <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">

@@ -29,8 +29,10 @@ import {
   isStuckInConsultation,
   filterOutStuckConsultations,
   isAbandonedOver24h,
+  isOnWaitingBench,
+  isInConsultationQueueStatus,
 } from '../../utils/waitingQueueStatus';
-import ClickableStatCard from '../common/ClickableStatCard';
+import KpiCard from '../common/KpiCard';
 import { shouldHidePastAppointment } from '../../utils/appointmentDisplay';
 import * as consultationService from '../../services/consultation/consultationService';
 
@@ -622,53 +624,58 @@ const GlobalWaitingQueue = ({
 
   // Calculer les statistiques par médecin pour le tableau récapitulatif
   const doctorStats = doctors.map(doctor => {
-    // Utiliser waiting_queue pour les patients en attente/en cours
+    // Utiliser waiting_queue pour les patients en attente/en cours. On ne
+    // s'appuie plus sur une liste de statuts codée en dur ici : le workflow a
+    // plus d'états que "waiting/present/arrive" (authorized, called, appele,
+    // en_route, medecin_pret...) — un patient dans un de ces statuts ne
+    // comptait avant dans NI "En attente" NI "En consultation", et
+    // disparaissait donc du total. Le découpage à retenir n'est que celui du
+    // statut de la consultation : en attente de consultation / en
+    // consultation / terminée — pas "combien sont physiquement dans la salle
+    // d'attente". `isOnWaitingBench` / `isInConsultationQueueStatus` (déjà
+    // utilisées par les KPI de cette page) forment une partition complète des
+    // statuts actifs, donc enAttente + enConsultation = tous les présents.
     const doctorQueue = waitingQueues[doctor.id] || [];
-    
-    const enAttente = doctorQueue.filter(p => 
-      p.status === 'waiting' || 
-      p.status === 'en_attente' || 
-      p.status === 'present' || 
-      p.status === 'arrive'
-    ).length;
-    
-    const enConsultation = doctorQueue.filter(p => 
-      p.status === 'in_consultation' || 
-      p.status === 'en_consultation'
-    ).length;
-    
+    const activeDoctorQueue = filterActiveQueueItems(doctorQueue);
+
+    const enAttente = activeDoctorQueue.filter(p => isOnWaitingBench(p.status)).length;
+
+    const enConsultation = activeDoctorQueue.filter(p => isInConsultationQueueStatus(p.status)).length;
+
     // Utiliser la table consultations pour les consultations terminées
     const doctorConsultations = consultationsByDoctor[doctor.id] || [];
-    const terminees = doctorConsultations.filter(c => 
-      c.statut === 'terminee' || 
+    const finishedConsultations = doctorConsultations.filter(c =>
+      c.statut === 'terminee' ||
       c.statut === 'termine' ||
       c.statut === 'finished' ||
       c.statut === 'completed'
-    ).length;
-    
-    const total = enAttente + enConsultation + terminees;
-    
-    // Répartition par urgence (sur les patients présents)
-    const presentPatients = doctorQueue.filter(p => 
-      p.status === 'waiting' || 
-      p.status === 'en_attente' || 
-      p.status === 'present' || 
-      p.status === 'arrive' ||
-      p.status === 'in_consultation' || 
-      p.status === 'en_consultation'
     );
-    
-    const tresUrgent = presentPatients.filter(p => 
-      p.priority === 'tres_urgente' || p.appointment?.priorite === 'tres_urgente'
-    ).length;
-    const urgent = presentPatients.filter(p => 
-      p.priority === 'urgente' || p.appointment?.priorite === 'urgente'
-    ).length;
-    const normal = presentPatients.filter(p => {
-      const priority = p.priority || p.appointment?.priorite;
-      return priority === 'normale' || priority === 'normal' || !priority;
-    }).length;
-    
+    const terminees = finishedConsultations.length;
+
+    const total = enAttente + enConsultation + terminees;
+
+    // Répartition par urgence : "Dont (urgence)" doit décomposer le même
+    // total que la colonne "Total du jour", donc elle doit couvrir les MÊMES
+    // patients — présents (waiting_queue.priority) ET terminés
+    // (consultations.niveau_urgence, copié depuis waiting_queue.priority à la
+    // création de la consultation). Se limiter aux présents faisait que
+    // Très urgent + Urgent + Normal ne retombait jamais sur Total du jour dès
+    // qu'il y avait au moins une consultation terminée.
+    const presentPatients = activeDoctorQueue;
+
+    const tresUrgent =
+      presentPatients.filter(p => p.priority === 'tres_urgente' || p.appointment?.priorite === 'tres_urgente').length +
+      finishedConsultations.filter(c => c.niveau_urgence === 'tres_urgente').length;
+    const urgent =
+      presentPatients.filter(p => p.priority === 'urgente' || p.appointment?.priorite === 'urgente').length +
+      finishedConsultations.filter(c => c.niveau_urgence === 'urgente').length;
+    const normal =
+      presentPatients.filter(p => {
+        const priority = p.priority || p.appointment?.priorite;
+        return priority === 'normale' || priority === 'normal' || !priority;
+      }).length +
+      finishedConsultations.filter(c => !c.niveau_urgence || c.niveau_urgence === 'normale').length;
+
     // Total du jour : somme de toutes les consultations (attente + en cours + terminées)
     const totalDuJour = total;
     
@@ -693,38 +700,38 @@ const GlobalWaitingQueue = ({
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Vue Globale - Tous les Médecins</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <ClickableStatCard
-            tone="blue"
+          <KpiCard
             icon={Users}
+            tone="blue"
             label="Médecins"
             value={totalDoctors}
             onClick={() => onDoctorSelect?.(null)}
-            title="Voir tous les médecins"
+            hoverMessage="Voir tous les médecins"
           />
-          <ClickableStatCard
-            tone="green"
+          <KpiCard
             icon={Calendar}
+            tone="green"
             label="RDV aujourd'hui"
             value={totalAppointments}
             onClick={onNavigateCalendar}
-            title="Ouvrir le calendrier"
+            hoverMessage="Ouvrir le calendrier"
           />
-          <ClickableStatCard
-            tone="yellow"
+          <KpiCard
             icon={Clock}
+            tone="yellow"
             label="Salle d'attente"
             value={totalWaiting}
             onClick={onNavigateWaitingRoom}
-            title="Ouvrir la salle d'attente"
+            hoverMessage="Ouvrir la salle d'attente"
           />
-          <ClickableStatCard
-            tone="red"
+          <KpiCard
             icon={AlertTriangle}
+            tone="red"
             label="Urgences"
             value={totalUrgent}
             onClick={() => onFilterStatus?.('urgent')}
             active={filterStatus === 'urgent'}
-            title="Filtrer les urgences"
+            hoverMessage="Filtrer les urgences"
           />
         </div>
       </div>

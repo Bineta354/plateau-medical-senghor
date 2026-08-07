@@ -50,8 +50,7 @@ const TestKpiCard = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <KpiCard
               icon={Users}
-              iconClassName="text-medical-primary"
-              className="card card-medical"
+              tone="blue"
               label="Total Patients"
               value={128}
               loading={loading}
@@ -59,8 +58,7 @@ const TestKpiCard = () => {
             />
             <KpiCard
               icon={Heart}
-              iconClassName="text-green-600"
-              className="card card-success"
+              tone="green"
               label="Patients Actifs"
               value={104}
               loading={loading}
@@ -68,8 +66,7 @@ const TestKpiCard = () => {
             />
             <KpiCard
               icon={Calendar}
-              iconClassName="text-yellow-600"
-              className="card card-warning"
+              tone="yellow"
               label="Nouveaux ce mois"
               value={12}
               loading={loading}
@@ -77,8 +74,7 @@ const TestKpiCard = () => {
             />
             <KpiCard
               icon={FileText}
-              iconClassName="text-purple-600"
-              className="card card-purple"
+              tone="purple"
               label="Consultations"
               value={57}
               loading={loading}

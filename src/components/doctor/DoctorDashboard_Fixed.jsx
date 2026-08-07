@@ -231,7 +231,7 @@ const DoctorDashboard = () => {
             // Trouver ou créer une consultation et rediriger directement
             const { data: wq, error: wqErr } = await supabase
               .from('waiting_queue')
-              .select('patient_id, medecin_id, appointment_id, motif_consultation')
+              .select('patient_id, medecin_id, appointment_id, motif_consultation, priority')
               .eq('id', patientId)
               .single();
             
@@ -278,7 +278,10 @@ const DoctorDashboard = () => {
                     appointment_id: wq.appointment_id || null,
                     motif_consultation: patientData?.rdv_motif || patientData?.motif_consultation || wq.motif_consultation || null,
                     motif: patientData?.rdv_motif || patientData?.motif_consultation || wq.motif_consultation || null,
-                    statut: 'en_cours'
+                    statut: 'en_cours',
+                    // Copié depuis waiting_queue.priority (même échelle normale/urgente/tres_urgente)
+                    // pour pouvoir ventiler les consultations terminées par urgence plus tard.
+                    niveau_urgence: patientData?.priority || wq.priority || 'normale'
                   })
                   .select('id')
                   .single();
@@ -803,7 +806,7 @@ const DoctorDashboard = () => {
                               // Récupérer l'item waiting_queue
                               const { data: wq, error: wqErr } = await supabase
                                 .from('waiting_queue')
-                                .select('patient_id, medecin_id')
+                                .select('patient_id, medecin_id, priority')
                                 .eq('id', waitingQueueId)
                                 .single();
                               
@@ -837,7 +840,8 @@ const DoctorDashboard = () => {
                                       patient_id: wq.patient_id,
                                       medecin_id: wq.medecin_id,
                                       date_consultation: new Date().toISOString(),
-                                      statut: 'en_cours'
+                                      statut: 'en_cours',
+                                      niveau_urgence: currentPatient?.priority || wq.priority || 'normale'
                                     })
                                     .select('id')
                                     .single();

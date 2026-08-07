@@ -23,6 +23,7 @@ import {
   X
 } from 'lucide-react';
 import PatientPostCreateMenu from '../components/common/PatientPostCreateMenu';
+import KpiCard from '../components/common/KpiCard';
 
 const PatientsPage = () => {
   console.log('🔄 [PatientsFinal] Chargement de la page Patients - VERSION FINALE');
@@ -524,47 +525,13 @@ const PatientsPage = () => {
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="card card-medical">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Patients</p>
-              <p className="text-2xl font-bold text-gray-900">{patients.length}</p>
-            </div>
-            <Users className="w-8 h-8 text-medical-primary" />
-          </div>
-        </div>
-        
-        <div className="card card-success">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Patients Actifs</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {patients.filter(p => p.actif).length}
-              </p>
-            </div>
-            <Heart className="w-8 h-8 text-green-600" />
-          </div>
-        </div>
-        
-        <div className="card card-warning">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Nouveaux ce mois</p>
-              <p className="text-2xl font-bold text-gray-900">12</p>
-            </div>
-            <Calendar className="w-8 h-8 text-yellow-600" />
-          </div>
-        </div>
-        
-        <div className="card card-purple">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Consultations</p>
-              <p className="text-2xl font-bold text-gray-900">{consultationsCount}</p>
-            </div>
-            <FileText className="w-8 h-8 text-purple-600" />
-          </div>
-        </div>
+        <KpiCard icon={Users} tone="blue" label="Total Patients" value={patients.length} />
+
+        <KpiCard icon={Heart} tone="green" label="Patients Actifs" value={patients.filter(p => p.actif).length} />
+
+        <KpiCard icon={Calendar} tone="yellow" label="Nouveaux ce mois" value={12} />
+
+        <KpiCard icon={FileText} tone="purple" label="Consultations" value={consultationsCount} />
       </div>
 
       {/* Modal d'ajout/modification de patient */}

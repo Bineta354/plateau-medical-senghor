@@ -23,6 +23,7 @@ import { formatMontant } from '../../utils/currency';
 import { getStatusColor, getStatusLabel } from '../../utils/factureStatus';
 import { MODES_PAIEMENT, getModePaiementLabel } from '../../config/modesPaiement';
 import { enregistrerPaiement } from '../../services/paiementService';
+import KpiCard from '../../components/common/KpiCard';
 
 /**
  * Corrections comptables — écran réservé à la comptabilité/admin pour ajuster
@@ -251,55 +252,23 @@ const EncaissementFactures = () => {
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total factures</p>
-              <p className="text-2xl font-bold text-gray-900">{totalFactures}</p>
-            </div>
-            <Receipt className="w-8 h-8 text-purple-600" />
-          </div>
-        </div>
+        <KpiCard icon={Receipt} label="Total factures" value={totalFactures} tone="purple" />
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Chiffre d'affaires</p>
-              <p className="text-2xl font-bold text-gray-900">{formatMontant(totalChiffre)}</p>
-            </div>
-            <TrendingUp className="w-8 h-8 text-blue-600" />
-          </div>
-        </div>
+        <KpiCard icon={TrendingUp} label="Chiffre d'affaires" value={formatMontant(totalChiffre)} tone="blue" />
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Encaissé</p>
-              <p className="text-2xl font-bold text-green-600">{formatMontant(totalEncaisse)}</p>
-            </div>
-            <CheckCircle className="w-8 h-8 text-green-600" />
-          </div>
-        </div>
+        <KpiCard icon={CheckCircle} label="Encaissé" value={formatMontant(totalEncaisse)} tone="green" />
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Reste à encaisser</p>
-              <p className="text-2xl font-bold text-orange-600">{formatMontant(totalRestant)}</p>
-            </div>
-            <Clock className="w-8 h-8 text-orange-600" />
-          </div>
-        </div>
+        <KpiCard
+          icon={Clock}
+          label="Reste à encaisser"
+          value={formatMontant(totalRestant)}
+          className="rounded-lg p-4 bg-orange-50 hover:shadow-md"
+          iconClassName="text-orange-600"
+          valueClassName="text-orange-600"
+          labelClassName="text-orange-700"
+        />
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Factures payées</p>
-              <p className="text-2xl font-bold text-gray-900">{facturesPayees}</p>
-            </div>
-            <CheckCircle className="w-8 h-8 text-green-600" />
-          </div>
-        </div>
+        <KpiCard icon={CheckCircle} label="Factures payées" value={facturesPayees} tone="green" />
       </div>
 
       {/* Filtres et recherche */}

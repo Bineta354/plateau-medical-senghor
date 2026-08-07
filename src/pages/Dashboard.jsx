@@ -19,6 +19,7 @@ import { supabase } from '../lib/supabase';
 import TestNotifications from '../components/TestNotifications';
 import { useDashboardData } from '../hooks/useDashboardData'; // Import the new hook
 import { formatMontant } from '../utils/currency';
+import KpiCard from '../components/common/KpiCard';
 
 const Dashboard = () => {
   const { currentUser, hasAnyRole } = useAuth();
@@ -204,91 +205,40 @@ const Dashboard = () => {
 
       {/* Cartes de statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Patients</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{patients.length}</p>
-            </div>
-            <div className="p-3 rounded-full bg-blue-100">
-              <Users className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <KpiCard icon={Users} tone="blue" label="Total Patients" value={patients.length} />
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">En Attente</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.patientsWaiting}</p>
-            </div>
-            <div className="p-3 rounded-full bg-yellow-100">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
-          </div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <KpiCard icon={Clock} tone="yellow" label="En Attente" value={stats.patientsWaiting} />
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Consultations</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.consultationsCompleted}</p>
-            </div>
-            <div className="p-3 rounded-full bg-purple-100">
-              <UserCheck className="w-6 h-6 text-purple-600" />
-            </div>
-          </div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+          <KpiCard icon={UserCheck} tone="purple" label="Consultations" value={stats.consultationsCompleted} />
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Revenus (FCFA)</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {formatMontant(stats.totalRevenue)}
-              </p>
-            </div>
-            <div className="p-3 rounded-full bg-emerald-100">
-              <Coins className="w-6 h-6 text-emerald-600" />
-            </div>
-          </div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+          <KpiCard
+            icon={Coins}
+            label="Revenus (FCFA)"
+            value={formatMontant(stats.totalRevenue)}
+            className="rounded-lg p-4 bg-emerald-50 hover:shadow-md"
+            iconClassName="text-emerald-600"
+            valueClassName="text-emerald-600"
+            labelClassName="text-emerald-700"
+          />
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Utilisateurs</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{fetchedMedecins.length}</p>
-            </div>
-            <div className="p-3 rounded-full bg-indigo-100">
-              <Users className="w-6 h-6 text-indigo-600" />
-            </div>
-          </div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+          <KpiCard
+            icon={Users}
+            label="Utilisateurs"
+            value={fetchedMedecins.length}
+            className="rounded-lg p-4 bg-indigo-50 hover:shadow-md"
+            iconClassName="text-indigo-600"
+            valueClassName="text-indigo-600"
+            labelClassName="text-indigo-700"
+          />
         </motion.div>
       </div>
 

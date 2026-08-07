@@ -19,6 +19,7 @@ import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import PatientForm from '../components/common/PatientForm';
+import KpiCard from '../components/common/KpiCard';
 import { useAuth } from '../contexts/AuthContext';
 import { ROLES } from '../utils/permissions';
 import completeRealtimeService from '../services/completeRealtimeService';
@@ -1129,51 +1130,28 @@ const WaitingQueuePage = () => {
 
       {/* Statistiques compact */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="card card-medical p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-600">
-                {selectedDoctor ? `Attente - ${selectedDoctor.prenom}` : 'Total attente'}
-              </p>
-              <p className="text-xl font-bold text-gray-900">{patientsEnAttente.length}</p>
-            </div>
-            <ClockIcon className="w-6 h-6 text-medical-primary" />
-          </div>
-        </div>
-        
-        <div className="card card-success p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-600">
-                {selectedDoctor ? `Consultation - ${selectedDoctor.prenom}` : 'En consultation'}
-              </p>
-              <p className="text-xl font-bold text-gray-900">{patientsEnConsultation.length}</p>
-            </div>
-            <CheckCircleIcon className="w-6 h-6 text-green-600" />
-          </div>
-        </div>
-        
-        <div className="card card-warning p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-600">Temps moyen</p>
-              <p className="text-xl font-bold text-gray-900">18 min</p>
-            </div>
-            <XCircleIcon className="w-6 h-6 text-yellow-600" />
-          </div>
-        </div>
-        
-        <div className="card card-danger p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-600">Urgences</p>
-              <p className="text-xl font-bold text-gray-900">
-                {patients.filter(p => p.priorite === 'urgente' || p.priorite === 'tres_urgente').length}
-              </p>
-            </div>
-            <XCircleIcon className="w-6 h-6 text-red-600" />
-          </div>
-        </div>
+        <KpiCard
+          icon={ClockIcon}
+          tone="blue"
+          label={selectedDoctor ? `Attente - ${selectedDoctor.prenom}` : 'Total attente'}
+          value={patientsEnAttente.length}
+        />
+
+        <KpiCard
+          icon={CheckCircleIcon}
+          tone="green"
+          label={selectedDoctor ? `Consultation - ${selectedDoctor.prenom}` : 'En consultation'}
+          value={patientsEnConsultation.length}
+        />
+
+        <KpiCard icon={XCircleIcon} tone="yellow" label="Temps moyen" value="18 min" />
+
+        <KpiCard
+          icon={XCircleIcon}
+          tone="red"
+          label="Urgences"
+          value={patients.filter(p => p.priorite === 'urgente' || p.priorite === 'tres_urgente').length}
+        />
       </div>
 
       {/* Salle d'attente compact */}

@@ -26,6 +26,7 @@ import {
   Smartphone,
   Users
 } from 'lucide-react';
+import KpiCard from '../../components/common/KpiCard';
 
 const RappelsSmsPage = () => {
   const { currentUser } = useAuth();
@@ -310,45 +311,21 @@ const RappelsSmsPage = () => {
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
-          <div className="flex items-center">
-            <MessageSquare className="w-8 h-8 text-blue-600" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Total rappels</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total_rappels}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
-          <div className="flex items-center">
-            <Send className="w-8 h-8 text-green-600" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Envoyés aujourd'hui</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.envoyes_aujourd_hui}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
-          <div className="flex items-center">
-            <Clock className="w-8 h-8 text-orange-600" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Programmés</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.programmes}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
-          <div className="flex items-center">
-            <CheckCircle className="w-8 h-8 text-purple-600" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Taux de réussite</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.taux_reussite}%</p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={MessageSquare} tone="blue" label="Total rappels" value={stats.total_rappels} />
+
+        <KpiCard icon={Send} tone="green" label="Envoyés aujourd'hui" value={stats.envoyes_aujourd_hui} />
+
+        <KpiCard
+          icon={Clock}
+          label="Programmés"
+          value={stats.programmes}
+          className="rounded-lg p-4 bg-orange-50 hover:shadow-md"
+          iconClassName="text-orange-600"
+          valueClassName="text-orange-600"
+          labelClassName="text-orange-700"
+        />
+
+        <KpiCard icon={CheckCircle} tone="purple" label="Taux de réussite" value={`${stats.taux_reussite}%`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

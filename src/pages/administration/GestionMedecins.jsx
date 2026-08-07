@@ -25,6 +25,7 @@ import {
 import { ROLES, getRoleDisplayName } from '../../utils/permissions';
 import { useToast } from '../../hooks/useToast.jsx';
 import { DOCTOR_COLOR_PALETTE, getContrastTextColor } from '../../utils/doctorColors';
+import KpiCard from '../../components/common/KpiCard';
 
 const GestionMedecins = () => {
   const { currentUser, tenantId } = useAuth();
@@ -337,35 +338,9 @@ const GestionMedecins = () => {
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card card-medical">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-            </div>
-            <Stethoscope className="w-8 h-8 text-medical-primary" />
-          </div>
-        </div>
-        
-        <div className="card card-success">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Actifs</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
-            </div>
-            <CheckCircle className="w-8 h-8 text-green-600" />
-          </div>
-        </div>
-        
-        <div className="card card-warning">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Inactifs</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.inactive}</p>
-            </div>
-            <XCircle className="w-8 h-8 text-yellow-600" />
-          </div>
-        </div>
+        <KpiCard icon={Stethoscope} tone="blue" label="Total" value={stats.total} />
+        <KpiCard icon={CheckCircle} tone="green" label="Actifs" value={stats.active} />
+        <KpiCard icon={XCircle} tone="yellow" label="Inactifs" value={stats.inactive} />
       </div>
 
       {/* Filtres et recherche */}

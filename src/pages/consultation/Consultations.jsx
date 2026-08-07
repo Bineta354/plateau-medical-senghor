@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useConsultationsPage } from '../../hooks/consultation/useConsultationsPage';
 import { getConsultationMotif, getConsultationTypeLabel } from '../../utils/consultationUtils';
-import { 
+import KpiCard from '../../components/common/KpiCard';
+import {
   Plus, 
   Search, 
   Filter, 
@@ -192,66 +193,15 @@ const Consultations = () => {
 
       {/* Statistiques avancées */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Stethoscope className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Clock className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">En consultation</p>
-              <p className="text-2xl font-bold text-blue-600">{stats.enCours}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Terminées</p>
-              <p className="text-2xl font-bold text-green-600">{stats.terminees}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="flex items-center">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <AlertCircle className="w-6 h-6 text-red-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Urgentes</p>
-              <p className="text-2xl font-bold text-red-600">{stats.urgentes}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Activity className="w-6 h-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Durée moy.</p>
-              <p className="text-2xl font-bold text-purple-600">{Math.round(stats.dureeMoyenne)}min</p>
-            </div>
-          </div>
-        </div>
-        
+        <KpiCard icon={Stethoscope} tone="blue" label="Total" value={stats.total} />
+
+        <KpiCard icon={Clock} tone="blue" label="En consultation" value={stats.enCours} />
+
+        <KpiCard icon={CheckCircle} tone="green" label="Terminées" value={stats.terminees} />
+
+        <KpiCard icon={AlertCircle} tone="red" label="Urgentes" value={stats.urgentes} />
+
+        <KpiCard icon={Activity} tone="purple" label="Durée moy." value={`${Math.round(stats.dureeMoyenne)}min`} />
       </div>
 
       {/* Barre d'outils avancée */}

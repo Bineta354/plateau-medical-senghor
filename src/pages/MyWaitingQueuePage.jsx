@@ -41,6 +41,7 @@ import {
   Search,
   Filter
 } from 'lucide-react';
+import KpiCard from '../components/common/KpiCard';
 
 const MyWaitingQueuePage = () => {
   const { currentUser, getUserProfile } = useAuth();
@@ -730,45 +731,13 @@ const MyWaitingQueuePage = () => {
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="card card-medical">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">En attente</p>
-              <p className="text-2xl font-bold text-gray-900">{patientsEnAttente.length}</p>
-            </div>
-            <Clock className="w-8 h-8 text-medical-primary" />
-          </div>
-        </div>
-        
-        <div className="card card-warning">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Appelés</p>
-              <p className="text-2xl font-bold text-gray-900">{patientsAppeles.length}</p>
-            </div>
-            <PhoneCall className="w-8 h-8 text-orange-600" />
-          </div>
-        </div>
-        
-        <div className="card card-success">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">En consultation</p>
-              <p className="text-2xl font-bold text-gray-900">{patientsEnConsultation.length}</p>
-            </div>
-            <Stethoscope className="w-8 h-8 text-green-600" />
-          </div>
-        </div>
-        
-        <div className="card card-danger">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Notifications</p>
-              <p className="text-2xl font-bold text-gray-900">{notifications.length}</p>
-            </div>
-            <Bell className="w-8 h-8 text-red-600" />
-          </div>
-        </div>
+        <KpiCard icon={Clock} tone="blue" label="En attente" value={patientsEnAttente.length} />
+
+        <KpiCard icon={PhoneCall} tone="yellow" label="Appelés" value={patientsAppeles.length} />
+
+        <KpiCard icon={Stethoscope} tone="green" label="En consultation" value={patientsEnConsultation.length} />
+
+        <KpiCard icon={Bell} tone="red" label="Notifications" value={notifications.length} />
       </div>
 
       {/* Patient Actuel - Section mise en avant */}

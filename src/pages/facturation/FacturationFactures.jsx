@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import SearchableSelect from '../../components/common/SearchableSelect';
+import KpiCard from '../../components/common/KpiCard';
 import { useAlert } from '../../contexts/AlertContext';
 import { generateFacturePDF } from '../../services/impression/facturePdf.js';
 import { formatMontant } from '../../utils/currency';
@@ -382,6 +383,18 @@ const FacturationFactures = () => {
     }
   };
 
+  // Styles KpiCard pour la répartition par type (mêmes couleurs que getTypeColor)
+  const typeKpiStyles = {
+    Actes: { tone: 'blue' },
+    Examens: { tone: 'purple' },
+    Laboratoire: { tone: 'green' },
+    Pharmacie: {
+      className: 'rounded-lg p-4 bg-orange-50 hover:shadow-md',
+      valueClassName: 'text-orange-600',
+      labelClassName: 'text-orange-700',
+    },
+  };
+
   // Calculs statistiques
   const totalFactures = toutesFactures.length;
   const totalChiffre = toutesFactures.reduce((sum, f) => sum + f.total, 0);
@@ -611,53 +624,10 @@ const FacturationFactures = () => {
 
       {/* Statistiques principales */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Receipt className="w-8 h-8 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total factures</p>
-              <p className="text-2xl font-semibold text-gray-900">{totalFactures}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Coins className="w-8 h-8 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Chiffre d'affaires</p>
-              <p className="text-2xl font-semibold text-gray-900">{formatMontant(totalChiffre)}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Factures payées</p>
-              <p className="text-2xl font-semibold text-gray-900">{totalPayees}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <AlertCircle className="w-8 h-8 text-red-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">En attente</p>
-              <p className="text-2xl font-semibold text-gray-900">{formatMontant(totalEnAttente)}</p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={Receipt} tone="blue" label="Total factures" value={totalFactures} />
+        <KpiCard icon={Coins} tone="green" label="Chiffre d'affaires" value={formatMontant(totalChiffre)} />
+        <KpiCard icon={CheckCircle} tone="green" label="Factures payées" value={totalPayees} />
+        <KpiCard icon={AlertCircle} tone="red" label="En attente" value={formatMontant(totalEnAttente)} />
       </div>
 
       {/* Répartition par type */}
@@ -668,13 +638,13 @@ const FacturationFactures = () => {
             const facturesType = toutesFactures.filter(f => f.type === type);
             const totalType = facturesType.reduce((sum, f) => sum + f.total, 0);
             return (
-              <div key={type} className="text-center p-4 bg-gray-50 rounded-lg">
-                <div className={`inline-flex px-3 py-1 rounded-full text-sm font-medium mb-2 ${getTypeColor(type)}`}>
-                  {type}
-                </div>
-                <div className="text-2xl font-bold text-gray-900">{facturesType.length}</div>
-                <div className="text-sm text-gray-500">{formatMontant(totalType)}</div>
-              </div>
+              <KpiCard
+                key={type}
+                label={type}
+                value={facturesType.length}
+                hint={formatMontant(totalType)}
+                {...(typeKpiStyles[type] || {})}
+              />
             );
           })}
         </div>
