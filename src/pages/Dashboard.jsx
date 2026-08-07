@@ -21,7 +21,7 @@ import { useDashboardData } from '../hooks/useDashboardData'; // Import the new 
 import { formatMontant } from '../utils/currency';
 
 const Dashboard = () => {
-  const { currentUser, hasRole } = useAuth();
+  const { currentUser, hasAnyRole } = useAuth();
   const navigate = useNavigate();
 
   // Use the new useDashboardData hook
@@ -179,7 +179,7 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          {(hasRole(['admin']) || hasRole(['doctor'])) && (
+          {hasAnyRole(['admin', 'doctor']) && (
             <button
               onClick={() => navigate('/personnalisation')}
               className="flex items-center px-4 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary/90 transition-colors shadow-md"
@@ -414,7 +414,7 @@ const Dashboard = () => {
       </div>
 
       {/* Actions rapides */}
-      {hasRole(['admin', 'secretaire']) && (
+      {hasAnyRole(['admin', 'secretary']) && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -426,12 +426,12 @@ const Dashboard = () => {
             Actions Rapides
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button 
-              onClick={() => navigate('/introduction-patient')}
+            <button
+              onClick={() => navigate('/rendez-vous/prise-rendez-vous')}
               className="flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <Users className="w-5 h-5 mr-2" />
-              Nouveau Patient
+              <UserCheck className="w-5 h-5 mr-2" />
+              Arriver Patient
             </button>
             <button 
               onClick={() => navigate('/facturation')}

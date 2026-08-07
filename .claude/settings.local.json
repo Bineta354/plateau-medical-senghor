@@ -26,7 +26,12 @@
       "mcp__plugin_supabase_supabase__list_tables",
       "mcp__plugin_supabase_supabase__execute_sql",
       "Bash(git status *)",
-      "Bash(npx jest *)"
+      "Bash(npx jest *)",
+      "Bash(timeout 180 npx vite build)",
+      "Bash(npx vite *)",
+      "Bash(grep *)",
+      "Bash(awk 'NR>=2560 && NR<=2685' src/pages/secretary/Caisse.jsx)",
+      "Bash(awk 'NR>=2560 && NR<=2685 { if \\($0 ~ /<div/\\) print NR\": OPEN  \"$0; if \\($0 ~ /<\\\\/div>/\\) print NR\": CLOSE \"$0 }' src/pages/secretary/Caisse.jsx)"
     ]
   },
   "enabledMcpjsonServers": [

@@ -987,10 +987,11 @@ const AppContent = () => {
           </ProtectedRoute>
         } />
         
+        {/* Route morte : le "Confirmer la présence" a migré sur /rendez-vous/prise-rendez-vous.
+            On redirige plutôt que de supprimer la route pour ne pas casser les anciens
+            favoris/liens (notifications "doctor_request", bouton dashboard historique). */}
         <Route path="/introduction-patient" element={
-          <ProtectedRoute allowedRoles={[ROLES.SECRETARY, ROLES.ADMIN]}>
-            <LazyPageWrapper Component={IntroductionPatientPage} message="Chargement introduction patient..." />
-          </ProtectedRoute>
+          <Navigate to="/rendez-vous/prise-rendez-vous" replace />
         } />
         
         <Route path="/fiche-identification" element={

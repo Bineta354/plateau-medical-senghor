@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase'; // Keep for now for RPC calls
+import { unifiedNotificationService } from '../../services/unifiedNotificationService';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { fr as frLocale } from 'date-fns/locale';
@@ -18,36 +19,53 @@ import {
   CheckCircle,
   XCircle,
   CalendarDays,
-  Save,
-  X,
   UserCheck,
   Edit,
-  Trash2
+  Trash2,
+  Users,
+  MoreVertical,
+  RefreshCw
 } from 'lucide-react';
 import { formatDoctorSpecialties } from '../../utils/doctorUtils';
 
 import { useAppointmentBookingData } from '../../hooks/useAppointmentBookingData';
-import { useAppointmentForm } from '../../hooks/useAppointmentForm';
 import { appointmentService } from '../../lib/services'; // Import appointmentService for deletion
 
-import { Step0PatientContext } from '../../components/rendez-vous/Step0PatientContext';
-import { Step1DoctorAvailability } from '../../components/rendez-vous/Step1DoctorAvailability';
-import { Step2Confirmation } from '../../components/rendez-vous/Step2Confirmation';
+import { NewAppointmentModal } from '../../components/rendez-vous/NewAppointmentModal';
 
 const PriseRendezVousPage = () => {
   const { currentUser, userProfile } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { dialogState, showError, showConfirm, closeDialog } = useConfirmDialog();
-  const { showError: showAlertError, showSuccess, showWarning, showInfo } = useAlert();
+  const { showError: showAlertError, showSuccess, showWarning } = useAlert();
   
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('');
   const [selectedSpecialiteFilter, setSelectedSpecialiteFilter] = useState('');
   const [secretaireId, setSecretaireId] = useState(null);
   const [searchTerm, setSearchTerm] = useState(''); // Keep searchTerm locally
-  const [localEditingAppointment, setLocalEditingAppointment] = useState(null); // Local state to pass to form hook
+  // Modal "Nouveau rendez-vous" / "Modifier le rendez-vous" (composant
+  // autonome, voir components/rendez-vous/NewAppointmentModal.jsx)
+  const [modalOpen, setModalOpen] = useState(false);
+  const [localEditingAppointment, setLocalEditingAppointment] = useState(null);
   const [confirmedPresenceAppointmentId, setConfirmedPresenceAppointmentId] = useState(null);
-  
+  // Menu secondaire (Modifier/Supprimer) séparé du bouton "Confirmer la présence"
+  // pour éviter les mis-clics (voir FIX_ETAPE_1_SECRETAIRE.md point 4)
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const openMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    const handleClickOutside = (e) => {
+      if (openMenuRef.current && !openMenuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openMenuId]);
+
   // Récupérer le patientId depuis l'URL pour pré-sélection
   const preselectedPatientId = searchParams.get('patientId');
 
@@ -57,56 +75,9 @@ const PriseRendezVousPage = () => {
     allPatients,
     allDoctors,
     appointments,
-    loading: dataLoading,
     error: dataError,
     refreshAppointments
   } = useAppointmentBookingData(selectedDate, selectedDoctorFilter, selectedSpecialiteFilter);
-
-  // Use the appointment form hook
-  const {
-    formData, setFormData,
-    quickBooking, setQuickBooking,
-    manualDate, setManualDate,
-    manualTime, setManualTime,
-    showForm, setShowForm,
-    editingAppointment, setEditingAppointment, // Renamed from hook to local editingAppointment
-    submitting,
-    currentStep, setCurrentStep,
-    selectedSpecialiteStepper, setSelectedSpecialiteStepper,
-    selectedDoctorStepper, setSelectedDoctorStepper,
-    showSuccessToast, successMessage, setShowSuccessToast,
-    stepperSteps,
-    availableDoctors,
-    selectedDoctorData,
-    selectedPatientData,
-    hasCurrentSelectionConflict,
-    canSubmit,
-    handlePreviousStep,
-    handleNextStep,
-    handleSubmit,
-    resetForm,
-    generateDoctorTimeSlots,
-    doctorLoadsById,
-    isSameDay,
-    error, setError
-  } = useAppointmentForm({
-    allPatients,
-    allDoctors,
-    specialites,
-    appointments,
-    refreshAppointments,
-    showAlertError,
-    showDialogError: showError, // Pass showError from useConfirmDialog
-    showSuccess,
-    showWarning,
-    editingAppointment: localEditingAppointment, // Pass local state to hook
-    selectedDoctorFilter // Pass for resetForm logic
-  });
-
-  // Effect to sync local editingAppointment with hook's editingAppointment
-  useEffect(() => {
-    setLocalEditingAppointment(editingAppointment);
-  }, [editingAppointment]);
 
   // Initialiser secretaireId avec l'ID de l'utilisateur connecté (userProfile.id est bigint, currentUser.id est UUID)
   useEffect(() => {
@@ -120,24 +91,23 @@ const PriseRendezVousPage = () => {
     }
   }, [userProfile]);
 
-  // Pré-sélectionner le patient si patientId est dans l'URL
-  useEffect(() => {
-    if (preselectedPatientId && allPatients.length > 0) {
-      const preselectedPatient = allPatients.find(p => p.id === parseInt(preselectedPatientId));
-      if (preselectedPatient) {
-        setFormData(prev => ({
-          ...prev,
-          patient_id: preselectedPatient.id
-        }));
-        console.log('✅ Patient pré-sélectionné:', preselectedPatient.nom, preselectedPatient.prenom);
-      }
-    }
-  }, [preselectedPatientId, allPatients, setFormData]);
-
   // Reset confirmedPresenceAppointmentId when date or doctor filter changes
   useEffect(() => {
     setConfirmedPresenceAppointmentId(null);
   }, [selectedDate, selectedDoctorFilter]);
+
+  // Ouvrir directement le modal "Nouveau rendez-vous" via ?new=true (ex. depuis
+  // le bouton "Nouveau rendez-vous" du dashboard secrétaire). Le modal étant
+  // désormais autonome (charge ses propres données), plus besoin d'attendre
+  // le chargement de la liste de cette page.
+  useEffect(() => {
+    if (searchParams.get('new') === 'true') {
+      setLocalEditingAppointment(null);
+      setModalOpen(true);
+      // Nettoyer le paramètre pour ne pas rouvrir le modal à chaque re-render
+      navigate('/rendez-vous/prise-rendez-vous', { replace: true });
+    }
+  }, [searchParams, navigate]);
 
   // Confirmer la présence du patient et l'ajouter à la salle d'attente
   const handleConfirmPatientPresence = async (appointment) => {
@@ -209,7 +179,9 @@ const PriseRendezVousPage = () => {
       console.log('🔄 [ConfirmPresence] Rafraîchissement des rendez-vous...');
       await refreshAppointments();
       console.log('✅ [ConfirmPresence] Rendez-vous rafraîchis');
-      showSuccess(data?.message || 'Patient confirmé présent et ajouté à la salle d\'attente');
+      // Action à haute fréquence : toast non bloquant plutôt qu'une modale à fermer manuellement
+      // (voir FIX_ETAPE_1_SECRETAIRE.md point 3)
+      unifiedNotificationService.success(data?.message || 'Patient confirmé présent et ajouté à la salle d\'attente');
     } catch (err) {
       console.error('❌ [ConfirmPresence] Erreur:', err);
       showAlertError(err.message || 'Erreur lors de la confirmation de présence');
@@ -233,7 +205,7 @@ const PriseRendezVousPage = () => {
             .eq('id', appointmentId);
           if (error) throw error;
           refreshAppointments();
-          showInfo('Rendez-vous marqué absent (annulé)');
+          unifiedNotificationService.info('Rendez-vous marqué absent (annulé)');
         } catch (err) {
           console.error('Erreur handleMarkAbsent:', err);
           showAlertError(err.message || 'Erreur lors du marquage absent');
@@ -259,7 +231,7 @@ const PriseRendezVousPage = () => {
             return;
           }
           refreshAppointments();
-          showSuccess('Rendez-vous supprimé avec succès');
+          unifiedNotificationService.success('Rendez-vous supprimé avec succès');
         } catch (err) {
           console.error('Erreur handleDelete:', err);
           showAlertError(err.message || 'Erreur lors de la suppression du rendez-vous');
@@ -339,84 +311,60 @@ const PriseRendezVousPage = () => {
 
   return (
     <div className="space-y-6 p-6">
-      {/* Toast de succès */}
-      {showSuccessToast && (
-        <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
-          <div className="bg-green-50 border-l-4 border-green-500 rounded-lg shadow-lg p-4 flex items-center space-x-3 max-w-md">
-            <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-green-800">
-                {successMessage}
-              </p>
-            </div>
-            <button
-              onClick={() => setShowSuccessToast(false)}
-              className="ml-auto text-green-500 hover:text-green-700"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* En-tête */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Prise de Rendez-vous</h1>
           <p className="text-gray-600">Planification et gestion des consultations</p>
-          {formData.date_heure && (
-            <div className="mt-2">
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                <Clock className="w-4 h-4 mr-1" />
-                {new Date(formData.date_heure).toLocaleDateString('fr-FR')} à {new Date(formData.date_heure).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-          )}
         </div>
-        <button
-          onClick={() => {
-            resetForm(); // Reset form to initial state
-            setShowForm(true);
-            setManualDate(selectedDate); // Set manual date to current selected filter date
-            // Set doctor in form data if a filter is active
-            setFormData(prev => ({ 
-              ...prev, 
-              medecin_id: selectedDoctorFilter || '',
-              date_heure: '' // Clear date_heure for new appointment
-            }));
-            setSelectedDoctorStepper(selectedDoctorFilter || '');
-          }}
-          className="flex items-center px-4 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary-dark transition-colors"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Nouveau rendez-vous
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => navigate('/salle-attente')}
+            className="flex items-center px-4 py-2 bg-white text-medical-primary border border-medical-primary rounded-lg hover:bg-medical-primary/5 transition-colors"
+            title="Gérer les patients déjà en salle d'attente"
+          >
+            <Users className="w-4 h-4 mr-2" />
+            Salle d'attente
+          </button>
+          <button
+            onClick={() => {
+              setLocalEditingAppointment(null);
+              setModalOpen(true);
+            }}
+            className="flex items-center px-4 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary-dark transition-colors"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nouveau rendez-vous
+          </button>
+        </div>
       </div>
 
-      {/* Filtres */}
-      <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+      {/* Filtres — une seule ligne compacte (l'ancien gabarit avait 4 blocs dans
+          une grille à 3 colonnes : le bouton Actualiser se retrouvait seul sur
+          une 2e ligne) */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-40">
+            <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
             <DatePicker
               selected={selectedDate}
               onChange={(date) => setSelectedDate(date)}
               dateFormat="dd/MM/yyyy"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
               minDate={new Date()}
               locale="fr"
             />
           </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Spécialité</label>
+
+          <div className="flex-1 min-w-[180px]">
+            <label className="block text-xs font-medium text-gray-500 mb-1">Spécialité</label>
             <select
               value={selectedSpecialiteFilter}
               onChange={(e) => {
                 setSelectedSpecialiteFilter(e.target.value);
                 setSelectedDoctorFilter(''); // Reset doctor filter when speciality changes
               }}
-              className="input-field"
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
             >
               <option value="">Toutes les spécialités</option>
               {specialites
@@ -436,15 +384,15 @@ const PriseRendezVousPage = () => {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Médecin</label>
+          <div className="flex-1 min-w-[180px]">
+            <label className="block text-xs font-medium text-gray-500 mb-1">Médecin</label>
             <select
               value={selectedDoctorFilter}
               onChange={(e) => {
                 setSelectedDoctorFilter(e.target.value);
                 setSelectedSpecialiteFilter(''); // Reset speciality filter when doctor changes
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
             >
               <option value="">Tous les médecins</option>
               {allDoctors.map(doctor => (
@@ -454,15 +402,14 @@ const PriseRendezVousPage = () => {
               ))}
             </select>
           </div>
-          
-          <div className="flex items-end">
-            <button
-              onClick={refreshAppointments} // Use refreshAppointments from hook
-              className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Actualiser
-            </button>
-          </div>
+
+          <button
+            onClick={refreshAppointments} // Use refreshAppointments from hook
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Actualiser
+          </button>
         </div>
       </div>
 
@@ -503,30 +450,58 @@ const PriseRendezVousPage = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     {!['arrive', 'termine', 'annule'].includes(appointment.statut) && (
                       <button
                         onClick={() => handleConfirmPatientPresence(appointment)}
-                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm"
                         title="Confirmer la présence"
                       >
                         <UserCheck className="w-4 h-4" />
+                        Confirmer présence
                       </button>
                     )}
-                    <button
-                      onClick={() => setEditingAppointment(appointment)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Modifier le rendez-vous"
+
+                    {/* Actions secondaires (Modifier/Supprimer) regroupées dans un
+                        menu à part — la suppression ne doit pas être un clic voisin
+                        de "Confirmer présence", l'action répétée à longueur de journée. */}
+                    <div
+                      className="relative"
+                      ref={openMenuId === appointment.id ? openMenuRef : undefined}
                     >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(appointment.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Supprimer le rendez-vous"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                      <button
+                        onClick={() => setOpenMenuId(openMenuId === appointment.id ? null : appointment.id)}
+                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                        title="Autres actions"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                      {openMenuId === appointment.id && (
+                        <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-10 py-1">
+                          <button
+                            onClick={() => {
+                              setLocalEditingAppointment(appointment);
+                              setModalOpen(true);
+                              setOpenMenuId(null);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Edit className="w-4 h-4" />
+                            Modifier
+                          </button>
+                          <button
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              handleDelete(appointment.id);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Supprimer
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -541,161 +516,20 @@ const PriseRendezVousPage = () => {
         </div>
       </div>
 
-      {/* Modal de formulaire avec stepper */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[92vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {localEditingAppointment ? 'Modifier le rendez-vous' : 'Nouveau rendez-vous'}
-                  </h3>
-                  {formData.date_heure && (
-                    <p className="text-sm text-blue-600 mt-2">
-                      📅{' '}
-                      {new Date(formData.date_heure).toLocaleDateString('fr-FR', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}{' '}
-                      à{' '}
-                      {new Date(formData.date_heure).toLocaleTimeString('fr-FR', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingAppointment(null); // Clear editing appointment in hook
-                    resetForm();
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
-                  type="button"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="flex flex-col md:flex-row md:items-start md:space-x-4 space-y-4 md:space-y-0">
-                {stepperSteps.map((step, index) => {
-                  const isCompleted = currentStep > index;
-                  const isCurrent = currentStep === index;
-                  return (
-                    <div key={step.id} className="flex items-start md:flex-1 gap-3">
-                      <div
-                        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-2 ${
-                          isCurrent
-                            ? 'border-medical-primary text-medical-primary'
-                            : isCompleted
-                              ? 'border-medical-primary bg-medical-primary text-white'
-                              : 'border-gray-300 text-gray-500'
-                        }`}
-                      >
-                        {isCompleted ? <CheckCircle className="w-4 h-4" /> : index + 1}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">{step.title}</p>
-                        <p className="text-xs text-gray-500 leading-4">{step.description}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {currentStep === 0 && (
-                <Step0PatientContext
-                  formData={formData}
-                  setFormData={setFormData}
-                  quickBooking={quickBooking}
-                  setQuickBooking={setQuickBooking}
-                  manualDate={manualDate}
-                  setManualDate={setManualDate}
-                  selectedSpecialiteStepper={selectedSpecialiteStepper}
-                  setSelectedSpecialiteStepper={setSelectedSpecialiteStepper}
-                  specialites={specialites}
-                  allPatients={allPatients}
-                />
-              )}
-
-              {currentStep === 1 && (
-                <Step1DoctorAvailability
-                  formData={formData}
-                  setFormData={setFormData}
-                  manualDate={manualDate}
-                  setManualDate={setManualDate}
-                  manualTime={manualTime}
-                  setManualTime={setManualTime}
-                  availableDoctors={availableDoctors}
-                  doctorLoadsById={doctorLoadsById}
-                  generateDoctorTimeSlots={generateDoctorTimeSlots}
-                  hasCurrentSelectionConflict={hasCurrentSelectionConflict}
-                  selectedSpecialiteStepper={selectedSpecialiteStepper}
-                  setSelectedSpecialiteStepper={setSelectedSpecialiteStepper}
-                  selectedDoctorStepper={selectedDoctorStepper}
-                  setSelectedDoctorStepper={setSelectedDoctorStepper}
-                />
-              )}
-
-              {currentStep === 2 && (
-                <Step2Confirmation
-                  formData={formData}
-                  setFormData={setFormData}
-                  quickBooking={quickBooking}
-                  selectedPatientData={selectedPatientData}
-                  selectedDoctorData={selectedDoctorData}
-                  hasCurrentSelectionConflict={hasCurrentSelectionConflict}
-                />
-              )}
-
-              {/* Navigation buttons */}
-              <div className="flex justify-between pt-4 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={handlePreviousStep}
-                  disabled={currentStep === 0}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
-                    currentStep === 0
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  Précédent
-                </button>
-
-                {currentStep < stepperSteps.length - 1 ? (
-                  <button
-                    type="button"
-                    onClick={handleNextStep}
-                    className="px-4 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary-dark transition-colors"
-                  >
-                    Suivant
-                  </button>
-                ) : (
-                  <button
-                    type="submit"
-                    disabled={!canSubmit || submitting}
-                    className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
-                      canSubmit && !submitting
-                        ? 'bg-green-600 text-white hover:bg-green-700'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    {submitting ? 'Enregistrement...' : localEditingAppointment ? 'Modifier' : 'Enregistrer'}
-                  </button>
-                )}
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Modal "Nouveau rendez-vous" / "Modifier le rendez-vous" — composant
+          autonome et réutilisable, voir components/rendez-vous/NewAppointmentModal.jsx */}
+      <NewAppointmentModal
+        isOpen={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setLocalEditingAppointment(null);
+        }}
+        editingAppointment={localEditingAppointment}
+        initialDate={selectedDate}
+        initialDoctorId={selectedDoctorFilter}
+        preselectedPatientId={preselectedPatientId}
+        onSaved={refreshAppointments}
+      />
 
       {/* Confirm Dialog */}
       <ConfirmDialog
