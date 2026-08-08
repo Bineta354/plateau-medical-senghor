@@ -185,6 +185,31 @@ export const userService = {
       console.error(`[SPECIALITY_CONFIG] Erreur lors de la récupération des spécialités pratiquées:`, error)
       return []
     }
+  },
+
+  // Récupérer les spécialités (additionnelles, table de liaison medecin_specialites) d'UN médecin donné.
+  // Complète getUniqueDoctorSpecialties() ci-dessus, qui lit la même table mais de façon agrégée
+  // (toutes spécialités pratiquées, tous médecins confondus) — extrait de
+  // src/pages/administration/FormulaireUtilisateur.jsx → fetchUtilisateur() (lignes ~226-234).
+  async getSpecialitesByMedecin(medecinId) {
+    const { data, error } = await supabase
+      .from('medecin_specialites')
+      .select('specialite_id, specialites:specialite_id(id, nom)')
+      .eq('medecin_id', medecinId)
+    if (error) throw error
+    return data || []
+  },
+
+  // Synchronise (remplace) la liste des spécialités additionnelles d'un médecin via le RPC
+  // sync_medecin_specialites (delete+insert atomique côté DB) — extrait de
+  // src/pages/administration/FormulaireUtilisateur.jsx → handleSubmit(), appelé pour la
+  // création (ligne ~337) et pour la modification (ligne ~357) d'un utilisateur médecin.
+  async syncSpecialitesMedecin(medecinId, specialiteIds = []) {
+    const { error } = await supabase.rpc('sync_medecin_specialites', {
+      p_medecin_id: medecinId,
+      p_specialite_ids: specialiteIds,
+    })
+    if (error) throw error
   }
 }
 
