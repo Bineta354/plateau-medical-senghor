@@ -79,14 +79,10 @@ export const useConsultationsPage = () => {
         const enCours = consultations.filter(c => c.statut === 'en_cours').length;
         const terminees = consultations.filter(c => c.statut === 'terminee').length;
         const annulees = consultations.filter(c => c.statut === 'annulee').length;
-        const urgentes = consultations.filter(c => 
-          c.niveau_urgence === 'urgente' || c.niveau_urgence === 'tres_urgente'
-        ).length;
-        const dureeMoyenne = consultations.length > 0 
-          ? consultations.reduce((sum, c) => sum + (c.duree_consultation || 0), 0) / consultations.length
-          : 0;
+        const urgentes = consultations.filter(c => c.niveau_urgence === 'urgente').length;
+        const tresUrgentes = consultations.filter(c => c.niveau_urgence === 'tres_urgente').length;
 
-        return { total, enCours, terminees, annulees, urgentes, dureeMoyenne };
+        return { total, enCours, terminees, annulees, urgentes, tresUrgentes };
     }, [consultations]);
 
   const filteredConsultations = useMemo(() => {

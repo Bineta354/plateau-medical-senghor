@@ -4,7 +4,6 @@ import { supabase } from '../../lib/supabase';
 import { appointmentService } from '../../lib/services';
 import { sendNotification, NOTIFICATION_TYPES } from '../../lib/notifications';
 import { useConsultationData } from '../../hooks/consultation/useConsultationData';
-import { createConsultationFromModele } from '../../services/consultation/referenceDataService';
 import { getLastDentalStateForPatient } from '../../services/consultation/consultationService';
 import ConstantesTab from '../../components/consultation/ConstantesTab';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
@@ -32,7 +31,6 @@ import {
   Printer,
   Stethoscope,
   FileImage,
-  Star,
   X,
   Smile,
   Lock
@@ -79,7 +77,6 @@ const ConsultationDetail = () => {
     certificats,
     dossierMedical,
     referenceData,
-    modeles,
     syntheseHistorique,
     fetchSyntheseHistorique,
     refetchFunctions
@@ -107,7 +104,6 @@ const ConsultationDetail = () => {
   // États pour les modals
   const [showConstanteModal, setShowConstanteModal] = useState(false);
 
-  const [showModeleModal, setShowModeleModal] = useState(false);
   const [showCreateRdvModal, setShowCreateRdvModal] = useState(false);
   const [rdvForm, setRdvForm] = useState({
     date_heure: '',
@@ -120,7 +116,6 @@ const ConsultationDetail = () => {
   const [medecinInfo, setMedecinInfo] = useState(null);
   const [consultationStarted, setConsultationStarted] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(null);
-  const [selectedModele, setSelectedModele] = useState('');
   const [fallbackDentalState, setFallbackDentalState] = useState(null);
 
   useEffect(() => {
@@ -402,35 +397,6 @@ const ConsultationDetail = () => {
     );
   };
 
-  const createConsultationFromModeleForPatient = async () => {
-    if (!patient || !selectedModele) {
-      showWarning('Veuillez sélectionner un modèle');
-      return;
-    }
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        showError('Utilisateur non connecté');
-        return;
-      }
-      const { data: userProfile } = await supabase.from('users').select('id, role').eq('email', user.email).single();
-      if (!userProfile || userProfile.role !== 'doctor') {
-        showError('Profil médecin introuvable');
-        return;
-      }
-
-      const newConsultation = await createConsultationFromModele(patient.id, selectedModele, userProfile.id);
-
-      setShowModeleModal(false);
-      setSelectedModele('');
-      const qs = `?from=workflow${waitingQueueId ? `&waiting_queue_id=${waitingQueueId}` : ''}`;
-      navigate(`/consultation/${newConsultation.id}${qs}`);
-    } catch (err) {
-      console.error('Erreur création consultation modèle:', err);
-      showError('Erreur lors de la création de la consultation modèle');
-    }
-  };
-
   const handleCreateRdv = async () => {
     if (!patient || !consultation) return;
 
@@ -662,12 +628,6 @@ const ConsultationDetail = () => {
               {fromWorkflow && (
                 <>
                   <button
-                    onClick={() => setShowModeleModal(true)}
-                    className="inline-flex items-center px-3 py-1.5 rounded-md bg-green-600 text-white text-sm hover:bg-green-700"
-                  >
-                    <Star className="w-4 h-4 mr-1" /> Modèle
-                  </button>
-                  <button
                     onClick={handlePrintReport}
                     className="inline-flex items-center px-3 py-1.5 rounded-md bg-gray-200 text-gray-800 text-sm hover:bg-gray-300"
                   >
@@ -887,46 +847,6 @@ const ConsultationDetail = () => {
       </div>
 
       {/* Modals... */}
-      {/* Modal Modèle (workflow) */}
-      {showModeleModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Créer depuis un modèle</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Modèle *</label>
-                  <select
-                    value={selectedModele}
-                    onChange={(e) => setSelectedModele(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Sélectionner un modèle</option>
-                    {modeles.map((m) => (
-                      <option key={m.id} value={m.id}>{m.nom}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={() => setShowModeleModal(false)}
-                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={createConsultationFromModeleForPatient}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  Créer
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Autres modals (Upload, Document Viewer, Examen Details, ConfirmDialog, etc.) restent les mêmes */}
       <ConfirmDialog
         isOpen={dialogState.isOpen}

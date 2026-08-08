@@ -2,66 +2,50 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { appointmentService } from '../../lib/services';
+import { NewAppointmentModal } from '../../components/rendez-vous/NewAppointmentModal';
+import { printOrdonnances } from '../../services/impression/ordonnancePrint';
 import { unifiedNotificationService } from '../../services/unifiedNotificationService';
-import AppointmentTypeMotifFields, { resolveAppointmentMotif } from '../../components/common/AppointmentTypeMotifFields';
-import { 
-  User, 
-  Calendar, 
-  Phone, 
-  Mail, 
-  MapPin, 
+import {
+  User,
+  Calendar,
+  Phone,
+  Mail,
+  MapPin,
   FileText,
   Heart,
   Stethoscope,
   Clock,
-  AlertTriangle,
   CheckCircle,
   Edit,
-  Save,
   X,
-  Plus,
-  History,
   Activity,
-  Thermometer,
-  Eye,
-  Search
+  ArrowLeft,
+  Eye
 } from 'lucide-react';
 
 const FichePatientOnly = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { currentUser, userProfile, getUserProfile } = useAuth();
+  const { currentUser, userProfile, getUserProfile, tenantId } = useAuth();
   
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [consultations, setConsultations] = useState([]);
+  const [prescriptions, setPrescriptions] = useState([]);
   const [appointments, setAppointments] = useState([]);
-  const [medecins, setMedecins] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showConsultationHistory, setShowConsultationHistory] = useState(false);
+  const [activeTab, setActiveTab] = useState('dossier'); // 'dossier' | 'ordonnances' | 'rdv'
+  const PAGE_SIZE = 4;
+  const [dossierPage, setDossierPage] = useState(1);
+  const [ordonnancesPage, setOrdonnancesPage] = useState(1);
+  const [rdvPage, setRdvPage] = useState(1);
   const [showNewAppointment, setShowNewAppointment] = useState(false);
-  const [appointmentForm, setAppointmentForm] = useState({
-    medecin_id: '',
-    date_heure: '',
-    motif: '',
-    motif_autre: '',
-    type_rdv: 'consultation',
-    priorite: 'normale',
-    duree: 30,
-    statut: 'confirme',
-    notes: '',
-  });
 
   useEffect(() => {
     const initializePage = async () => {
       const profile = userProfile || await getUserProfile();
-      await Promise.all([
-        fetchPatients(profile),
-        fetchMedecins(),
-      ]);
-      
+      await fetchPatients(profile);
+
       // Si un ID patient est fourni dans l'URL
       const patientId = searchParams.get('id');
       if (patientId) {
@@ -76,28 +60,6 @@ const FichePatientOnly = () => {
       initializePage();
     }
   }, [currentUser?.id, userProfile?.id, searchParams, navigate]);
-
-  const getDoctorDisplayName = () => {
-    const profile = userProfile || currentUser?.profile || currentUser;
-    const fullName = `${profile?.prenom || ''} ${profile?.nom || ''}`.trim();
-    return fullName ? `Dr. ${fullName}` : 'Dr.';
-  };
-
-  const fetchMedecins = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, nom, prenom, specialite')
-        .eq('role', 'doctor')
-        .eq('actif', true)
-        .order('nom', { ascending: true });
-
-      if (error) throw error;
-      setMedecins(data || []);
-    } catch (error) {
-      console.error('Erreur lors du chargement des médecins:', error);
-    }
-  };
 
   const fetchPatients = async (profile = userProfile) => {
     try {
@@ -218,10 +180,29 @@ const FichePatientOnly = () => {
         `)
         .eq('patient_id', patientId)
         .order('date_consultation', { ascending: false })
-        .limit(10);
+        .limit(100);
 
       if (consultationsError) throw consultationsError;
       setConsultations(consultationsData || []);
+
+      // Charger les ordonnances/prescriptions du patient
+      const { data: ordonnancesData, error: ordonnancesError } = await supabase
+        .from('ordonnances')
+        .select(`
+          *,
+          consultations!inner ( id, patient_id, date_consultation, medecin:users!inner(id, nom, prenom, specialite, telephone, email, signature_url) ),
+          lignes_ordonnance ( *, medicaments ( nom ) )
+        `)
+        .eq('consultations.patient_id', patientId)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (ordonnancesError) {
+        console.error('Erreur lors du chargement des ordonnances:', ordonnancesError);
+        setPrescriptions([]);
+      } else {
+        setPrescriptions(ordonnancesData || []);
+      }
 
       // Charger les rendez-vous à venir
       const today = new Date().toISOString().split('T')[0];
@@ -245,33 +226,20 @@ const FichePatientOnly = () => {
     }
   };
 
-  const filteredPatients = patients.filter(patient => 
-    patient.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.prenom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.telephone?.includes(searchTerm) ||
-    patient.numero_dossier?.includes(searchTerm)
-  );
-
-  const handlePatientSelect = (patient) => {
-    setSelectedPatient(patient);
-    loadPatientData(patient.id);
-    navigate(`/rendez-vous/fiche-patient?id=${patient.id}`);
-  };
-
   const getStatusBadge = (statut) => {
     const statusConfig = {
-      confirme: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
-      en_attente: { color: 'bg-yellow-100 text-yellow-800', icon: Clock },
-      annule: { color: 'bg-red-100 text-red-800', icon: X }
+      confirme: { color: 'bg-emerald-50 text-emerald-700', icon: CheckCircle },
+      en_attente: { color: 'bg-amber-50 text-amber-700', icon: Clock },
+      annule: { color: 'bg-red-50 text-red-700', icon: X }
     };
-    
+
     const config = statusConfig[statut] || statusConfig.confirme;
     const Icon = config.icon;
-    
+
     return (
-      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
+      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${config.color}`}>
         <Icon className="w-3 h-3 mr-1" />
-        {statut === 'confirme' ? 'Confirmé' : 
+        {statut === 'confirme' ? 'Confirmé' :
          statut === 'en_attente' ? 'En attente' : 'Annulé'}
       </span>
     );
@@ -281,52 +249,79 @@ const FichePatientOnly = () => {
     return new Date(dateTime).toLocaleString('fr-FR');
   };
 
-  const handleNewAppointment = async (e) => {
-    e.preventDefault();
-    if (!selectedPatient) return;
-
-    try {
-      // Utiliser le service AppointmentService au lieu de l'insertion directe
-      await appointmentService.create({
-        patient_id: selectedPatient.id,
-        medecin_id: appointmentForm.medecin_id,
-        date_heure: appointmentForm.date_heure,
-        motif: resolveAppointmentMotif(appointmentForm.motif, appointmentForm.motif_autre),
-        type_rdv: appointmentForm.type_rdv || 'consultation',
-        priorite: appointmentForm.priorite || 'normale',
-        duree: appointmentForm.duree || 30,
-        statut: appointmentForm.statut || 'confirme',
-        notes: appointmentForm.notes || '',
-      }, currentUser);
-
-      setShowNewAppointment(false);
-      setAppointmentForm({
-        medecin_id: '',
-        date_heure: '',
-        motif: '',
-        motif_autre: '',
-        type_rdv: 'consultation',
-        priorite: 'normale',
-        duree: 30,
-        statut: 'confirme',
-        notes: '',
-      });
-      
-      // Recharger les rendez-vous du patient
-      loadPatientData(selectedPatient.id);
-      
-      // Message de succès
-      alert('Rendez-vous créé avec succès');
-      
-    } catch (error) {
-      console.error('Erreur lors de la création du rendez-vous:', error);
-      const notification = appointmentService.getCreationErrorNotification(error);
-      if (notification.type === 'warning') {
-        unifiedNotificationService.warning(notification.message);
-      } else {
-        unifiedNotificationService.error(notification.message);
-      }
+  // Ouvre l'ordonnance réelle (mise en page cabinet + médicaments + signature) dans
+  // un nouvel onglet, prête à imprimer — même service que ConsultationCompletion.jsx,
+  // pour ne pas ré-écrire un rendu d'ordonnance ad hoc ici.
+  const handleViewOrdonnance = async (ordonnance) => {
+    const { success, error } = await printOrdonnances(
+      supabase,
+      [ordonnance],
+      selectedPatient,
+      ordonnance.consultations?.medecin,
+      { date_consultation: ordonnance.consultations?.date_consultation },
+      tenantId
+    );
+    if (!success) {
+      unifiedNotificationService.error(`Erreur lors de l'affichage de l'ordonnance: ${error}`);
     }
+  };
+
+  // Pagination client-side pour les listes de la fiche (dossier, ordonnances, RDV) :
+  // même pattern (Précédent/Suivant + "Page X / Y") que AssuranceCreanceDetail.jsx.
+  const paginate = (items, page) => {
+    const totalRows = items.length;
+    const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+    const effectivePage = Math.min(Math.max(1, page), totalPages);
+    const start = (effectivePage - 1) * PAGE_SIZE;
+    return {
+      items: items.slice(start, start + PAGE_SIZE),
+      totalRows,
+      totalPages,
+      effectivePage,
+      start,
+    };
+  };
+
+  const PaginationFooter = ({ totalRows, totalPages, effectivePage, start, setPage }) => {
+    if (totalRows <= PAGE_SIZE) return null;
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-4 mt-4 border-t border-gray-200">
+        <p className="text-xs text-gray-500">
+          {start + 1}–{Math.min(start + PAGE_SIZE, totalRows)} sur {totalRows}
+        </p>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={effectivePage <= 1}
+            className="px-3 py-1.5 border border-gray-300 rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+          >
+            Précédent
+          </button>
+          <span className="px-2 text-xs text-gray-600">Page {effectivePage} / {totalPages}</span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={effectivePage >= totalPages}
+            className="px-3 py-1.5 border border-gray-300 rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+          >
+            Suivant
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return null;
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
   };
 
   if (loading && !selectedPatient) {
@@ -340,384 +335,321 @@ const FichePatientOnly = () => {
     );
   }
 
+  const age = calculateAge(selectedPatient?.date_naissance);
+  const dossierPag = paginate(consultations, dossierPage);
+  const ordonnancesPag = paginate(prescriptions, ordonnancesPage);
+  const rdvPag = paginate(appointments, rdvPage);
+
   return (
-    <div className="space-y-6 p-6">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Fiche Patient</h1>
-          <p className="text-gray-600">Informations détaillées du patient</p>
-        </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-6xl mx-auto p-6 md:p-8 space-y-5">
         <button
           onClick={() => navigate('/my-patients')}
-          className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
         >
-          Retour
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Retour aux patients
         </button>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Liste des patients du médecin */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-md border border-gray-200">
-            <div className="p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Patients du {getDoctorDisplayName()}</h2>
-              
-              {/* Recherche */}
-              <div className="mt-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Rechercher un patient..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            <div className="max-h-96 overflow-y-auto">
-              {filteredPatients.map((patient) => (
-                <div
-                  key={patient.id}
-                  onClick={() => handlePatientSelect(patient)}
-                  className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
-                    selectedPatient?.id === patient.id ? 'bg-blue-50 border-blue-200' : ''
-                  }`}
-                >
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 h-10 w-10">
-                      <div className="h-10 w-10 rounded-full bg-medical-primary flex items-center justify-center">
-                        <User className="w-5 h-5 text-white" />
-                      </div>
-                    </div>
-                    <div className="ml-3 flex-1">
-                      <p className="text-sm font-medium text-gray-900">
-                        {patient.prenom} {patient.nom}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {patient.telephone}
-                      </p>
-                    </div>
+        {selectedPatient ? (
+          <>
+            {/* Hero patient */}
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-200 p-7">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-medical-primary to-medical-secondary text-white flex items-center justify-center text-xl font-semibold flex-shrink-0 shadow-[0_8px_24px_rgb(var(--medical-primary-rgb)/0.35)]">
+                    {(selectedPatient.prenom?.[0] || '').toUpperCase()}{(selectedPatient.nom?.[0] || '').toUpperCase()}
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Détails du patient sélectionné */}
-        <div className="lg:col-span-2">
-          {selectedPatient ? (
-            <div className="space-y-6">
-              {/* Informations patient */}
-              <div className="bg-white rounded-lg shadow-md border border-gray-200">
-                <div className="p-6 border-b border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold text-gray-900">
+                  <div className="min-w-0">
+                    <h1 className="text-2xl font-semibold text-gray-900 tracking-tight truncate">
                       {selectedPatient.prenom} {selectedPatient.nom}
-                    </h2>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => navigate(`/patients?id=${selectedPatient.id}&edit=true`)}
-                        className="flex items-center px-3 py-2 text-blue-600 hover:text-blue-800 transition-colors"
-                      >
-                        <Edit className="w-4 h-4 mr-1" />
-                        Modifier
-                      </button>
-                      <button
-                        onClick={() => navigate(`/patients?id=${selectedPatient.id}&view=true`)}
-                        className="flex items-center px-3 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        Dossier complet
-                      </button>
+                    </h1>
+                    <p className="text-[13px] text-gray-500 mt-1">
+                      {age !== null ? `${age} ans` : 'Âge non renseigné'}
+                      {selectedPatient.sexe && ` · ${selectedPatient.sexe === 'M' ? 'Masculin' : 'Féminin'}`}
+                      {` · Dossier n° ${selectedPatient.numero_dossier || '—'}`}
+                    </p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[13px] text-gray-600">
+                      {selectedPatient.telephone && (
+                        <span className="flex items-center"><Phone className="w-3.5 h-3.5 mr-1.5 text-gray-400" />{selectedPatient.telephone}</span>
+                      )}
+                      {selectedPatient.email && (
+                        <span className="flex items-center"><Mail className="w-3.5 h-3.5 mr-1.5 text-gray-400" />{selectedPatient.email}</span>
+                      )}
+                      {selectedPatient.adresse && (
+                        <span className="flex items-center"><MapPin className="w-3.5 h-3.5 mr-1.5 text-gray-400" />{selectedPatient.adresse}</span>
+                      )}
                     </div>
                   </div>
                 </div>
-                
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <h3 className="text-md font-semibold text-gray-900 mb-3 flex items-center">
-                        <User className="w-4 h-4 mr-2" />
-                        Informations personnelles
-                      </h3>
-                      <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="font-medium text-gray-500">Date de naissance:</span>
-                          <span className="ml-2">
-                            {selectedPatient.date_naissance ? 
-                              new Date(selectedPatient.date_naissance).toLocaleDateString('fr-FR') : 
-                              'Non renseignée'
-                            }
-                          </span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-500">Téléphone:</span>
-                          <span className="ml-2">{selectedPatient.telephone || 'Non renseigné'}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-500">Email:</span>
-                          <span className="ml-2">{selectedPatient.email || 'Non renseigné'}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-500">Adresse:</span>
-                          <span className="ml-2">{selectedPatient.adresse || 'Non renseignée'}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-500">Numéro dossier:</span>
-                          <span className="ml-2">{selectedPatient.numero_dossier || 'Non renseigné'}</span>
-                        </div>
-                      </div>
+                <div className="flex gap-2.5 flex-shrink-0">
+                  <button
+                    onClick={() => navigate(`/patients?id=${selectedPatient.id}&edit=true`)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    Modifier
+                  </button>
+                  <button
+                    onClick={() => setShowNewAppointment(true)}
+                    className="inline-flex items-center justify-center gap-2 px-6 py-2.5 text-sm font-medium bg-medical-primary text-white rounded-xl hover:bg-medical-primary-dark transition-colors shadow-[0_4px_14px_rgb(var(--medical-primary-rgb)/0.35)]"
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    Prise RDV
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Corps : infos toujours visibles à gauche, dossier/ordonnances/RDV à droite */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* Colonne infos - persistante, pas de switch */}
+              <div className="lg:col-span-1 flex flex-col gap-5">
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-200 p-6">
+                  <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-gray-400 mb-3.5">
+                    Informations personnelles
+                  </p>
+                  <div className="space-y-2.5 text-[13px]">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Date de naissance</span>
+                      <span className="text-gray-900 font-medium text-right">
+                        {selectedPatient.date_naissance ?
+                          new Date(selectedPatient.date_naissance).toLocaleDateString('fr-FR') :
+                          'Non renseignée'
+                        }
+                      </span>
                     </div>
-                    
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Sexe</span>
+                      <span className="text-gray-900 font-medium">
+                        {selectedPatient.sexe === 'M' ? 'Masculin' : selectedPatient.sexe === 'F' ? 'Féminin' : 'Non renseigné'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">N° dossier</span>
+                      <span className="text-gray-900 font-medium">{selectedPatient.numero_dossier || 'Non renseigné'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-200 p-6">
+                  <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-gray-400 mb-3.5">
+                    Informations médicales
+                  </p>
+                  <div className="space-y-3 text-[13px]">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Groupe sanguin</span>
+                      <span className="text-gray-900 font-medium">{selectedPatient.groupe_sanguin || 'Non renseigné'}</span>
+                    </div>
                     <div>
-                      <h3 className="text-md font-semibold text-gray-900 mb-3 flex items-center">
-                        <Heart className="w-4 h-4 mr-2" />
-                        Informations médicales
-                      </h3>
-                      <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="font-medium text-gray-500">Groupe sanguin:</span>
-                          <span className="ml-2">{selectedPatient.groupe_sanguin || 'Non renseigné'}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-500">Allergies:</span>
-                          <span className="ml-2">{selectedPatient.allergies || 'Aucune connue'}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-500">Assurance:</span>
-                          <span className="ml-2">{selectedPatient.assurance || 'Non renseignée'}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-500">Médecin traitant:</span>
-                          <span className="ml-2">{selectedPatient.medecin_traitant || 'Non renseigné'}</span>
-                        </div>
-                      </div>
+                      <span className="text-gray-500 block mb-1.5">Allergies</span>
+                      {selectedPatient.allergies ? (
+                        <span className="inline-flex px-2.5 py-1 bg-red-50 text-red-600 rounded-full text-xs font-medium">
+                          {selectedPatient.allergies}
+                        </span>
+                      ) : (
+                        <span className="text-gray-900">Aucune connue</span>
+                      )}
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Assurance</span>
+                      <span className="text-gray-900 font-medium text-right">{selectedPatient.assurance || 'Non renseignée'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Médecin traitant</span>
+                      <span className="text-gray-900 font-medium text-right">{selectedPatient.medecin_traitant || 'Non renseigné'}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Actions rapides */}
-              <div className="bg-white rounded-lg shadow-md border border-gray-200">
-                <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Actions rapides</h3>
-                </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Colonne dossier - onglets réservés au contenu qui a vraiment besoin d'un switch */}
+              <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+              <nav className="flex gap-1 p-1.5 bg-gray-50 border-b border-gray-200">
+                {[
+                  { key: 'dossier', label: 'Dossier médical', icon: FileText, count: consultations.length },
+                  // Ordonnances : seul le médecin peut les consulter (contenu médical), masqué pour secrétaire/admin.
+                  ...(userProfile?.role === 'doctor'
+                    ? [{ key: 'ordonnances', label: 'Ordonnances', icon: Activity, count: prescriptions.length }]
+                    : []),
+                  { key: 'rdv', label: 'Rendez-vous', icon: Calendar, count: appointments.length },
+                ].map((tab) => {
+                  const TabIcon = tab.icon;
+                  const isActive = activeTab === tab.key;
+                  return (
                     <button
-                      onClick={() => setShowNewAppointment(true)}
-                      className="flex items-center justify-center px-4 py-3 bg-medical-primary text-white rounded-lg hover:bg-medical-primary-dark transition-colors"
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`flex-1 flex items-center justify-center gap-2 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-white text-medical-primary shadow-sm font-semibold'
+                          : 'text-gray-400 hover:text-gray-600'
+                      }`}
                     >
-                      <Calendar className="w-5 h-5 mr-2" />
-                      Prise RDV
+                      <TabIcon className="w-4 h-4 flex-shrink-0" />
+                      {tab.label}
+                      {typeof tab.count === 'number' && tab.count > 0 && (
+                        <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                          isActive ? 'bg-medical-primary/10 text-medical-primary' : 'bg-gray-100 text-gray-400'
+                        }`}>
+                          {tab.count}
+                        </span>
+                      )}
                     </button>
-                    <button
-                      onClick={() => setShowConsultationHistory(true)}
-                      className="flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <History className="w-5 h-5 mr-2" />
-                      Historique
-                    </button>
-                    <button
-                      onClick={() => navigate(`/patients?id=${selectedPatient.id}&view=true`)}
-                      className="flex items-center justify-center px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                    >
-                      <Eye className="w-5 h-5 mr-2" />
-                      Dossier complet
-                    </button>
-                  </div>
-                </div>
-              </div>
+                  );
+                })}
+              </nav>
 
-              {/* Rendez-vous à venir */}
-              <div className="bg-white rounded-lg shadow-md border border-gray-200">
-                <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Rendez-vous à venir</h3>
-                </div>
-                <div className="p-6">
-                  {appointments.length > 0 ? (
-                    <div className="space-y-3">
-                      {appointments.map((appointment) => (
-                        <div key={appointment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {formatDateTime(appointment.date_heure)}
+              <div className="p-5">
+                {activeTab === 'dossier' && (
+                  consultations.length > 0 ? (
+                    <>
+                      <div className="space-y-3">
+                        {dossierPag.items.map((consultation) => (
+                          <div
+                            key={consultation.id}
+                            onClick={() => navigate(`/consultation/${consultation.id}`)}
+                            className="p-4 border border-gray-100 rounded-2xl hover:bg-gray-50 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {consultation.motif_consultation || consultation.motif || 'Consultation'}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {new Date(consultation.date_consultation || consultation.created_at).toLocaleDateString('fr-FR')}
+                                  {' · '}
+                                  Dr. {consultation.medecin?.prenom} {consultation.medecin?.nom}
+                                </p>
+                              </div>
+                              <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-[11px] font-medium rounded-full">
+                                {consultation.statut || 'terminee'}
+                              </span>
                             </div>
-                            <div className="text-sm text-gray-600">
-                              Dr. {appointment.medecin?.prenom} {appointment.medecin?.nom} - {appointment.motif || 'Consultation'}
-                            </div>
+                            {consultation.notes_generales && (
+                              <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                                {consultation.notes_generales}
+                              </p>
+                            )}
                           </div>
-                          <div>
-                            {getStatusBadge(appointment.statut)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                      <PaginationFooter {...dossierPag} setPage={setDossierPage} />
+                    </>
                   ) : (
-                    <p className="text-gray-500 text-center py-4">Aucun rendez-vous à venir</p>
-                  )}
-                </div>
+                    <div className="flex flex-col items-center justify-center text-center py-12">
+                      <Stethoscope className="w-10 h-10 text-gray-300 mb-3" />
+                      <p className="text-gray-500">Aucune consultation trouvée pour ce patient</p>
+                    </div>
+                  )
+                )}
+
+                {activeTab === 'ordonnances' && userProfile?.role === 'doctor' && (
+                  prescriptions.length > 0 ? (
+                    <>
+                      <div className="space-y-3">
+                        {ordonnancesPag.items.map((ordonnance) => (
+                          <div
+                            key={ordonnance.id}
+                            onClick={() => handleViewOrdonnance(ordonnance)}
+                            className="p-4 border border-gray-100 rounded-2xl hover:bg-gray-50 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs text-gray-500">
+                                {new Date(ordonnance.date_prescription || ordonnance.created_at).toLocaleDateString('fr-FR')}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-[11px] font-medium rounded-full">
+                                  {ordonnance.statut || 'actif'}
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-medical-primary">
+                                  <Eye className="w-3.5 h-3.5" />
+                                  Voir
+                                </span>
+                              </div>
+                            </div>
+                            {ordonnance.lignes_ordonnance?.length > 0 ? (
+                              <ul className="mt-2 space-y-1 text-sm text-gray-900">
+                                {ordonnance.lignes_ordonnance.slice(0, 2).map((ligne) => (
+                                  <li key={ligne.id}>
+                                    • {ligne.medicaments?.nom || 'Médicament inconnu'}
+                                    {ligne.posologie && <span className="text-gray-500"> — {ligne.posologie}</span>}
+                                  </li>
+                                ))}
+                                {ordonnance.lignes_ordonnance.length > 2 && (
+                                  <li className="text-gray-400">…</li>
+                                )}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-gray-500 mt-2">Aucun médicament renseigné</p>
+                            )}
+                            {ordonnance.instructions_generales && (
+                              <p className="text-sm text-gray-600 mt-2">{ordonnance.instructions_generales}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <PaginationFooter {...ordonnancesPag} setPage={setOrdonnancesPage} />
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center py-12">
+                      <Activity className="w-10 h-10 text-gray-300 mb-3" />
+                      <p className="text-gray-500">Aucune ordonnance trouvée pour ce patient</p>
+                    </div>
+                  )
+                )}
+
+                {activeTab === 'rdv' && (
+                  appointments.length > 0 ? (
+                    <>
+                      <div className="space-y-3">
+                        {rdvPag.items.map((appointment) => (
+                          <div key={appointment.id} className="flex items-center justify-between p-4 border border-gray-100 rounded-2xl">
+                            <div>
+                              <div className="text-sm font-semibold text-gray-900">
+                                {formatDateTime(appointment.date_heure)}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                Dr. {appointment.medecin?.prenom} {appointment.medecin?.nom} — {appointment.motif || 'Consultation'}
+                              </div>
+                            </div>
+                            <div>
+                              {getStatusBadge(appointment.statut)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <PaginationFooter {...rdvPag} setPage={setRdvPage} />
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center py-12">
+                      <Calendar className="w-10 h-10 text-gray-300 mb-3" />
+                      <p className="text-gray-500">Aucun rendez-vous à venir</p>
+                    </div>
+                  )
+                )}
+              </div>
               </div>
             </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-12 text-center">
-              <User className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Sélectionnez un patient</h3>
-              <p className="text-gray-600">Choisissez un patient dans la liste pour voir ses informations</p>
-            </div>
-          )}
-        </div>
+          </>
+        ) : (
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-200 p-12 text-center">
+            <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Sélectionnez un patient</h3>
+            <p className="text-gray-600">Choisissez un patient dans la liste pour voir ses informations</p>
+          </div>
+        )}
       </div>
 
-      {/* Modal historique consultations */}
-      {showConsultationHistory && selectedPatient && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Historique des consultations - {selectedPatient.prenom} {selectedPatient.nom}
-                </h3>
-                <button
-                  onClick={() => setShowConsultationHistory(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              {consultations.length > 0 ? (
-                <div className="space-y-4">
-                  {consultations.map((consultation) => (
-                    <div key={consultation.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="font-medium text-gray-900">
-                          {new Date(consultation.date_consultation).toLocaleDateString('fr-FR')}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          Dr. {consultation.medecin?.prenom} {consultation.medecin?.nom}
-                        </div>
-                      </div>
-                      <div className="text-sm text-gray-700">
-                        <div><span className="font-medium">Motif:</span> {consultation.motif || 'Non spécifié'}</div>
-                        {consultation.diagnostic && (
-                          <div><span className="font-medium">Diagnostic:</span> {consultation.diagnostic}</div>
-                        )}
-                        {consultation.notes && (
-                          <div><span className="font-medium">Notes:</span> {consultation.notes}</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Stethoscope className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">Aucune consultation trouvée</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal nouveau rendez-vous */}
-      {showNewAppointment && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Nouveau rendez-vous
-                </h3>
-                <button
-                  onClick={() => setShowNewAppointment(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            
-            <form onSubmit={handleNewAppointment} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Médecin *</label>
-                <select
-                  value={appointmentForm.medecin_id}
-                  onChange={(e) => setAppointmentForm({...appointmentForm, medecin_id: e.target.value})}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                >
-                  <option value="">Sélectionner un médecin...</option>
-                  {medecins.map((medecin) => (
-                    <option key={medecin.id} value={medecin.id}>
-                      Dr. {medecin.prenom} {medecin.nom} {medecin.specialite && `- ${medecin.specialite}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date et heure *</label>
-                <input
-                  type="datetime-local"
-                  value={appointmentForm.date_heure}
-                  onChange={(e) => setAppointmentForm({...appointmentForm, date_heure: e.target.value})}
-                  required
-                  min={new Date().toISOString().slice(0, 16)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                />
-              </div>
-              
-              <AppointmentTypeMotifFields
-                typeRdv={appointmentForm.type_rdv}
-                motif={appointmentForm.motif}
-                motifAutre={appointmentForm.motif_autre}
-                priorite={appointmentForm.priorite}
-                showPriorite
-                onChange={(fields) => setAppointmentForm((prev) => ({ ...prev, ...fields }))}
-              />
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Durée (minutes)</label>
-                <select
-                  value={appointmentForm.duree}
-                  onChange={(e) => setAppointmentForm({...appointmentForm, duree: parseInt(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                >
-                  <option value={15}>15 minutes</option>
-                  <option value={30}>30 minutes</option>
-                  <option value={45}>45 minutes</option>
-                  <option value={60}>1 heure</option>
-                </select>
-              </div>
-              
-              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => setShowNewAppointment(false)}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary-dark transition-colors"
-                >
-                  Créer le rendez-vous
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Modal nouveau rendez-vous — composant réutilisable partagé avec le reste
+          de l'app (voir components/rendez-vous/NewAppointmentModal.jsx), pré-rempli
+          avec le patient de la fiche courante. */}
+      <NewAppointmentModal
+        isOpen={showNewAppointment}
+        onClose={() => setShowNewAppointment(false)}
+        preselectedPatientId={selectedPatient?.id}
+        onSaved={() => selectedPatient && loadPatientData(selectedPatient.id)}
+      />
     </div>
   );
 };
