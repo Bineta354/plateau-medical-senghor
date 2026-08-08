@@ -48,7 +48,6 @@ const GlobalWaitingQueue = ({
   const { userProfile } = useAuth();
   const tenantId = userProfile?.tenant_id || null;
   const [waitingQueues, setWaitingQueues] = useState({});
-  const [appointmentsByDoctor, setAppointmentsByDoctor] = useState({});
   const [consultationsByDoctor, setConsultationsByDoctor] = useState({});
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -100,11 +99,9 @@ const GlobalWaitingQueue = ({
   const fetchAllData = async () => {
     try {
       const queues = {};
-      const apptsByDoc = {};
 
       if (!doctors || doctors.length === 0) {
         setWaitingQueues({});
-        setAppointmentsByDoctor({});
         setLoading(false);
         return;
       }
@@ -233,60 +230,14 @@ const GlobalWaitingQueue = ({
         queues[doctorId] = finalFilteredItems;
       });
 
-      // 7) Récupérer tous les rendez-vous du jour pour ces médecins
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      const { data: apptsData, error: apptsError } = await supabase
-        .from('appointments')
-        .select('*')
-        .in('medecin_id', medecinIds)
-        .gte('date_heure', today.toISOString())
-        .lt('date_heure', tomorrow.toISOString())
-        .order('date_heure', { ascending: true });
-
-      if (apptsError) {
-        console.error('Erreur appointments du jour:', apptsError);
-        throw apptsError;
-      }
-
-      const apptsList = Array.isArray(apptsData) ? apptsData : [];
-      
-      // 8) Récupérer les patients pour les RDV du jour
-      const apptPatientIds = Array.from(new Set(apptsList.map(a => a.patient_id).filter(Boolean)));
-      let apptPatientMap = {};
-      
-      if (apptPatientIds.length > 0) {
-        const { data: apptPatientsData, error: apptPatientsError } = await supabase
-          .from('patients')
-          .select('id, nom, prenom, telephone, numero_dossier')
-          .in('id', apptPatientIds);
-        
-        if (apptPatientsError) {
-          console.error('Erreur patients RDV:', apptPatientsError);
-        } else if (apptPatientsData) {
-          apptPatientMap = Object.fromEntries(apptPatientsData.map(p => [p.id, p]));
-        }
-      }
-
-      // 9) Fusionner les RDV avec les patients
-      apptsList.forEach(appt => {
-        const enrichedAppt = {
-          ...appt,
-          patient: apptPatientMap[appt.patient_id] || null
-        };
-        
-        const key = appt.medecin_id;
-        if (!apptsByDoc[key]) apptsByDoc[key] = [];
-        apptsByDoc[key].push(enrichedAppt);
-      });
-
       setWaitingQueues(queues);
-      setAppointmentsByDoctor(apptsByDoc);
 
-      // 10) Récupérer les consultations du jour pour chaque médecin
+      // 7) Récupérer les consultations du jour pour chaque médecin
       const { data: consultationsData, error: consultationsError } = await supabase
         .from('consultations')
         .select('*')
@@ -593,10 +544,6 @@ const GlobalWaitingQueue = ({
   const allQueues = filterActiveQueueItems(Object.values(waitingQueues).flat());
   const globalStats = computeQueueStats(allQueues);
   const totalDoctors = filterDoctors().length;
-  const totalAppointments = Object.values(appointmentsByDoctor).reduce(
-    (acc, arr) => acc + (arr ? arr.length : 0),
-    0,
-  );
   const totalWaiting = globalStats.onBench;
   const totalInConsult = globalStats.inConsultation;
   const totalUrgent = globalStats.urgent;
@@ -695,6 +642,12 @@ const GlobalWaitingQueue = ({
     };
   });
 
+  // "RDV aujourd'hui" doit être le total tous médecins confondus, cohérent
+  // avec la colonne "Total du jour" du tableau récapitulatif ci-dessous
+  // (même logique que le fix appliqué à DoctorSpecificQueue.jsx : enAttente +
+  // enConsultation + terminées, pas un simple count() sur `appointments`).
+  const totalRdvAujourdhui = doctorStats.reduce((acc, stat) => acc + stat.totalDuJour, 0);
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -712,7 +665,7 @@ const GlobalWaitingQueue = ({
             icon={Calendar}
             tone="green"
             label="RDV aujourd'hui"
-            value={totalAppointments}
+            value={totalRdvAujourdhui}
             onClick={onNavigateCalendar}
             hoverMessage="Ouvrir le calendrier"
           />

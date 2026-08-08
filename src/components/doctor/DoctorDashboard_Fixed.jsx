@@ -7,11 +7,8 @@ import { sendNotification, NOTIFICATION_TYPES } from '../../lib/notifications';
 import { NewAppointmentModal } from '../rendez-vous/NewAppointmentModal';
 import Dropdown from '../common/Dropdown';
 import {
-  Users,
   Clock,
   Calendar,
-  CalendarCheck,
-  Bell,
   Check,
   User,
   UserCheck,
@@ -23,6 +20,11 @@ import {
   FolderOpen,
   Lock
 } from 'lucide-react';
+import {
+  isOnWaitingBench,
+  isInConsultationQueueStatus,
+  isUrgentQueuePriority,
+} from '../../utils/waitingQueueStatus';
 
 const DoctorDashboard = () => {
   const navigate = useNavigate();
@@ -31,8 +33,10 @@ const DoctorDashboard = () => {
   const [selectedCurrentPatientId, setSelectedCurrentPatientId] = useState(null); // Nouveau: patient actuel sélectionné manuellement
   const [todayAppointments, setTodayAppointments] = useState([]);
   const [stats, setStats] = useState({
-    totalWaiting: 0,
-    consultationsFinished: 0
+    totalRDV: 0,
+    salleAttente: 0,
+    urgenceEnAttente: 0,
+    termine: 0
   });
   const [loading, setLoading] = useState(true);
   const [showCreateRdvModal, setShowCreateRdvModal] = useState(false);
@@ -143,12 +147,21 @@ const DoctorDashboard = () => {
         console.warn('Erreur récupération consultations terminées:', finishedError);
       }
 
-      // Calculer les statistiques
-      const queueStats = {
-        totalWaiting: queueData?.filter(q => ['waiting', 'present', 'authorized'].includes(q.status)).length || 0,
-        consultationsFinished: finishedCount || 0
-      };
-      setStats(queueStats);
+      // Calculer les statistiques — mêmes définitions que DoctorSpecificQueue.jsx
+      // (secrétaire) pour rester cohérent entre les deux vues d'un médecin.
+      const onBench = (queueData || []).filter(q => isOnWaitingBench(q.status)).length;
+      const inConsultation = (queueData || []).filter(q => isInConsultationQueueStatus(q.status)).length;
+      const urgenceEnAttente = (queueData || []).filter(
+        q => isOnWaitingBench(q.status) && isUrgentQueuePriority(q.priority)
+      ).length;
+      const termine = finishedCount || 0;
+
+      setStats({
+        totalRDV: onBench + inConsultation + termine,
+        salleAttente: onBench,
+        urgenceEnAttente,
+        termine,
+      });
 
     } catch (error) {
       console.error('Erreur lors du chargement du dashboard:', error);
@@ -583,9 +596,6 @@ const DoctorDashboard = () => {
     );
   }
 
-  const inConsultationCount = waitingQueue.filter(p => p.status === 'in_consultation').length;
-  const newlyArrivedCount = waitingQueue.filter(p => p.status === 'present' || p.status === 'arrive').length;
-
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -622,43 +632,43 @@ const DoctorDashboard = () => {
 
         {/* Statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-5 flex items-center gap-3.5">
+          <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-5 flex items-center gap-3.5 transition-all duration-200 hover:shadow-md hover:border-medical-primary/30 hover:-translate-y-0.5">
             <div className="w-11 h-11 rounded-xl bg-medical-primary/10 flex items-center justify-center flex-shrink-0">
-              <Users className="w-5 h-5 text-medical-primary" />
+              <Calendar className="w-5 h-5 text-medical-primary" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-0.5">En attente</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.totalWaiting}</p>
+              <p className="text-xs text-gray-500 mb-0.5">Total RDV</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.totalRDV}</p>
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-5 flex items-center gap-3.5">
+          <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-5 flex items-center gap-3.5 transition-all duration-200 hover:shadow-md hover:border-amber-200 hover:-translate-y-0.5">
+            <div className="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+              <Clock className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-0.5">Salle d'attente</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.salleAttente}</p>
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-5 flex items-center gap-3.5 transition-all duration-200 hover:shadow-md hover:border-red-200 hover:-translate-y-0.5">
+            <div className="w-11 h-11 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-0.5">Urgence en attente</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.urgenceEnAttente}</p>
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-5 flex items-center gap-3.5 transition-all duration-200 hover:shadow-md hover:border-emerald-200 hover:-translate-y-0.5">
             <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
-              <CalendarCheck className="w-5 h-5 text-emerald-700" />
+              <Check className="w-5 h-5 text-emerald-700" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-0.5">En consultation</p>
-              <p className="text-2xl font-semibold text-gray-900">{inConsultationCount}</p>
-            </div>
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-5 flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0">
-              <Bell className="w-5 h-5 text-orange-600" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">Nouveaux arrivés</p>
-              <p className="text-2xl font-semibold text-gray-900">{newlyArrivedCount}</p>
-            </div>
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-5 flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-medical-primary/10 flex items-center justify-center flex-shrink-0">
-              <Check className="w-5 h-5 text-medical-primary" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">Terminées aujourd'hui</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.consultationsFinished}</p>
+              <p className="text-xs text-gray-500 mb-0.5">Terminé</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.termine}</p>
             </div>
           </div>
         </div>

@@ -2,11 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import Dropdown from '../common/Dropdown';
 import {
   Users,
   Search,
-  Filter,
   RefreshCw,
   Bell,
   Eye,
@@ -280,24 +278,6 @@ const SecretaryDashboard = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                />
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <Filter className="w-4 h-4 text-gray-400" />
-                <Dropdown
-                  value={filterStatus}
-                  onChange={(value) => setFilterStatus(value)}
-                  options={[
-                    { value: 'all', label: 'Tous les statuts' },
-                    { value: 'waiting', label: 'En attente' },
-                    { value: 'appele', label: 'Appelé' },
-                    { value: 'entre', label: 'Entré' },
-                    { value: 'in_consultation', label: 'En consultation' },
-                    { value: 'urgent', label: 'Urgences' },
-                    { value: 'finished', label: 'Terminé' },
-                  ]}
-                  size="sm"
                 />
               </div>
             </div>

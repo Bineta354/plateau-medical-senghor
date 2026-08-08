@@ -51,8 +51,10 @@ const FichePatientOnly = () => {
       if (patientId) {
         loadPatientData(patientId);
       } else {
-        // Rediriger vers la page patients si pas d'ID
-        navigate('/my-patients');
+        // Rediriger vers la page patients si pas d'ID — /patients (pas
+        // /my-patients, réservée aux médecins) puisque cette fiche est aussi
+        // accessible aux secrétaires et admins.
+        navigate('/patients');
       }
     };
 
@@ -186,11 +188,16 @@ const FichePatientOnly = () => {
       setConsultations(consultationsData || []);
 
       // Charger les ordonnances/prescriptions du patient
+      // Note : pas de `signature_url` dans l'embed medecin — cette colonne
+      // n'existe pas sur `users` en base (voir SettingsPage.jsx qui la
+      // référence aussi), PostgREST renvoie une erreur 42703 sur toute la
+      // requête et faisait passer cette page en "Aucune ordonnance trouvée"
+      // même quand des ordonnances existent.
       const { data: ordonnancesData, error: ordonnancesError } = await supabase
         .from('ordonnances')
         .select(`
           *,
-          consultations!inner ( id, patient_id, date_consultation, medecin:users!inner(id, nom, prenom, specialite, telephone, email, signature_url) ),
+          consultations!inner ( id, patient_id, date_consultation, medecin:users!inner(id, nom, prenom, specialite, telephone, email) ),
           lignes_ordonnance ( *, medicaments ( nom ) )
         `)
         .eq('consultations.patient_id', patientId)
@@ -344,7 +351,7 @@ const FichePatientOnly = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto p-6 md:p-8 space-y-5">
         <button
-          onClick={() => navigate('/my-patients')}
+          onClick={() => navigate('/patients')}
           className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />

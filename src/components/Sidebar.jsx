@@ -1,14 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, 
   Users, 
   Calendar, 
   Clock, 
-  FileText, 
-  Pill, 
-  Coins, 
+  FileText,
+  Coins,
   BarChart3, 
   Settings, 
   UserCheck, 
@@ -62,6 +61,7 @@ const Sidebar = ({
     (() => setIsCollapsedInternal((prev) => !prev));
   const [expandedModules, setExpandedModules] = useState({});
   const location = useLocation();
+  const navigate = useNavigate();
   const { currentUser, userProfile, logout, hasRole } = useAuth();
   const { settings } = usePersonnalisation();
 
@@ -86,7 +86,6 @@ const Sidebar = ({
         name: 'PATIENTS',
         icon: Users,
         items: [
-          { name: 'Fiche Identification', icon: UserCheck, path: '/fiche-identification' },
           { name: 'Liste des Patients', icon: Users, path: '/patients' },
         ]
       },
@@ -96,10 +95,8 @@ const Sidebar = ({
         items: [
           { name: 'Prise de Rendez-vous', icon: CalendarPlus, path: '/rendez-vous/prise-rendez-vous' },
           { name: 'Salle d\'attente', icon: Clock3, path: '/salle-attente' },
-          { name: 'Fiche Patient', icon: UserCheck, path: '/rendez-vous/fiche-patient' },
           { name: 'Recherche Rendez-vous', icon: Search, path: '/appointments/recherche' },
           { name: 'Rappels SMS', icon: MessageSquare, path: '/rendez-vous/rappels-sms' },
-          { name: 'Détails des rendez-vous', icon: FileText, path: '/rendez-vous/details' },
         ]
       },
       {
@@ -135,7 +132,6 @@ const Sidebar = ({
         name: 'PATIENTS',
         icon: Users,
         items: [
-          { name: 'Mes Patients', icon: UserCheck, path: '/my-patients' },
           { name: 'Patients', icon: Users, path: '/patients' },
         ]
       },
@@ -144,10 +140,6 @@ const Sidebar = ({
         icon: Stethoscope,
         items: [
           { name: 'Consultations', icon: Stethoscope, path: '/consultations' },
-          { name: 'Dossiers Médicaux', icon: FileText, path: '/medical-records' },
-          { name: 'Examen Médical', icon: Stethoscope, path: '/examen-medical' },
-          { name: 'Ordonnances', icon: Pill, path: '/ordonnances' },
-          { name: 'Prescription', icon: Pill, path: '/prescription' },
           { name: 'Actes', icon: ClipboardList, path: '/actes' },
           { name: 'BCDS', icon: FileText, path: '/bcds' },
         ]
@@ -254,9 +246,22 @@ const Sidebar = ({
     return location.pathname === path;
   };
 
+  // Même logique que le menu Profil (Header.jsx) : naviguer d'abord, puis
+  // déconnecter avec un léger délai pour laisser la navigation se faire.
   const handleLogout = async () => {
     try {
-      await logout();
+      const tenantId = userProfile?.tenant_id;
+      const isAdmin = userProfile?.role === 'admin';
+
+      if (isAdmin || !tenantId) {
+        navigate('/login');
+      } else {
+        navigate('/cabinet-welcome-public/' + tenantId);
+      }
+
+      setTimeout(async () => {
+        await logout();
+      }, 100);
     } catch (error) {
       console.error('Erreur lors de la déconnexion:', error);
     }

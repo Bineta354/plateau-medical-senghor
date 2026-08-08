@@ -4,14 +4,14 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { unifiedNotificationService } from '../services/unifiedNotificationService';
 // Import des icônes lucide-react - FINAL FIXED VERSION
-import { 
-  Users, 
-  Search, 
-  Plus, 
-  Filter, 
-  MoreVertical, 
-  Edit, 
-  Trash2, 
+import {
+  Users,
+  Search,
+  Plus,
+  Filter,
+  MoreVertical,
+  Edit,
+  Trash2,
   Eye,
   Phone,
   Mail,
@@ -20,7 +20,9 @@ import {
   User,
   Heart,
   FileText,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import PatientPostCreateMenu from '../components/common/PatientPostCreateMenu';
 import KpiCard from '../components/common/KpiCard';
@@ -30,15 +32,24 @@ const PatientsPage = () => {
   console.log('🔄 [PatientsFinal] Chargement de la page Patients - VERSION FINALE');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { hasRole } = useAuth();
+  const { hasRole, userProfile } = useAuth();
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [consultationsCount, setConsultationsCount] = useState(0);
-  
+
   // Vérifier si l'utilisateur est secrétaire (ne peut pas supprimer)
   const isSecretary = hasRole('secretary');
+  const isDoctor = hasRole('doctor');
+  // Patients ayant au moins une consultation avec le médecin connecté — même
+  // définition que celle historiquement utilisée pour "Mes Patients" (voir
+  // MesPatients.jsx / consultations.medecin_id), la seule qui reflète la
+  // réalité des données (medecin_traitant_id n'est quasiment jamais renseigné).
+  const [myPatientIds, setMyPatientIds] = useState(new Set());
+  const [showOnlyMine, setShowOnlyMine] = useState(isDoctor);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
   const [showFiltersPanel, setShowFiltersPanel] = useState(false);
     const [filters, setFilters] = useState({
     sexe: 'all',
@@ -89,6 +100,31 @@ const PatientsPage = () => {
     fetchConsultationsCount();
     fetchAssurances();
   }, []);
+
+  // Patients du médecin connecté (pour le switch "Mes patients" et le badge
+  // dans la vue globale).
+  useEffect(() => {
+    if (!isDoctor || !userProfile?.id) {
+      setMyPatientIds(new Set());
+      return;
+    }
+
+    const fetchMyPatientIds = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('consultations')
+          .select('patient_id')
+          .eq('medecin_id', userProfile.id);
+
+        if (error) throw error;
+        setMyPatientIds(new Set((data || []).map((c) => c.patient_id).filter(Boolean)));
+      } catch (error) {
+        console.error('Erreur lors du chargement des patients du médecin:', error);
+      }
+    };
+
+    fetchMyPatientIds();
+  }, [isDoctor, userProfile?.id]);
 
   // Ouvrir directement le modal "Nouveau patient" via ?new=true (ex. depuis
   // le bouton "Créer fiche patient" du dashboard secrétaire). On attend que
@@ -232,10 +268,25 @@ const PatientsPage = () => {
         matchesAge = false;
       }
     }
-    
-    return matchesSearch && matchesFilter && matchesSexe && matchesSituationFamiliale && 
-           matchesMutuelle && matchesMedecin && matchesAge;
+
+    const matchesMine = !isDoctor || !showOnlyMine || myPatientIds.has(patient.id);
+
+    return matchesSearch && matchesFilter && matchesSexe && matchesSituationFamiliale &&
+           matchesMutuelle && matchesMedecin && matchesAge && matchesMine;
   });
+
+  // Revenir à la première page dès que la liste filtrée change, sinon on peut
+  // se retrouver sur une page vide (ex: recherche qui réduit le nombre de résultats).
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus, filters, showOnlyMine]);
+
+  const totalPages = Math.ceil(filteredPatients.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedPatients = filteredPatients.slice(startIndex, startIndex + itemsPerPage);
+
+  const handlePreviousPage = () => setCurrentPage((page) => Math.max(1, page - 1));
+  const handleNextPage = () => setCurrentPage((page) => Math.min(totalPages, page + 1));
 
   const getStatusBadge = (actif) => {
     const statusClasses = {
@@ -854,7 +905,24 @@ const PatientsPage = () => {
               className="input-field pl-10"
             />
           </div>
-          
+
+          {isDoctor && (
+            <label className="flex items-center gap-2.5 px-1 cursor-pointer select-none flex-shrink-0">
+              <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                {showOnlyMine ? 'Mes patients' : 'Tous les patients'}
+              </span>
+              <span className="relative inline-flex items-center">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={showOnlyMine}
+                  onChange={(e) => setShowOnlyMine(e.target.checked)}
+                />
+                <span className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-medical-primary"></span>
+              </span>
+            </label>
+          )}
+
          <div className="mx-2 flex items-center">
          <Dropdown
             value={filterStatus}
@@ -995,17 +1063,33 @@ const PatientsPage = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredPatients.map((patient) => (
-                <tr key={patient.id} className="border-b border-gray-100 hover:bg-gray-50">
+              {paginatedPatients.map((patient) => {
+                const isMine = isDoctor && !showOnlyMine && myPatientIds.has(patient.id);
+                return (
+                <tr
+                  key={patient.id}
+                  className={`border-b border-gray-100 ${isMine ? 'bg-emerald-50/60 hover:bg-emerald-50' : 'hover:bg-gray-50'}`}
+                >
                   <td className="py-4 px-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-gradient-to-br from-medical-primary to-medical-secondary rounded-full flex items-center justify-center text-white font-semibold">
                         {patient.prenom[0]}{patient.nom[0]}
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900">
-                          {patient.prenom} {patient.nom}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900">
+                            {patient.prenom} {patient.nom}
+                          </p>
+                          {isMine && (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-700"
+                              title="Vous avez déjà consulté ce patient"
+                            >
+                              <User className="w-3 h-3" />
+                              Mon patient
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-500">
                           {patient.sexe === 'M' ? 'Masculin' : 'Féminin'} • {calculateAge(patient.date_naissance)} ans
                         </p>
@@ -1076,7 +1160,8 @@ const PatientsPage = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1085,6 +1170,45 @@ const PatientsPage = () => {
           <div className="text-center py-12">
             <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500">Aucun patient trouvé</p>
+          </div>
+        )}
+
+        {filteredPatients.length > 0 && totalPages > 1 && (
+          <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-200">
+            <div className="text-sm text-gray-600">
+              Affichage de {startIndex + 1} à {Math.min(startIndex + itemsPerPage, filteredPatients.length)} sur {filteredPatients.length} patients
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      currentPage === page
+                        ? 'bg-medical-primary text-white'
+                        : 'border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         )}
       </div>
