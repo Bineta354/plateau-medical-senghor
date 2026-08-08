@@ -1672,41 +1672,38 @@ const Caisse = () => {
           </button>
         </div>
       )}
-      {/* Recherche + SelectSearch (suggestions) */}
-      <div className="bg-white rounded-xl shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">Rechercher une facture (nom, prénom ou n° facture)</h2>
-        <div className="relative">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchTerm}
-            onChange={handleSearchChange}
-            onFocus={handleSearchFocus}
-            placeholder="Nom, prénom ou n° de facture..."
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-          {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-auto">
-              {suggestions.map((s) => (
-                <button
-                  key={s.factureId}
-                  type="button"
-                  onClick={() => handleSuggestionClick(s)}
-                  className="w-full px-4 py-3 text-left hover:bg-blue-50 flex justify-between items-center"
-                >
-                  <span className="font-medium">{s.prenom} {s.nom}</span>
-                  <span className="text-sm text-gray-500">{s.numero_facture} – {formatMontant(s.montant_ttc || 0)}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Liste factures en attente (DataTables: filtre + pagination, plus récentes en premier) */}
       <div className="bg-white rounded-xl shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">Factures en attente de paiement</h2>
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          <h2 className="text-lg font-semibold">Factures en attente de paiement</h2>
+          <div className="relative w-full sm:w-80">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchTerm}
+              onChange={handleSearchChange}
+              onFocus={handleSearchFocus}
+              placeholder="Nom, prénom ou n° de facture..."
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-auto">
+                {suggestions.map((s) => (
+                  <button
+                    key={s.factureId}
+                    type="button"
+                    onClick={() => handleSuggestionClick(s)}
+                    className="w-full px-4 py-3 text-left hover:bg-blue-50 flex justify-between items-center"
+                  >
+                    <span className="font-medium">{s.prenom} {s.nom}</span>
+                    <span className="text-sm text-gray-500">{s.numero_facture} – {formatMontant(s.montant_ttc || 0)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
         {loading ? (
           <div className="flex justify-center py-12"><div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
         ) : searchResults.length === 0 ? (
