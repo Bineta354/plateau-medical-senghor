@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { ROLES } from '../../utils/permissions';
 import { useToast } from '../../hooks/useToast.jsx';
+import KpiCard from '../../components/common/KpiCard';
 
 const GestionCaissiers = () => {
   const { currentUser, tenantId } = useAuth();
@@ -186,35 +187,17 @@ const GestionCaissiers = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-            </div>
-            <Users className="w-8 h-8 text-orange-600" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Actifs</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
-            </div>
-            <CheckCircle className="w-8 h-8 text-green-600" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Inactifs</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.inactive}</p>
-            </div>
-            <XCircle className="w-8 h-8 text-yellow-600" />
-          </div>
-        </div>
+        <KpiCard
+          icon={Users}
+          label="Total"
+          value={stats.total}
+          className="rounded-lg p-4 bg-orange-50 hover:shadow-md"
+          iconClassName="text-orange-600"
+          valueClassName="text-orange-600"
+          labelClassName="text-orange-700"
+        />
+        <KpiCard icon={CheckCircle} tone="green" label="Actifs" value={stats.active} />
+        <KpiCard icon={XCircle} tone="yellow" label="Inactifs" value={stats.inactive} />
       </div>
 
       <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">

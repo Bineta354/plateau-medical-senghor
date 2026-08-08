@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import SearchableSelect from '../../components/common/SearchableSelect';
+import KpiCard from '../../components/common/KpiCard';
 import { useAlert } from '../../contexts/AlertContext';
 
 const FacturationPharmacie = () => {
@@ -492,63 +493,34 @@ const FacturationPharmacie = () => {
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <Pill className="w-8 h-8 text-blue-600 mr-4" />
-            <div>
-              <p className="text-sm font-medium text-gray-500">Total ventes</p>
-              <p className="text-2xl font-semibold text-gray-900">{ventesPharmacies.length}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <CheckCircle className="w-8 h-8 text-green-600 mr-4" />
-            <div>
-              <p className="text-sm font-medium text-gray-500">Délivrées</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {ventesPharmacies.filter(v => v.statut === 'delivree').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <Package className="w-8 h-8 text-yellow-600 mr-4" />
-            <div>
-              <p className="text-sm font-medium text-gray-500">En préparation</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {ventesPharmacies.filter(v => v.statut === 'en_preparation').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <Clock className="w-8 h-8 text-blue-600 mr-4" />
-            <div>
-              <p className="text-sm font-medium text-gray-500">En attente</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {ventesPharmacies.filter(v => v.statut === 'en_attente').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <Coins className="w-8 h-8 text-medical-primary mr-4" />
-            <div>
-              <p className="text-sm font-medium text-gray-500">Chiffre d'affaires</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {formatMontant(ventesPharmacies.reduce((sum, v) => sum + v.total, 0))}
-              </p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={Pill} tone="blue" label="Total ventes" value={ventesPharmacies.length} />
+        <KpiCard
+          icon={CheckCircle}
+          tone="green"
+          label="Délivrées"
+          value={ventesPharmacies.filter(v => v.statut === 'delivree').length}
+        />
+        <KpiCard
+          icon={Package}
+          tone="yellow"
+          label="En préparation"
+          value={ventesPharmacies.filter(v => v.statut === 'en_preparation').length}
+        />
+        <KpiCard
+          icon={Clock}
+          tone="blue"
+          label="En attente"
+          value={ventesPharmacies.filter(v => v.statut === 'en_attente').length}
+        />
+        <KpiCard
+          icon={Coins}
+          label="Chiffre d'affaires"
+          value={formatMontant(ventesPharmacies.reduce((sum, v) => sum + v.total, 0))}
+          className="rounded-lg p-4 bg-medical-primary/10 hover:shadow-md"
+          iconClassName="text-medical-primary"
+          valueClassName="text-medical-primary"
+          labelClassName="text-medical-primary"
+        />
       </div>
 
       {/* Barre de recherche */}

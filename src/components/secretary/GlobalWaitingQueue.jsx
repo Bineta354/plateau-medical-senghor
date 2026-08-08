@@ -17,7 +17,7 @@ import {
   isOnWaitingBench,
   isInConsultationQueueStatus,
 } from '../../utils/waitingQueueStatus';
-import ClickableStatCard from '../common/ClickableStatCard';
+import KpiCard from '../common/KpiCard';
 
 const GlobalWaitingQueue = ({
   doctors,
@@ -56,6 +56,13 @@ const GlobalWaitingQueue = ({
       }, () => {
         fetchAllData();
       })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'consultations'
+      }, () => {
+        fetchAllData();
+      })
       .subscribe();
 
     return () => {
@@ -85,7 +92,7 @@ const GlobalWaitingQueue = ({
       queueTomorrow.setDate(queueTomorrow.getDate() + 1);
       const queueTomorrowStart = queueTomorrow.toISOString();
 
-      // 1) Récupérer les files d'attente avec jointure sur appointments et filtre sur statut_arrivee = 'arrive'
+      // 1) Récupérer les files d'attente avec jointure sur appointments (tous les rendez-vous du jour)
       const { data: waitingData, error: waitingError } = await supabase
         .from('waiting_queue')
         .select(`
@@ -95,7 +102,6 @@ const GlobalWaitingQueue = ({
         .in('medecin_id', medecinIds)
         .gte('appointments.date_heure', queueTodayStart)
         .lt('appointments.date_heure', queueTomorrowStart)
-        .eq('appointments.statut_arrivee', 'arrive')
         .order('order_position', { ascending: true });
 
       if (waitingError) {
@@ -332,28 +338,68 @@ const GlobalWaitingQueue = ({
 
   // Calculer les statistiques par médecin pour le tableau récapitulatif
   const doctorStatsRaw = filteredDoctors.map(doctor => {
-    // On réutilise les mêmes fonctions de classification que les compteurs globaux
-    // (computeQueueStats / isOnWaitingBench) pour que la somme par médecin
-    // corresponde toujours exactement aux cartes du haut ("Salle d'attente", "Urgences").
-    const doctorQueue = filterActiveQueueItems(waitingQueues[doctor.id] || []);
+    // Utiliser waiting_queue pour les patients en attente/en cours. On ne
+    // s'appuie plus sur une liste de statuts codée en dur ici : le workflow a
+    // plus d'états que "waiting/present/arrive" (authorized, called, appele,
+    // en_route, medecin_pret...) — un patient dans un de ces statuts ne
+    // comptait avant dans NI "En attente" NI "En consultation", et
+    // disparaissait donc du total. Le découpage à retenir n'est que celui du
+    // statut de la consultation : en attente de consultation / en
+    // consultation / terminée — pas "combien sont physiquement dans la salle
+    // d'attente". `isOnWaitingBench` / `isInConsultationQueueStatus` (déjà
+    // utilisées par les KPI de cette page) forment une partition complète des
+    // statuts actifs, donc enAttente + enConsultation = tous les présents.
+    const doctorQueue = waitingQueues[doctor.id] || [];
+    const activeDoctorQueue = filterActiveQueueItems(doctorQueue);
 
-    const enAttente = doctorQueue.filter(p => isOnWaitingBench(p.status)).length;
-    const enConsultation = doctorQueue.filter(p => isInConsultationQueueStatus(p.status)).length;
-    const total = enAttente + enConsultation;
+    const enAttente = activeDoctorQueue.filter(p => isOnWaitingBench(p.status)).length;
 
-    // Répartition par urgence (sur tous les patients actifs du médecin)
-    const tresUrgent = doctorQueue.filter(p => p.priority === 'tres_urgente').length;
-    const urgent = doctorQueue.filter(p => p.priority === 'urgente').length;
-    const normal = doctorQueue.filter(p => p.priority === 'normale' || !p.priority).length;
+    const enConsultation = activeDoctorQueue.filter(p => isInConsultationQueueStatus(p.status)).length;
 
-    // Total du jour : consultations terminées aujourd'hui
-    const totalDuJour = (consultationsByDoctor[doctor.id] || []).length;
+    // Utiliser la table consultations pour les consultations terminées
+    const doctorConsultations = consultationsByDoctor[doctor.id] || [];
+    const finishedConsultations = doctorConsultations.filter(c =>
+      c.statut === 'terminee' ||
+      c.statut === 'termine' ||
+      c.statut === 'finished' ||
+      c.statut === 'completed'
+    );
+    const terminees = finishedConsultations.length;
+
+    const total = enAttente + enConsultation + terminees;
+
+    // Répartition par urgence : "Dont (urgence)" doit décomposer le même
+    // total que la colonne "Total du jour", donc elle doit couvrir les MÊMES
+    // patients — présents (waiting_queue.priority) ET terminés
+    // (consultations.niveau_urgence, copié depuis waiting_queue.priority à la
+    // création de la consultation). Se limiter aux présents faisait que
+    // Très urgent + Urgent + Normal ne retombait jamais sur Total du jour dès
+    // qu'il y avait au moins une consultation terminée.
+    const presentPatients = activeDoctorQueue;
+
+    const tresUrgent =
+      presentPatients.filter(p => p.priority === 'tres_urgente' || p.appointment?.priorite === 'tres_urgente').length +
+      finishedConsultations.filter(c => c.niveau_urgence === 'tres_urgente').length;
+    const urgent =
+      presentPatients.filter(p => p.priority === 'urgente' || p.appointment?.priorite === 'urgente').length +
+      finishedConsultations.filter(c => c.niveau_urgence === 'urgente').length;
+    const normal =
+      presentPatients.filter(p => {
+        const priority = p.priority || p.appointment?.priorite;
+        return priority === 'normale' || priority === 'normal' || !priority;
+      }).length +
+      finishedConsultations.filter(c => !c.niveau_urgence || c.niveau_urgence === 'normale').length;
+
+    // Total du jour : somme de toutes les consultations (attente + en cours + terminées)
+    const totalDuJour = total;
+
 
     return {
       medecinId: doctor.id,
       nom: `Dr. ${doctor.prenom} ${doctor.nom}`,
       enAttente,
       enConsultation,
+      terminees,
       total,
       totalDuJour,
       urgence: {
@@ -380,38 +426,38 @@ const GlobalWaitingQueue = ({
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Vue Globale - Tous les Médecins</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <ClickableStatCard
-            tone="blue"
+          <KpiCard
             icon={Users}
+            tone="blue"
             label="Médecins"
             value={totalDoctors}
             onClick={() => onDoctorSelect?.(null)}
-            title="Voir tous les médecins"
+            hoverMessage="Voir tous les médecins"
           />
-          <ClickableStatCard
-            tone="green"
+          <KpiCard
             icon={Calendar}
+            tone="green"
             label="RDV aujourd'hui"
             value={totalAppointments}
             onClick={onNavigateCalendar}
-            title="Ouvrir le calendrier"
+            hoverMessage="Ouvrir le calendrier"
           />
-          <ClickableStatCard
-            tone="yellow"
+          <KpiCard
             icon={Clock}
+            tone="yellow"
             label="Salle d'attente"
             value={totalWaiting}
             onClick={onNavigateWaitingRoom}
-            title="Ouvrir la salle d'attente"
+            hoverMessage="Ouvrir la salle d'attente"
           />
-          <ClickableStatCard
-            tone="red"
+          <KpiCard
             icon={AlertTriangle}
+            tone="red"
             label="Urgences"
             value={totalUrgent}
             onClick={() => onFilterStatus?.('urgent')}
             active={filterStatus === 'urgent'}
-            title="Filtrer les urgences"
+            hoverMessage="Filtrer les urgences"
           />
         </div>
       </div>
@@ -424,7 +470,7 @@ const GlobalWaitingQueue = ({
               <tr className="border-b border-gray-200">
                 <th className="text-left py-3 px-4 font-semibold text-gray-700">Médecin</th>
                 <th className="text-center py-3 px-4 font-semibold text-gray-700" colSpan="2">Présents</th>
-                <th className="text-center py-3 px-4 font-semibold text-gray-700">Total</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-700">Consultations terminées</th>
                 <th className="text-center py-3 px-4 font-semibold text-gray-700">Total du jour</th>
                 <th className="text-center py-3 px-4 font-semibold text-gray-700" colSpan="3">Dont (urgence)</th>
               </tr>
@@ -434,9 +480,9 @@ const GlobalWaitingQueue = ({
                 <th className="text-center py-2 px-4 text-sm font-medium text-gray-600">En consultation</th>
                 <th className="text-center py-2 px-4 text-sm font-medium text-gray-600"></th>
                 <th className="text-center py-2 px-4 text-sm font-medium text-gray-600"></th>
-                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600 bg-red-200">Très urgent</th>
-                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600 bg-orange-50">Urgent</th>
-                <th className="text-center py-2 px-4 text-sm font-medium text-gray-600 bg-green-50">Normal</th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-800 bg-red-200">Très urgent</th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-800 bg-orange-200">Urgent</th>
+                <th className="text-center py-2 px-4 text-sm font-medium text-gray-800 bg-green-200">Normal</th>
               </tr>
             </thead>
             <tbody>
@@ -452,11 +498,11 @@ const GlobalWaitingQueue = ({
                   <td className="py-3 px-4 font-medium text-gray-900">{stat.nom}</td>
                   <td className="text-center py-3 px-4 text-gray-700">{stat.enAttente}</td>
                   <td className="text-center py-3 px-4 text-gray-700">{stat.enConsultation}</td>
-                  <td className="text-center py-3 px-4 font-bold text-gray-900">{stat.total}</td>
+                  <td className="text-center py-3 px-4 text-gray-700">{stat.terminees}</td>
                   <td className="text-center py-3 px-4 font-bold text-blue-900">{stat.totalDuJour}</td>
-                  <td className="text-center py-3 px-4 text-gray-700 bg-red-200">{stat.urgence.tresUrgent}</td>
-                  <td className="text-center py-3 px-4 text-gray-700 bg-orange-50">{stat.urgence.urgent}</td>
-                  <td className="text-center py-3 px-4 text-gray-700 bg-green-50">{stat.urgence.normal}</td>
+                  <td className="text-center py-3 px-4 font-bold text-gray-800 bg-red-200">{stat.urgence.tresUrgent}</td>
+                  <td className="text-center py-3 px-4 font-bold text-gray-800 bg-orange-200">{stat.urgence.urgent}</td>
+                  <td className="text-center py-3 px-4 font-bold text-gray-800 bg-green-200">{stat.urgence.normal}</td>
                 </tr>
               ))}
             </tbody>

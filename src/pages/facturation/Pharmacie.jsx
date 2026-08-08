@@ -1,9 +1,10 @@
 import { useConsultations } from '../../hooks/consultation/useConsultations';
 import { supabase } from '../../lib/supabase';
-import { 
-  PlusIcon, 
-  PencilIcon, 
-  TrashIcon, 
+import KpiCard from '../../components/common/KpiCard';
+import {
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
   MagnifyingGlassIcon,
   BeakerIcon,
   ClockIcon,
@@ -271,30 +272,12 @@ const Pharmacie = () => {
 
       {/* Statistiques */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-          <div className="text-sm text-gray-600">Total</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-blue-500">{stats.prescrit}</div>
-          <div className="text-sm text-gray-600">Prescrites</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-yellow-500">{stats.en_attente}</div>
-          <div className="text-sm text-gray-600">En attente</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-green-500">{stats.dispense}</div>
-          <div className="text-sm text-gray-600">Dispensées</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-red-500">{stats.annule}</div>
-          <div className="text-sm text-gray-600">Annulées</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-red-600">{stats.urgent}</div>
-          <div className="text-sm text-gray-600">Urgentes</div>
-        </div>
+        <KpiCard tone="blue" label="Total" value={stats.total} />
+        <KpiCard tone="blue" label="Prescrites" value={stats.prescrit} />
+        <KpiCard tone="yellow" label="En attente" value={stats.en_attente} />
+        <KpiCard tone="green" label="Dispensées" value={stats.dispense} />
+        <KpiCard tone="red" label="Annulées" value={stats.annule} />
+        <KpiCard tone="red" label="Urgentes" value={stats.urgent} />
       </div>
 
       {/* Filtres et recherche */}

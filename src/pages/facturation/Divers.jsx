@@ -1,7 +1,8 @@
 import { useConsultations } from '../../hooks/consultation/useConsultations';
 import { supabase } from '../../lib/supabase';
-import { 
-  PlusIcon, 
+import KpiCard from '../../components/common/KpiCard';
+import {
+  PlusIcon,
   PencilIcon, 
   TrashIcon, 
   CheckIcon,
@@ -45,10 +46,10 @@ const Divers = () => {
   ];
 
   const statuts = [
-    { value: 'en_attente', label: 'En attente', color: 'bg-yellow-100 text-yellow-800' },
-    { value: 'en_cours', label: 'En cours', color: 'bg-blue-100 text-blue-800' },
-    { value: 'terminee', label: 'Terminée', color: 'bg-green-100 text-green-800' },
-    { value: 'annulee', label: 'Annulée', color: 'bg-gray-100 text-gray-800' }
+    { value: 'en_attente', label: 'En attente', color: 'bg-yellow-100 text-yellow-800', tone: 'yellow' },
+    { value: 'en_cours', label: 'En cours', color: 'bg-blue-100 text-blue-800', tone: 'blue' },
+    { value: 'terminee', label: 'Terminée', color: 'bg-green-100 text-green-800', tone: 'green' },
+    { value: 'annulee', label: 'Annulée', color: 'bg-gray-100 text-gray-800', tone: 'gray' }
   ];
 
 
@@ -258,10 +259,7 @@ const Divers = () => {
         {statuts.map(statut => {
           const count = instructions.filter(i => i.statut === statut.value).length;
           return (
-            <div key={statut.value} className={`p-4 rounded-lg ${statut.color}`}>
-              <div className="text-2xl font-bold">{count}</div>
-              <div className="text-sm">{statut.label}</div>
-            </div>
+            <KpiCard key={statut.value} tone={statut.tone} label={statut.label} value={count} />
           );
         })}
       </div>

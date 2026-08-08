@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { formatNombre } from '../utils/currency';
+import { formatMontant } from '../utils/currency';
 import { 
   Users, 
   Clock, 
@@ -19,9 +19,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import TestNotifications from '../components/TestNotifications';
 import { useDashboardData } from '../hooks/useDashboardData'; // Import the new hook
+import KpiCard from '../components/common/KpiCard';
 
 const Dashboard = () => {
-  const { currentUser, hasRole } = useAuth();
+  const { currentUser, hasAnyRole } = useAuth();
   const navigate = useNavigate();
 
   // Use the new useDashboardData hook
@@ -179,7 +180,7 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          {(hasRole(['admin']) || hasRole(['doctor'])) && (
+          {hasAnyRole(['admin', 'doctor']) && (
             <button
               onClick={() => navigate('/personnalisation')}
               className="flex items-center px-4 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary/90 transition-colors shadow-md"
@@ -204,91 +205,40 @@ const Dashboard = () => {
 
       {/* Cartes de statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Patients</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{patients.length}</p>
-            </div>
-            <div className="p-3 rounded-full bg-blue-100">
-              <Users className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <KpiCard icon={Users} tone="blue" label="Total Patients" value={patients.length} />
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">En Attente</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.patientsWaiting}</p>
-            </div>
-            <div className="p-3 rounded-full bg-yellow-100">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
-          </div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <KpiCard icon={Clock} tone="yellow" label="En Attente" value={stats.patientsWaiting} />
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Consultations</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.consultationsCompleted}</p>
-            </div>
-            <div className="p-3 rounded-full bg-purple-100">
-              <UserCheck className="w-6 h-6 text-purple-600" />
-            </div>
-          </div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+          <KpiCard icon={UserCheck} tone="purple" label="Consultations" value={stats.consultationsCompleted} />
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Revenus (FCFA)</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {formatNombre(stats.totalRevenue)}
-              </p>
-            </div>
-            <div className="p-3 rounded-full bg-emerald-100">
-              <Coins className="w-6 h-6 text-emerald-600" />
-            </div>
-          </div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+          <KpiCard
+            icon={Coins}
+            label="Revenus (FCFA)"
+            value={formatMontant(stats.totalRevenue)}
+            className="rounded-lg p-4 bg-emerald-50 hover:shadow-md"
+            iconClassName="text-emerald-600"
+            valueClassName="text-emerald-600"
+            labelClassName="text-emerald-700"
+          />
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="bg-white rounded-lg shadow-md p-6 border border-gray-200"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Utilisateurs</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{fetchedMedecins.length}</p>
-            </div>
-            <div className="p-3 rounded-full bg-indigo-100">
-              <Users className="w-6 h-6 text-indigo-600" />
-            </div>
-          </div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+          <KpiCard
+            icon={Users}
+            label="Utilisateurs"
+            value={fetchedMedecins.length}
+            className="rounded-lg p-4 bg-indigo-50 hover:shadow-md"
+            iconClassName="text-indigo-600"
+            valueClassName="text-indigo-600"
+            labelClassName="text-indigo-700"
+          />
         </motion.div>
       </div>
 
@@ -414,7 +364,7 @@ const Dashboard = () => {
       </div>
 
       {/* Actions rapides */}
-      {hasRole(['admin', 'secretaire']) && (
+      {hasAnyRole(['admin', 'secretary']) && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -426,12 +376,12 @@ const Dashboard = () => {
             Actions Rapides
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button 
-              onClick={() => navigate('/introduction-patient')}
+            <button
+              onClick={() => navigate('/rendez-vous/prise-rendez-vous')}
               className="flex items-center justify-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <Users className="w-5 h-5 mr-2" />
-              Nouveau Patient
+              <UserCheck className="w-5 h-5 mr-2" />
+              Arriver Patient
             </button>
             <button 
               onClick={() => navigate('/facturation')}

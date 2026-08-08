@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { BarChart3, FileText, Printer } from 'lucide-react';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import { formatMontant, formatNombre } from '../../utils/currency';
+import { getStatusColor, getStatusLabel } from '../../utils/factureStatus';
 
 const PERIODS = [
   { value: 'all', label: 'Toutes les dates' },
@@ -967,11 +968,8 @@ const Recapitulatif = () => {
                           <td className="px-4 py-3 text-right">{formatNombre(f.montant_paye || 0)}</td>
                           <td className="px-4 py-3 text-right font-medium text-amber-700">{formatNombre(restant)}</td>
                           <td className="px-4 py-3">
-                            <span className={`px-2 py-0.5 rounded text-xs ${
-                              f.statut_paiement === 'paye' ? 'bg-green-100 text-green-800' :
-                              f.statut_paiement === 'partiel' ? 'bg-orange-100 text-orange-800' : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {f.statut_paiement}
+                            <span className={`px-2 py-0.5 rounded text-xs border ${getStatusColor(f.statut_paiement)}`}>
+                              {getStatusLabel(f.statut_paiement)}
                             </span>
                           </td>
                           <td className="px-4 py-3 print:hidden">

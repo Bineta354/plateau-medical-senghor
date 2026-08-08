@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { BarChart, LineChart, PieChart, TrendingUp, Users, Clock, Calendar, Activity } from 'lucide-react';
+import KpiCard from '../../components/common/KpiCard';
 
 const StatistiquesRealtime = () => {
   const [statistiques, setStatistiques] = useState([]);
@@ -256,53 +257,13 @@ const StatistiquesRealtime = () => {
 
       {/* Statistiques globales */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Users className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Patients</p>
-              <p className="text-2xl font-bold text-gray-900">{statsGlobales.totalPatients}</p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={Users} tone="blue" label="Total Patients" value={statsGlobales.totalPatients} />
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Calendar className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Consultations</p>
-              <p className="text-2xl font-bold text-gray-900">{statsGlobales.totalConsultations}</p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={Calendar} tone="green" label="Consultations" value={statsGlobales.totalConsultations} />
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Temps d'attente moyen</p>
-              <p className="text-2xl font-bold text-gray-900">{statsGlobales.tempsAttenteMoyen} min</p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={Clock} tone="yellow" label="Temps d'attente moyen" value={`${statsGlobales.tempsAttenteMoyen} min`} />
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Activity className="w-6 h-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Taux d'occupation</p>
-              <p className="text-2xl font-bold text-gray-900">{statsGlobales.tauxOccupation}%</p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={Activity} tone="purple" label="Taux d'occupation" value={`${statsGlobales.tauxOccupation}%`} />
       </div>
 
       {/* Graphiques */}

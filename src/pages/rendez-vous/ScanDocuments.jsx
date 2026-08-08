@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { unifiedNotificationService } from '../../services/unifiedNotificationService';
-import { Upload, FileText, CheckCircle, X, Tag, Search, Filter, Download, Eye, Trash2 } from 'lucide-react';
+import { Upload, FileText, CheckCircle, X, Tag, Search, Filter, Download, Eye, Trash2, Clock } from 'lucide-react';
+import KpiCard from '../../components/common/KpiCard';
 
 const ScanDocuments = () => {
   const [documents, setDocuments] = useState([]);
@@ -362,65 +363,15 @@ const ScanDocuments = () => {
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <FileText className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={FileText} tone="blue" label="Total" value={stats.total} />
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">En attente</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.enAttente}</p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={Clock} tone="yellow" label="En attente" value={stats.enAttente} />
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Validés</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.valides}</p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={CheckCircle} tone="green" label="Validés" value={stats.valides} />
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <X className="w-6 h-6 text-red-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Rejetés</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.rejetes}</p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={X} tone="red" label="Rejetés" value={stats.rejetes} />
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Upload className="w-6 h-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Aujourd'hui</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.aujourdhui}</p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={Upload} tone="purple" label="Aujourd'hui" value={stats.aujourdhui} />
       </div>
 
       {/* Actions */}

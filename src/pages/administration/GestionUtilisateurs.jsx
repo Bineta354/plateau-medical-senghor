@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { ROLES, getRoleDisplayName, getRoleColor, getRoleIcon } from '../../utils/permissions';
 import { useToast } from '../../hooks/useToast.jsx';
+import KpiCard from '../../components/common/KpiCard';
 
 const GestionUtilisateurs = () => {
   const { currentUser, tenantId } = useAuth();
@@ -233,85 +234,22 @@ const GestionUtilisateurs = () => {
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
-        <div className="card card-medical">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-            </div>
-            <Users className="w-8 h-8 text-medical-primary" />
-          </div>
-        </div>
-        
-        <div className="card card-danger">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Admins</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.admins}</p>
-            </div>
-            <Shield className="w-8 h-8 text-red-600" />
-          </div>
-        </div>
-        
-        <div className="card card-primary">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Médecins</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.doctors}</p>
-            </div>
-            <Stethoscope className="w-8 h-8 text-blue-600" />
-          </div>
-        </div>
-        
-        <div className="card card-success">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Secrétaires</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.secretaries}</p>
-            </div>
-            <UserCheck className="w-8 h-8 text-green-600" />
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Comptables</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.accounting}</p>
-            </div>
-            <RefreshCw className="w-8 h-8 text-purple-600" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Caissiers</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.cashiers}</p>
-            </div>
-            <Calculator className="w-8 h-8 text-orange-600" />
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Actifs</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
-            </div>
-            <CheckCircle className="w-8 h-8 text-green-600" />
-          </div>
-        </div>
-        
-        <div className="card card-warning">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Inactifs</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.inactive}</p>
-            </div>
-            <XCircle className="w-8 h-8 text-yellow-600" />
-          </div>
-        </div>
+        <KpiCard icon={Users} tone="blue" label="Total" value={stats.total} />
+        <KpiCard icon={Shield} tone="red" label="Admins" value={stats.admins} />
+        <KpiCard icon={Stethoscope} tone="blue" label="Médecins" value={stats.doctors} />
+        <KpiCard icon={UserCheck} tone="green" label="Secrétaires" value={stats.secretaries} />
+        <KpiCard icon={RefreshCw} tone="purple" label="Comptables" value={stats.accounting} />
+        <KpiCard
+          icon={Calculator}
+          label="Caissiers"
+          value={stats.cashiers}
+          className="rounded-lg p-4 bg-orange-50 hover:shadow-md"
+          iconClassName="text-orange-600"
+          valueClassName="text-orange-600"
+          labelClassName="text-orange-700"
+        />
+        <KpiCard icon={CheckCircle} tone="green" label="Actifs" value={stats.active} />
+        <KpiCard icon={XCircle} tone="yellow" label="Inactifs" value={stats.inactive} />
       </div>
 
 

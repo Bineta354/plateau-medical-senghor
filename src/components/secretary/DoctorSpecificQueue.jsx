@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import { unifiedNotificationService } from '../../services/unifiedNotificationService';
 import { 
   Stethoscope, 
@@ -24,7 +25,7 @@ import {
   matchesQueueFilterStatus,
   hasPastAppointment,
 } from '../../utils/waitingQueueStatus';
-import ClickableStatCard from '../common/ClickableStatCard';
+import KpiCard from '../common/KpiCard';
 
 const DoctorSpecificQueue = ({
   doctor,
@@ -32,6 +33,7 @@ const DoctorSpecificQueue = ({
   filterStatus,
   initialQueueFilter = 'all',
 }) => {
+  const { userProfile } = useAuth();
   const [waitingQueue, setWaitingQueue] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -215,83 +217,44 @@ const DoctorSpecificQueue = ({
     }
   };
 
-  const handlePatientPresent = async (appointmentId, patientId) => {
+  // Confirmer la présence d'un patient depuis "Rendez-vous du jour" (pas encore
+  // en file d'attente) — même RPC que la page Prise de Rendez-vous, pour rester
+  // cohérent (statut du RDV mis à jour, médecin notifié), voir
+  // PriseRendezVousPage.jsx > handleConfirmPatientPresence.
+  const handleConfirmPresence = async (appointment) => {
     try {
-      console.log('🔄 [DoctorSpecificQueue] Ajout patient à la file:', { appointmentId, patientId, doctorId: doctor.id });
-      
-      // Vérifier si le patient n'est pas déjà en file d'attente pour ce rendez-vous
-      const { data: existingPatient } = await supabase
-        .from('waiting_queue')
-        .select('id')
-        .eq('patient_id', patientId)
-        .eq('medecin_id', doctor.id)
-        .eq('appointment_id', appointmentId)
-        .eq('status', 'waiting')
-        .single();
-
-      if (existingPatient) {
-        console.log('⚠️ [DoctorSpecificQueue] Patient déjà en file d\'attente:', existingPatient);
-        unifiedNotificationService.warning('Le patient est déjà en file d\'attente');
+      if (!appointment?.id) return;
+      const secId = userProfile?.id;
+      if (!secId) {
+        unifiedNotificationService.error("Impossible d'identifier la secrétaire (secretaireId manquant)");
         return;
       }
 
-      // Récupérer la position actuelle
-      const { data: currentQueue } = await supabase
-        .from('waiting_queue')
-        .select('order_position')
-        .eq('medecin_id', doctor.id)
-        .order('order_position', { ascending: false })
-        .limit(1);
+      const { data, error } = await supabase.rpc('secretaire_confirme_patient_presence', {
+        p_appointment_id: appointment.id,
+        p_secretaire_id: secId
+      });
 
-      const nextPosition = currentQueue && currentQueue.length > 0 ? currentQueue[0].order_position + 1 : 1;
-      console.log('📊 [DoctorSpecificQueue] Position suivante:', nextPosition);
+      if (error) throw error;
 
-      // Ajouter le patient à la file d'attente
-      const { data, error } = await supabase
-        .from('waiting_queue')
-        .insert([{
-          patient_id: patientId,
-          medecin_id: doctor.id,
-          appointment_id: appointmentId,
-          status: 'waiting',
-          priority: 'normale',
-          arrived_at: new Date().toISOString(),
-          order_position: nextPosition
-        }])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ [DoctorSpecificQueue] Erreur insertion:', error);
-        throw error;
+      if (data?.medecin_id && appointment.patient) {
+        const { sendNotification, NOTIFICATION_TYPES } = await import('../../lib/notifications');
+        const patientName = `${appointment.patient.prenom ?? ''} ${appointment.patient.nom ?? ''}`.trim();
+        await sendNotification(
+          NOTIFICATION_TYPES.PATIENT_ARRIVED,
+          secId,
+          data.medecin_id,
+          null,
+          patientName,
+          { appointmentId: appointment.id, patientId: data.patient_id }
+        );
       }
 
-      console.log('✅ [DoctorSpecificQueue] Patient ajouté avec succès:', data);
-
-      // Attendre un peu pour que la base de données se synchronise
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Recharger les données
       await fetchDoctorData();
-      console.log('🔄 [DoctorSpecificQueue] Données rechargées');
-      
-      // Vérifier que le patient est bien dans la file d'attente
-      const { data: verifyData } = await supabase
-        .from('waiting_queue')
-        .select('*')
-        .eq('patient_id', patientId)
-        .eq('medecin_id', doctor.id)
-        .eq('appointment_id', appointmentId)
-        .single();
-      
-      console.log('🔍 [DoctorSpecificQueue] Vérification après ajout:', verifyData);
-      
-      // Forcer le refresh de l'interface
-      setRefreshKey(prev => prev + 1);
-      console.log('🔄 [DoctorSpecificQueue] Interface rafraîchie');
+      unifiedNotificationService.success(data?.message || 'Patient confirmé présent et ajouté à la salle d\'attente');
     } catch (error) {
-      console.error('❌ [DoctorSpecificQueue] Erreur lors de l\'ajout du patient à la file d\'attente:', error);
-      unifiedNotificationService.error('Erreur lors de l\'ajout du patient à la file d\'attente: ' + error.message);
+      console.error('❌ [DoctorSpecificQueue] Erreur lors de la confirmation de présence:', error);
+      unifiedNotificationService.error(error.message || 'Erreur lors de la confirmation de présence');
     }
   };
 
@@ -458,41 +421,41 @@ const DoctorSpecificQueue = ({
 
         {/* Statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <ClickableStatCard
+          <KpiCard
             tone="blue"
             icon={UserCheck}
             label="Patients actifs"
             value={queueStats.total}
             onClick={() => handleStatCardClick('all')}
             active={statFilter === 'all'}
-            title="Afficher tous les patients actifs"
+            hoverMessage="Afficher tous les patients actifs"
           />
-          <ClickableStatCard
+          <KpiCard
             tone="yellow"
             icon={Clock}
             label="En salle"
             value={queueStats.onBench}
             onClick={() => handleStatCardClick('waiting')}
             active={statFilter === 'waiting'}
-            title="Filtrer les patients en salle"
+            hoverMessage="Filtrer les patients en salle"
           />
-          <ClickableStatCard
+          <KpiCard
             tone="purple"
             icon={Stethoscope}
             label="En consultation"
             value={queueStats.inConsultation}
             onClick={() => handleStatCardClick('in_consultation')}
             active={statFilter === 'in_consultation'}
-            title="Filtrer les patients en consultation"
+            hoverMessage="Filtrer les patients en consultation"
           />
-          <ClickableStatCard
+          <KpiCard
             tone="green"
             icon={Calendar}
             label="Rendez-vous"
             value={appointments.length}
             onClick={() => handleStatCardClick('appointments')}
             active={statFilter === 'appointments'}
-            title="Voir les rendez-vous du jour"
+            hoverMessage="Voir les rendez-vous du jour"
           />
         </div>
       </div>
@@ -660,27 +623,59 @@ const DoctorSpecificQueue = ({
             {filteredAppointments.length > 0 ? (
               <div className="space-y-3">
                 {filteredAppointments.map((appointment) => {
+                  // Ne pas se fier qu'à la file active : un RDV "terminé" ou
+                  // "annulé" n'est plus dans waitingQueue (filterActiveQueueItems
+                  // l'exclut) mais ne doit pas non plus réafficher "Marquer présent".
                   const isInQueue = isPatientInQueue(appointment.patient_id, appointment.id);
-                  
+                  const isArrived = isInQueue || appointment.statut === 'arrive';
+                  const isTerminated = appointment.statut === 'termine';
+                  const isCancelled = appointment.statut === 'annule';
+
                   return (
-                    <div 
-                      key={appointment.id} 
+                    <div
+                      key={appointment.id}
                       className={`border rounded-lg p-3 transition-all duration-200 ${
-                        isInQueue ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'
+                        isArrived ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'
                       }`}
                     >
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                          {formatTime(appointment.date_heure).split(':')[0]}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                            {formatTime(appointment.date_heure).split(':')[0]}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-gray-900 text-base truncate">
+                              {appointment.patient?.prenom} {appointment.patient?.nom}
+                            </h4>
+                            <p className="text-sm text-gray-500">
+                              {formatTime(appointment.date_heure)}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <h4 className="font-bold text-gray-900 text-base">
-                            {appointment.patient?.prenom} {appointment.patient?.nom}
-                          </h4>
-                          <p className="text-sm text-gray-500">
-                            {formatTime(appointment.date_heure)}
-                          </p>
-                        </div>
+
+                        {isArrived ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-medium flex-shrink-0">
+                            <UserCheck className="w-3 h-3" />
+                            En salle d'attente
+                          </span>
+                        ) : isTerminated ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium flex-shrink-0">
+                            Terminé
+                          </span>
+                        ) : isCancelled ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-100 text-red-600 text-xs font-medium flex-shrink-0">
+                            Annulé
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleConfirmPresence(appointment)}
+                            className="inline-flex items-center px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-md transition-colors duration-200 shadow-sm hover:shadow-md flex-shrink-0"
+                            title="Confirmer la présence du patient"
+                          >
+                            <UserCheck className="w-3 h-3 mr-1" />
+                            Marquer présent
+                          </button>
+                        )}
                       </div>
                     </div>
                   );

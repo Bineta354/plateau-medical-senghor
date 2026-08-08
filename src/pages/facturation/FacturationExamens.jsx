@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import SearchableSelect from '../../components/common/SearchableSelect';
+import KpiCard from '../../components/common/KpiCard';
 import { useAlert } from '../../contexts/AlertContext';
 import { generateFacturePDF } from '../../services/impression/facturePdf.js';
 import ExamenCard from '../../components/facturation/ExamenCard';
@@ -554,73 +555,34 @@ const FacturationExamens = () => {
 
       {/* Statistiques compact */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="bg-white rounded-lg shadow-md p-3 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <FileSearch className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-500">Total</p>
-              <p className="text-xl font-semibold text-gray-900">{facturationExamens.length}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-3 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-500">Réalisés</p>
-              <p className="text-xl font-semibold text-gray-900">
-                {facturationExamens.filter(f => f.statut === 'payee').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-3 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Calendar className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-500">Programmés</p>
-              <p className="text-xl font-semibold text-gray-900">
-                {facturationExamens.filter(f => f.statut === 'programme').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-3 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Activity className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-500">En cours</p>
-              <p className="text-xl font-semibold text-gray-900">
-                {facturationExamens.filter(f => f.statut === 'en_cours').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-3 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Coins className="w-8 h-8 text-medical-primary" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-500">CA</p>
-              <p className="text-xl font-semibold text-gray-900">
-                {formatMontant(facturationExamens.reduce((sum, f) => sum + f.total, 0))}
-              </p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={FileSearch} tone="blue" label="Total" value={facturationExamens.length} />
+        <KpiCard
+          icon={CheckCircle}
+          tone="green"
+          label="Réalisés"
+          value={facturationExamens.filter(f => f.statut === 'payee').length}
+        />
+        <KpiCard
+          icon={Calendar}
+          tone="blue"
+          label="Programmés"
+          value={facturationExamens.filter(f => f.statut === 'programme').length}
+        />
+        <KpiCard
+          icon={Activity}
+          tone="yellow"
+          label="En cours"
+          value={facturationExamens.filter(f => f.statut === 'en_cours').length}
+        />
+        <KpiCard
+          icon={Coins}
+          label="CA"
+          value={formatMontant(facturationExamens.reduce((sum, f) => sum + f.total, 0))}
+          className="rounded-lg p-4 bg-medical-primary/10 hover:shadow-md"
+          iconClassName="text-medical-primary"
+          valueClassName="text-medical-primary"
+          labelClassName="text-medical-primary"
+        />
       </div>
 
       {/* Barre de recherche et filtres compact */}

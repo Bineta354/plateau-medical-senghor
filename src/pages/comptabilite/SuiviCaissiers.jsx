@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { formatMontant } from '../../utils/currency';
+import KpiCard from '../../components/common/KpiCard';
 
 const PERIODS = [
   { value: 'today', label: "Aujourd'hui" },
@@ -47,66 +48,14 @@ const SuiviCaissiers = () => {
   const [period, setPeriod] = useState('today');
   const [selectedCaissierId, setSelectedCaissierId] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [useMockData, setUseMockData] = useState(false); // Toggle for demo
 
   const [caissiers, setCaissiers] = useState([]);
   const [paiements, setPaiements] = useState([]);
-
-  // Mock data generator for demonstration
-  const generateMockData = () => {
-    const mockCaissiers = [
-      { id: 1, nom: 'Diakhate', prenom: 'Mamadou', username: 'm.diakhate', role: 'caissier', actif: true },
-      { id: 2, nom: 'Ndiaye', prenom: 'Fatou', username: 'f.ndiaye', role: 'caissier', actif: true },
-      { id: 3, nom: 'Sall', prenom: 'Ousmane', username: 'o.sall', role: 'cashier', actif: true },
-      { id: 4, nom: 'Ba', prenom: 'Aminata', username: 'a.ba', role: 'caissier', actif: false },
-    ];
-
-    const modesPaiement = ['especes', 'carte_bancaire', 'mobile_money', 'virement', 'cheque'];
-    const mockPaiements = [];
-    
-    // Generate payments for the last 30 days
-    const today = new Date();
-    for (let i = 0; i < 150; i++) {
-      const daysAgo = Math.floor(Math.random() * 30);
-      const paymentDate = new Date(today);
-      paymentDate.setDate(today.getDate() - daysAgo);
-      paymentDate.setHours(Math.floor(Math.random() * 12) + 8); // 8h-20h
-      paymentDate.setMinutes(Math.floor(Math.random() * 60));
-      
-      const caissier = mockCaissiers[Math.floor(Math.random() * 3)]; // Only active cashiers
-      const montant = Math.floor(Math.random() * 50000) + 5000; // 5k to 55k
-      
-      mockPaiements.push({
-        id: 1000 + i,
-        date_paiement: paymentDate.toISOString(),
-        montant: montant,
-        mode_paiement: modesPaiement[Math.floor(Math.random() * modesPaiement.length)],
-        statut: 'effectue',
-        caissier_id: caissier.id,
-        factures: {
-          id: 2000 + i,
-          numero_facture: `F${String(2000 + i).padStart(6, '0')}`,
-          montant_ttc: montant,
-        }
-      });
-    }
-
-    return { caissiers: mockCaissiers, paiements: mockPaiements };
-  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
       setError('');
-
-      // Use mock data for demonstration
-      if (useMockData) {
-        const mock = generateMockData();
-        setCaissiers(mock.caissiers);
-        setPaiements(mock.paiements);
-        setLoading(false);
-        return;
-      }
 
       const { data: caissiersData, error: caissiersError } = await supabase.rpc('get_caissiers');
 
@@ -146,7 +95,7 @@ const SuiviCaissiers = () => {
 
   useEffect(() => {
     fetchData();
-  }, [period, selectedCaissierId, useMockData]);
+  }, [period, selectedCaissierId]);
 
   const caissierById = useMemo(() => {
     const map = new Map();
@@ -259,20 +208,6 @@ const SuiviCaissiers = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Mock data toggle for demo */}
-          <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg">
-            <input
-              type="checkbox"
-              id="mockData"
-              checked={useMockData}
-              onChange={(e) => setUseMockData(e.target.checked)}
-              className="rounded"
-            />
-            <label htmlFor="mockData" className="text-sm font-medium text-gray-700">
-              Données démo
-            </label>
-          </div>
-
           <button
             type="button"
             onClick={exportToCSV}
@@ -295,57 +230,31 @@ const SuiviCaissiers = () => {
 
       {/* Enhanced stats cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total encaissé</p>
-              <p className="text-2xl font-bold text-gray-900">{formatMontant(grandTotal)}</p>
-            </div>
-            <TrendingUp className="w-8 h-8 text-purple-600" />
-          </div>
-        </div>
+        <KpiCard icon={TrendingUp} label="Total encaissé" value={formatMontant(grandTotal)} tone="purple" />
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Paiements</p>
-              <p className="text-2xl font-bold text-gray-900">{filteredPaiements.length}</p>
-            </div>
-            <CreditCard className="w-8 h-8 text-indigo-600" />
-          </div>
-        </div>
+        <KpiCard
+          icon={CreditCard}
+          label="Paiements"
+          value={filteredPaiements.length}
+          className="rounded-lg p-4 bg-indigo-50 hover:shadow-md"
+          iconClassName="text-indigo-600"
+          valueClassName="text-indigo-600"
+          labelClassName="text-indigo-700"
+        />
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Ticket moyen</p>
-              <p className="text-2xl font-bold text-gray-900">{formatMontant(averageTicket)}</p>
-            </div>
-            <Coins className="w-8 h-8 text-green-600" />
-          </div>
-        </div>
+        <KpiCard icon={Coins} label="Ticket moyen" value={formatMontant(averageTicket)} tone="green" />
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Caissiers actifs</p>
-              <p className="text-2xl font-bold text-gray-900">{totalsByCaissier.length}</p>
-            </div>
-            <User className="w-8 h-8 text-blue-600" />
-          </div>
-        </div>
+        <KpiCard icon={User} label="Caissiers actifs" value={totalsByCaissier.length} tone="blue" />
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Période</p>
-              <p className="text-lg font-bold text-gray-900">
-                {PERIODS.find((p) => p.value === period)?.label || period}
-              </p>
-            </div>
-            <Calendar className="w-8 h-8 text-orange-600" />
-          </div>
-        </div>
+        <KpiCard
+          icon={Calendar}
+          label="Période"
+          value={PERIODS.find((p) => p.value === period)?.label || period}
+          className="rounded-lg p-4 bg-orange-50 hover:shadow-md"
+          iconClassName="text-orange-600"
+          valueClassName="text-orange-600"
+          labelClassName="text-orange-700"
+        />
       </div>
 
       <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">

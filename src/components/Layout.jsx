@@ -2,8 +2,11 @@ import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLayoutPreferences } from '../hooks/useLayoutPreferences';
+import { ROLES } from '../utils/permissions';
 import Sidebar from './Sidebar';
 import Header from './Header';
+
+const VALID_ROLES = [...new Set(Object.values(ROLES))];
 
 const FULL_HEIGHT_ROUTES = ['/secretary-calendar', '/my-calendar'];
 
@@ -38,7 +41,7 @@ const Layout = ({ children }) => {
 
   // Vérifier si l'utilisateur a un rôle valide
   const userRole = userProfile?.role || currentUser.user_metadata?.role || currentUser.app_metadata?.role;
-  if (!userRole || !['admin', 'doctor', 'secretary', 'accounting', 'caissier'].includes(userRole)) {
+  if (!userRole || !VALID_ROLES.includes(userRole)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

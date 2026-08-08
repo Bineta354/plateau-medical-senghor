@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import SearchableSelect from '../../components/common/SearchableSelect';
+import KpiCard from '../../components/common/KpiCard';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generateFacturePDF } from '../../services/impression/facturePdf.js';
@@ -34,6 +35,9 @@ import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import FactureCard from '../../components/facturation/FactureCard';
 import FactureDetailsModal from '../../components/facturation/FactureDetailsModal';
+import Pagination from '../../components/common/Pagination';
+
+const ITEMS_PER_PAGE = 20;
 
 const FacturationActes = () => {
   const { tenantId } = useAuth();
@@ -44,6 +48,7 @@ const FacturationActes = () => {
   const [selectedActe, setSelectedActe] = useState(null);
   const [showDetails, setShowDetails] = useState(null);
   const [editingFacture, setEditingFacture] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [factureData, setFactureData] = useState({
     patientId: '',
     actesSelectionnes: [], // Tableau pour plusieurs actes
@@ -211,7 +216,7 @@ const FacturationActes = () => {
           montantAssurance: montantAssurance,
           montantPatient: montantPatient,
           total: montantTotal,
-          statut: 'payee', // À adapter selon votre logique
+          statut: 'paye', // À adapter selon votre logique
           medecin: medecin ? `Dr. ${medecin.prenom} ${medecin.nom}` : 'Non spécifié'
         };
       }) || [];
@@ -234,6 +239,16 @@ const FacturationActes = () => {
     const matchesStatus = selectedStatus === 'all' || facture.statut === selectedStatus;
     return matchesSearch && matchesStatus;
   });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedStatus]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredFacturations.length / ITEMS_PER_PAGE));
+  const paginatedFacturations = filteredFacturations.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -592,59 +607,28 @@ const FacturationActes = () => {
 
       {/* Statistiques compact */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white rounded-lg shadow-md p-3 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Receipt className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-500">Total factures</p>
-              <p className="text-xl font-semibold text-gray-900">{facturationActes.length}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-3 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-500">Payées</p>
-              <p className="text-xl font-semibold text-gray-900">
-                {facturationActes.filter(f => f.statut === 'payee').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-3 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-500">En attente</p>
-              <p className="text-xl font-semibold text-gray-900">
-                {facturationActes.filter(f => f.statut === 'en_attente').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-3 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Coins className="w-8 h-8 text-medical-primary" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-500">CA</p>
-              <p className="text-xl font-semibold text-gray-900">
-                {formatMontant(facturationActes.reduce((sum, f) => sum + f.total, 0))}
-              </p>
-            </div>
-          </div>
-        </div>
+        <KpiCard icon={Receipt} tone="blue" label="Total factures" value={facturationActes.length} />
+        <KpiCard
+          icon={CheckCircle}
+          tone="green"
+          label="Payées"
+          value={facturationActes.filter(f => f.statut === 'payee').length}
+        />
+        <KpiCard
+          icon={Clock}
+          tone="yellow"
+          label="En attente"
+          value={facturationActes.filter(f => f.statut === 'en_attente').length}
+        />
+        <KpiCard
+          icon={Coins}
+          label="CA"
+          value={formatMontant(facturationActes.reduce((sum, f) => sum + f.total, 0))}
+          className="rounded-lg p-4 bg-medical-primary/10 hover:shadow-md"
+          iconClassName="text-medical-primary"
+          valueClassName="text-medical-primary"
+          labelClassName="text-medical-primary"
+        />
       </div>
 
       {/* Barre de recherche et filtres compact */}
@@ -1051,7 +1035,7 @@ const FacturationActes = () => {
                   </td>
                 </tr>
               ) : (
-                filteredFacturations.map((facture) => (
+                paginatedFacturations.map((facture) => (
                   <FactureCard
                     key={facture.id}
                     facture={facture}
@@ -1066,6 +1050,16 @@ const FacturationActes = () => {
             </tbody>
           </table>
         </div>
+
+        {!loading && filteredFacturations.length > 0 && (
+          <div className="border-t border-gray-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
       </div>
 
       {/* Modal de détails compact */}

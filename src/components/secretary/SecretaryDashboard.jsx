@@ -2,25 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { 
-  Users, 
-  Clock, 
-  Stethoscope, 
-  AlertTriangle, 
+import {
+  Users,
   Search,
   Filter,
-  Plus,
   RefreshCw,
   Bell,
   Eye,
   Calendar,
-  Phone,
-  UserCheck
+  CalendarPlus,
+  UserCheck,
+  UserPlus,
+  X
 } from 'lucide-react';
 import GlobalWaitingQueue from './GlobalWaitingQueue';
 import DoctorSpecificQueue from './DoctorSpecificQueue';
-import AddPatientModal from './AddPatientModal';
 import CustomCalendar from '../CustomCalendar';
+import { NewAppointmentModal } from '../rendez-vous/NewAppointmentModal';
 import { getUnreadNotifications, subscribeToNotifications, unsubscribeFromNotifications } from '../../lib/notifications';
 import useUserProfile from '../../hooks/useUserProfile';
 import { useSpecialityConfig } from '../../contexts/SpecialityConfigContext';
@@ -34,12 +32,16 @@ const SecretaryDashboard = () => {
   const { specialityConfig } = useSpecialityConfig();
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [doctorQueueFilter, setDoctorQueueFilter] = useState('all');
   const [notifications, setNotifications] = useState([]);
+  // Bascule "Calendrier" (action rapide dans la zone haute) — bascule le contenu
+  // de la card entre file d'attente et calendrier.
   const [showCalendarView, setShowCalendarView] = useState(false);
+  // Modal "Nouveau rendez-vous" — ouvert en place, sans quitter le dashboard
+  // (composant autonome, voir components/rendez-vous/NewAppointmentModal.jsx)
+  const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
   const [notificationSubscription, setNotificationSubscription] = useState(null);
 
   useEffect(() => {
@@ -53,9 +55,9 @@ const SecretaryDashboard = () => {
   useEffect(() => {
     // Abonnement aux changements de la file d'attente
     const waitingQueueChannel = supabase.channel('secretary_dashboard_changes')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
         table: 'waiting_queue'
       }, () => {
         fetchData();
@@ -67,7 +69,7 @@ const SecretaryDashboard = () => {
       const { subscription, unsubscribe } = subscribeToNotifications(userProfile.id, userProfile.role, () => {
         fetchNotifications();
       });
-      
+
       setNotificationSubscription({ subscription, unsubscribe });
 
       return () => {
@@ -144,15 +146,6 @@ const SecretaryDashboard = () => {
     setActiveView('global');
   };
 
-  const getUrgencyColor = (priority) => {
-    switch (priority) {
-      case 'urgente': return 'text-red-600 bg-red-100';
-      case 'tres_urgente': return 'text-red-800 bg-red-200';
-      case 'normale': return 'text-green-600 bg-green-100';
-      default: return 'text-gray-600 bg-gray-100';
-    }
-  };
-
   if (loading || userProfileLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -165,124 +158,136 @@ const SecretaryDashboard = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Tableau de bord Secrétaire</h1>
-          <p className="text-gray-600">Gestion des files d'attente et des patients</p>
+    <div className="space-y-4 p-6">
+      {/* Zone haute : titre + une seule ligne d'actions (cf. AUDIT_STRUCTURE_UI.md) */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">Tableau de bord Secrétaire</h1>
           {specialityConfig && (
-            <p className="text-sm text-gray-500 mt-1">
-              Mode actuel: <span className="font-semibold">
-                {specialityConfig.mode === 'generaliste' ? 'Généraliste' : `Spécialité: ${specialityConfig.specialite?.nom || 'Inconnue'}`}
-              </span>
-              {specialityConfig.mode_specialite_id && ` (ID: ${specialityConfig.mode_specialite_id})`}
-            </p>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+              {specialityConfig.mode === 'generaliste'
+                ? 'Généraliste'
+                : specialityConfig.specialite?.nom || 'Spécialité'}
+            </span>
           )}
         </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <Bell className="w-5 h-5 text-gray-400" />
-            <span className="text-sm text-gray-600">{notifications.length} notifications</span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 text-sm text-gray-500" title="Notifications non lues">
+            <Bell className="w-4 h-4" />
+            {notifications.length}
           </div>
-          <button 
+          <button
+            onClick={() => navigate('/rendez-vous/prise-rendez-vous')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+          >
+            <UserCheck className="w-4 h-4" />
+            Arriver Patient
+          </button>
+          <button
+            onClick={() => setShowNewAppointmentModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-medical-primary text-white text-sm font-medium rounded-lg hover:bg-medical-primary-dark transition-colors shadow-sm"
+          >
+            <CalendarPlus className="w-4 h-4" />
+            Nouveau rendez-vous
+          </button>
+          <button
+            onClick={() => navigate('/patients?new=true')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white text-medical-primary border border-medical-primary text-sm font-medium rounded-lg hover:bg-medical-primary/5 transition-colors"
+          >
+            <UserPlus className="w-4 h-4" />
+            Créer fiche patient
+          </button>
+          {/* Action rapide : bascule vers le calendrier, pas un onglet dans le contenu */}
+          <button
             onClick={() => setShowCalendarView(!showCalendarView)}
-            className={`flex items-center px-4 py-2 rounded-lg transition-colors shadow-sm ${
-              showCalendarView 
-                ? 'bg-gray-700 text-white hover:bg-gray-800' 
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm ${
+              showCalendarView
+                ? 'bg-gray-700 text-white hover:bg-gray-800'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
           >
-            <Calendar className="w-4 h-4 mr-2" />
-            {showCalendarView ? 'Voir file d\'attente' : 'Voir calendrier'}
+            <Calendar className="w-4 h-4" />
+            {showCalendarView ? "Voir file d'attente" : 'Calendrier'}
           </button>
-          <button 
+          <button
             onClick={fetchData}
-            className="flex items-center px-4 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary-dark transition-colors"
+            title="Actualiser"
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors"
           >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Actualiser
+            <RefreshCw className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Navigation des vues - Uniquement visible quand le calendrier n'est pas affiché */}
-      {!showCalendarView && (
-        <div className="bg-white rounded-lg shadow-md border border-gray-200 mb-6">
-          <div className="flex items-center justify-between p-4 border-b border-gray-200">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setActiveView('global')}
-                className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
-                  activeView === 'global'
-                    ? 'bg-medical-primary text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <Users className="w-4 h-4 mr-2" />
-                Vue Globale
-              </button>
-              
-              <button
-                onClick={() => setActiveView('specific')}
-                disabled={!selectedDoctor}
-                className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
-                  activeView === 'specific'
-                    ? 'bg-medical-primary text-white'
-                    : selectedDoctor
-                      ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                Vue Spécifique
-              </button>
-            </div>
-
-            {activeView === 'specific' && selectedDoctor && (
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-600">
-                  Médecin sélectionné : <strong>Dr. {selectedDoctor.prenom} {selectedDoctor.nom}</strong>
-                </span>
+      {/* Card unique : file d'attente (par défaut) ou calendrier selon l'action
+          rapide "Calendrier" ci-dessus */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        {showCalendarView ? (
+          <div className="p-4">
+            <CustomCalendar />
+          </div>
+        ) : (
+          <>
+            {/* Barre d'outils compacte : vue globale/spécifique, recherche, filtre */}
+            <div className="flex flex-wrap items-center gap-2 p-3 border-b border-gray-100">
+              <div className="inline-flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5">
                 <button
-                  onClick={handleBackToGlobal}
-                  className="text-medical-primary hover:text-medical-primary-dark text-sm font-medium"
+                  onClick={() => setActiveView('global')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    activeView === 'global'
+                      ? 'bg-white text-medical-primary shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
                 >
-                  Retour à la vue globale
+                  <Users className="w-3.5 h-3.5" />
+                  Globale
+                </button>
+                <button
+                  onClick={() => setActiveView('specific')}
+                  disabled={!selectedDoctor}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    activeView === 'specific'
+                      ? 'bg-white text-medical-primary shadow-sm'
+                      : selectedDoctor
+                        ? 'text-gray-500 hover:text-gray-700'
+                        : 'text-gray-300 cursor-not-allowed'
+                  }`}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  Spécifique
                 </button>
               </div>
-            )}
 
-            <button
-              onClick={() => setShowAddPatientModal(true)}
-              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Inscrire Patient
-            </button>
-          </div>
+              {activeView === 'specific' && selectedDoctor && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">
+                  Dr. {selectedDoctor.prenom} {selectedDoctor.nom}
+                  <button
+                    onClick={handleBackToGlobal}
+                    className="hover:text-blue-900"
+                    title="Retour à la vue globale"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
 
-          {/* Filtres et recherche */}
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex items-center space-x-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Rechercher un médecin ou un patient..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  />
-                </div>
+              <div className="relative flex-1 min-w-[180px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Rechercher un médecin ou un patient..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+                />
               </div>
-              <div className="flex items-center space-x-2">
+
+              <div className="flex items-center gap-1.5">
                 <Filter className="w-4 h-4 text-gray-400" />
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+                  className="px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
                 >
                   <option value="all">Tous les statuts</option>
                   <option value="waiting">En attente</option>
@@ -294,57 +299,37 @@ const SecretaryDashboard = () => {
                 </select>
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Contenu principal */}
-      <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
-        {showCalendarView ? (
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">Calendrier des rendez-vous</h2>
-              <button
-                onClick={() => setShowCalendarView(false)}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-              >
-                ← Retour à la salle d'attente
-              </button>
+            <div className="p-4">
+              {activeView === 'global' ? (
+                <GlobalWaitingQueue
+                  doctors={doctors}
+                  searchTerm={searchTerm}
+                  filterStatus={filterStatus}
+                  onFilterStatus={setFilterStatus}
+                  onDoctorSelect={handleDoctorSelect}
+                  onNavigateCalendar={() => navigate('/secretary-calendar')}
+                  onNavigateWaitingRoom={() => navigate('/salle-attente')}
+                />
+              ) : (
+                <DoctorSpecificQueue
+                  doctor={selectedDoctor}
+                  searchTerm={searchTerm}
+                  filterStatus={filterStatus}
+                  initialQueueFilter={doctorQueueFilter}
+                />
+              )}
             </div>
-            <CustomCalendar />
-          </div>
-        ) : (
-          activeView === 'global' ? (
-            <GlobalWaitingQueue
-              doctors={doctors}
-              searchTerm={searchTerm}
-              filterStatus={filterStatus}
-              onFilterStatus={setFilterStatus}
-              onDoctorSelect={handleDoctorSelect}
-              onNavigateCalendar={() => navigate('/secretary-calendar')}
-              onNavigateWaitingRoom={() => navigate('/salle-attente')}
-            />
-          ) : (
-            <DoctorSpecificQueue
-              doctor={selectedDoctor}
-              searchTerm={searchTerm}
-              filterStatus={filterStatus}
-              initialQueueFilter={doctorQueueFilter}
-            />
-          )
+          </>
         )}
       </div>
 
-      {/* Modal d'ajout de patient */}
-      {showAddPatientModal && (
-        <AddPatientModal
-          doctors={doctors}
-          onClose={() => setShowAddPatientModal(false)}
-          onPatientAdded={() => {
-            fetchData();
-          }}
-        />
-      )}
+      <NewAppointmentModal
+        isOpen={showNewAppointmentModal}
+        onClose={() => setShowNewAppointmentModal(false)}
+        initialDoctorId={activeView === 'specific' ? (selectedDoctor?.id || '') : ''}
+        onSaved={fetchData}
+      />
     </div>
   );
 };

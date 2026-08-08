@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { formatNombre, formatMontant } from '../utils/currency';
+import { formatMontant } from '../utils/currency';
 import {
   BarChart,
   Bar, 
@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../contexts/AuthContext';
+import KpiCard from '../components/common/KpiCard';
 
 const StatisticsPage = () => {
   const { currentUser, userProfile } = useAuth();
@@ -47,25 +48,6 @@ const StatisticsPage = () => {
 
 
   
-
-  const StatCard = ({ title, value, icon: Icon, change, color = 'blue' }) => (
-    <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
-          {change && (
-            <p className={`text-sm ${change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {change > 0 ? '+' : ''}{change}% vs mois dernier
-            </p>
-          )}
-        </div>
-        <div className={`p-3 rounded-full bg-${color}-100`}>
-          <Icon className={`w-6 h-6 text-${color}-600`} />
-        </div>
-      </div>
-    </div>
-  );
 
   if (isLoading) {
     return (
@@ -121,78 +103,81 @@ const StatisticsPage = () => {
       {/* Cartes de statistiques principales */}
       {!isAccounting ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
-          <StatCard 
-            title="Total Patients" 
-            value={statsData.overview.totalPatients.toLocaleString()} 
-            icon={Users} 
-            change={+5.2}
-            color="blue"
+          <KpiCard
+            icon={Users}
+            tone="blue"
+            label="Total Patients"
+            value={statsData.overview.totalPatients.toLocaleString()}
+            hint="+5.2% vs mois dernier"
           />
-          <StatCard 
-            title="Rendez-vous" 
-            value={statsData.overview.totalAppointments.toLocaleString()} 
-            icon={Calendar} 
-            change={+8.7}
-            color="green"
+          <KpiCard
+            icon={Calendar}
+            tone="green"
+            label="Rendez-vous"
+            value={statsData.overview.totalAppointments.toLocaleString()}
+            hint="+8.7% vs mois dernier"
           />
-          <StatCard 
-            title="Revenus (FCFA)"
-            value={formatNombre(statsData.overview.totalRevenue)}
+          <KpiCard
             icon={Coins}
-            change={+12.3}
-            color="yellow"
+            tone="yellow"
+            label="Revenus (FCFA)"
+            value={formatMontant(statsData.overview.totalRevenue)}
+            hint="+12.3% vs mois dernier"
           />
-          <StatCard
-            title="Temps d'attente (min)"
-            value={statsData.overview.averageWaitTime} 
-            icon={Clock} 
-            change={-15.4}
-            color="red"
+          <KpiCard
+            icon={Clock}
+            tone="red"
+            label="Temps d'attente (min)"
+            value={statsData.overview.averageWaitTime}
+            hint="-15.4% vs mois dernier"
           />
-          <StatCard 
-            title="Satisfaction (%)" 
-            value={statsData.overview.satisfactionRate} 
-            icon={UserCheck} 
-            change={+2.1}
-            color="purple"
+          <KpiCard
+            icon={UserCheck}
+            tone="purple"
+            label="Satisfaction (%)"
+            value={statsData.overview.satisfactionRate}
+            hint="+2.1% vs mois dernier"
           />
-          <StatCard 
-            title="Taux d'occupation (%)" 
-            value={statsData.overview.occupancyRate} 
-            icon={Activity} 
-            change={+3.8}
-            color="indigo"
+          <KpiCard
+            icon={Activity}
+            label="Taux d'occupation (%)"
+            value={statsData.overview.occupancyRate}
+            hint="+3.8% vs mois dernier"
+            className="rounded-lg p-4 bg-indigo-50 hover:shadow-md"
+            iconClassName="text-indigo-600"
+            valueClassName="text-indigo-600"
+            labelClassName="text-indigo-700"
           />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard 
-            title="Revenus (FCFA)"
-            value={formatNombre(statsData.overview.totalRevenue)}
+          <KpiCard
             icon={Coins}
-            change={+12.3}
-            color="yellow"
+            tone="yellow"
+            label="Revenus (FCFA)"
+            value={formatMontant(statsData.overview.totalRevenue)}
+            hint="+12.3% vs mois dernier"
           />
-          <StatCard
-            title="Dépenses (FCFA)"
-            value={formatNombre(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.expenses || 0)}
+          <KpiCard
             icon={TrendingUp}
-            change={+2.4}
-            color="red"
+            tone="red"
+            label="Dépenses (FCFA)"
+            value={formatMontant(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.expenses || 0)}
+            hint="+2.4% vs mois dernier"
           />
-          <StatCard
-            title="Profit (FCFA)"
-            value={formatNombre(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.profit || 0)}
+          <KpiCard
             icon={TrendingUp}
-            change={+6.1}
-            color="green"
+            tone="green"
+            label="Profit (FCFA)"
+            value={formatMontant(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.profit || 0)}
+            hint="+6.1% vs mois dernier"
           />
-          <StatCard
-            title="Revenus (mois)"
-            value={formatMontant(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.revenue || 0)}
+          <KpiCard
             icon={BarChart3}
-            change={+3.2}
-            color="blue"
+            tone="blue"
+            label="Revenus (mois)"
+            value={formatMontant(statsData.revenueByMonth?.[statsData.revenueByMonth.length - 1]?.revenue || 0)}
+            hint="+3.2% vs mois dernier"
           />
         </div>
       )}
@@ -323,22 +308,10 @@ const StatisticsPage = () => {
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Métriques détaillées</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">87.3%</div>
-              <div className="text-sm text-gray-600">Taux de ponctualité</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">94.2%</div>
-              <div className="text-sm text-gray-600">Taux de satisfaction</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-yellow-600">12.5 min</div>
-              <div className="text-sm text-gray-600">Temps d'attente moyen</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">156</div>
-              <div className="text-sm text-gray-600">Nouveaux patients/mois</div>
-            </div>
+            <KpiCard tone="blue" label="Taux de ponctualité" value="87.3%" />
+            <KpiCard tone="green" label="Taux de satisfaction" value="94.2%" />
+            <KpiCard tone="yellow" label="Temps d'attente moyen" value="12.5 min" />
+            <KpiCard tone="purple" label="Nouveaux patients/mois" value={156} />
           </div>
         </div>
       )}

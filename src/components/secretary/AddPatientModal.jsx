@@ -23,6 +23,7 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
   const [step, setStep] = useState(1); // 1: Sélection, 2: File d'attente, 3: Menu Succès
   const [queueReturnStep, setQueueReturnStep] = useState(1);
   const [showRdvModal, setShowRdvModal] = useState(false);
+  const [showAntecedentsModal, setShowAntecedentsModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);

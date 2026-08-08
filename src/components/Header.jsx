@@ -560,13 +560,13 @@ const Header = () => {
           borderColor: settings.couleur_bordure || 'transparent'
         }}
       >
-        <div className="px-6 py-4">
+        <div className="px-6 py-2.5">
           <div className="flex items-center justify-between w-full">
              {/* GAUCHE : Logo */}
               <div className="flex items-center space-x-3">
               {/* Logo simplifié */}
-              <div className="flex items-center space-x-3 mr-10">
-                <div className="w-16 h-16 rounded-lg overflow-hidden bg-white border flex items-center justify-center p-1">
+              <div className="flex items-center space-x-3 mr-6">
+                <div className="w-10 h-10 rounded-lg overflow-hidden bg-white border flex items-center justify-center p-1 flex-shrink-0">
                   {cabinetLogo ? (
                     <img
                       src={cabinetLogo}
@@ -577,9 +577,9 @@ const Header = () => {
                       }}
                     />
                   ) : (
-                    <Stethoscope className="w-6 h-6 text-medical-primary" />
+                    <Stethoscope className="w-5 h-5 text-medical-primary" />
                   )}
-                </div> 
+                </div>
                 <div className="flex flex-col">
                   <span 
                     className="text-lg font-bold"
@@ -616,7 +616,7 @@ const Header = () => {
             {/* Recherche globale (déplacée à droite) */}
 <button
   onClick={() => setShowGlobalSearch(true)}
-  className="flex items-center space-x-3 w-80 px-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors text-left group"
+  className="flex items-center space-x-3 w-80 px-4 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors text-left group"
 >
   <Search className="text-gray-400 group-hover:text-gray-600" size={18} />
   <span className="text-gray-500 group-hover:text-gray-700 flex-1">

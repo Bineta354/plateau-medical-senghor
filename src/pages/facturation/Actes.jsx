@@ -3,10 +3,12 @@ import { useTypesActes } from '../../hooks/useTypesActes';
 import { supabase } from '../../lib/supabase';
 import { formatMontantDecimal } from '../../utils/currency';
 import { motion } from 'framer-motion';
-import { 
-    PlusIcon, 
-    PencilIcon, 
-    TrashIcon, 
+import { formatMontant } from '../../utils/currency';
+import KpiCard from '../../components/common/KpiCard';
+import {
+    PlusIcon,
+    PencilIcon,
+    TrashIcon,
     BanknotesIcon,
     DocumentTextIcon,
     ClockIcon
@@ -230,37 +232,17 @@ const ActesPage = () => {
 
                 {/* Statistiques */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-white p-6 rounded-lg shadow-md">
-                        <div className="flex items-center">
-                            <DocumentTextIcon className="h-8 w-8 text-blue-600 mr-3" />
-                            <div>
-                                <p className="text-sm text-gray-600">Total Actes</p>
-                                <p className="text-2xl font-bold text-gray-900">{filteredActes.length}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow-md">
-                        <div className="flex items-center">
-                            <BanknotesIcon className="h-8 w-8 text-green-600 mr-3" />
-                            <div>
-                                <p className="text-sm text-gray-600">Montant Total</p>
-                                <p className="text-2xl font-bold text-gray-900">
-                                    {formatMontantDecimal(totalMontant)}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow-md">
-                        <div className="flex items-center">
-                            <ClockIcon className="h-8 w-8 text-orange-600 mr-3" />
-                            <div>
-                                <p className="text-sm text-gray-600">Consultations</p>
-                                <p className="text-2xl font-bold text-gray-900">
-                                    {new Set(filteredActes.map(a => a.consultation_id)).size}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <KpiCard icon={DocumentTextIcon} tone="blue" label="Total Actes" value={filteredActes.length} />
+                    <KpiCard icon={BanknotesIcon} tone="green" label="Montant Total" value={formatMontant(totalMontant)} />
+                    <KpiCard
+                        icon={ClockIcon}
+                        label="Consultations"
+                        value={new Set(filteredActes.map(a => a.consultation_id)).size}
+                        className="rounded-lg p-4 bg-orange-50 hover:shadow-md"
+                        iconClassName="text-orange-600"
+                        valueClassName="text-orange-600"
+                        labelClassName="text-orange-700"
+                    />
                 </div>
 
                 {/* Filtres */}

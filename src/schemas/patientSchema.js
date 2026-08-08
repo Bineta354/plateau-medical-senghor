@@ -66,7 +66,9 @@ export const patientSchema = z.object({
     .refine((v) => v === '' || EMAIL_REGEX.test(v), "Format d'email invalide")
     .optional(),
   adresse: optionalText(255, "L'adresse ne doit pas dépasser 255 caractères"),
-  // Champs critiques rendus uniques par tenant en base (migration 20260805000000)
+  // numero_secu rendu unique par tenant en base (migration 20260805000000). numero_ipm
+  // reste volontairement non-unique : ce numéro d'assurance peut être partagé entre
+  // plusieurs membres d'une même famille.
   numero_secu: optionalCode('Le numéro FNR'),
   numero_ipm: optionalCode('Le numéro IPM'),
   lieu_naissance: optionalText(255, 'Le lieu de naissance ne doit pas dépasser 255 caractères'),
