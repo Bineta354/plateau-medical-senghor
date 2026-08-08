@@ -259,6 +259,18 @@ export const patientService = {
     return data
   },
 
+  // Liste de tous les patients avec leur assurance liée (colonnes réduites) — extrait de
+  // src/pages/caissier/Recapitulatif.jsx (chargement initial, sélecteur "Patient").
+  // Additif : distinct de getAll() ci-dessus (qui fait select('*') sans jointure).
+  async getAllWithAssurance() {
+    const { data, error } = await supabase
+      .from('patients')
+      .select('id, nom, prenom, assurance_id, assurances ( id, nom, taux_remboursement )')
+      .order('nom', { ascending: true })
+    if (error) throw error
+    return data || []
+  },
+
   // Créer un nouveau patient
   async create(patientData) {
     const { data, error } = await supabase

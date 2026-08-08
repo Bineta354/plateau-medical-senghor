@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BarChart3, FileText, Printer } from 'lucide-react';
 import SearchableSelect from '../../components/common/SearchableSelect';
@@ -7,6 +6,8 @@ import { formatMontant } from '../../utils/currency';
 import { getStatusColor, getStatusLabel } from '../../utils/factureStatus';
 import { listFactures } from '../../services/paiementService';
 import { listAssurances } from '../../services/assuranceService';
+import { patientService } from '../../lib/services';
+import { fetchParametres } from '../../services/parametrageService';
 
 const PERIODS = [
   { value: 'all', label: 'Toutes les dates' },
@@ -56,9 +57,9 @@ const Recapitulatif = () => {
   useEffect(() => {
     (async () => {
       const [p, a, cab] = await Promise.all([
-        supabase.from('patients').select('id, nom, prenom, assurance_id, assurances ( id, nom, taux_remboursement )').order('nom').then((r) => r.data || []),
+        patientService.getAllWithAssurance().catch(() => []),
         listAssurances().catch(() => []),
-        supabase.from('parametres_cabinet').select('nom_cabinet, adresse, ville, code_postal, telephone, email, logo_url').maybeSingle().then((r) => r.data || null),
+        fetchParametres(userProfile?.tenant_id).catch(() => null),
       ]);
       setPatients(p);
       setAssurances(a);
