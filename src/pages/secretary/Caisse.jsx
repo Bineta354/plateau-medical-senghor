@@ -39,7 +39,23 @@ import {
   DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import { MODES_PAIEMENT, ETAPES_MOBILE_MONEY as ETAPES_MOBILE_MONEY_BASE } from '../../config/modesPaiement';
-import { enregistrerPaiement } from '../../services/paiementService';
+import {
+  enregistrerPaiement,
+  listFactures,
+  listPaiements,
+  getTotauxCaisse,
+  getHistoriquePatient,
+  getHistoriqueCouverture,
+} from '../../services/paiementService';
+import {
+  getSessionOuverte,
+  getAlertes,
+  ouvrirSession,
+  fermerSession,
+  getArreteComptableMensuel,
+} from '../../services/sessionCaisseService';
+import { getCaissiers } from '../../services/caissierService';
+import { listAssurances } from '../../services/assuranceService';
 import KpiCard from '../../components/common/KpiCard';
 
 const ETAPES_MOBILE_MONEY = (nom, montant) =>
@@ -344,19 +360,7 @@ const Caisse = () => {
   // Récupérer la session de caisse du jour pour le caissier connecté (ou session sans caissier pour secrétariat)
   const fetchSessionCaisse = async () => {
     try {
-      const aujourdhui = new Date().toISOString().split('T')[0];
-      let q = supabase
-        .from('sessions_caisse')
-        .select('*')
-        .eq('date_session', aujourdhui)
-        .eq('statut', 'ouverte');
-      if (caissierId != null && caissierId !== '') {
-        q = q.eq('caissier_id', caissierId);
-      } else {
-        q = q.is('caissier_id', null);
-      }
-      const { data, error } = await q.maybeSingle();
-      if (error && error.code !== 'PGRST116') throw error;
+      const data = await getSessionOuverte({ caissierId });
       setSessionCaisse(data || null);
       return data;
     } catch (err) {
@@ -370,25 +374,17 @@ const Caisse = () => {
   const fetchSupervisionData = async () => {
     try {
       // Get caissiers list
-      const { data: caissiersList } = await supabase.rpc('get_caissiers');
-      setCaissiers(caissiersList || []);
+      const caissiersList = await getCaissiers().catch(() => []);
+      setCaissiers(caissiersList);
 
-      // Get payments based on period
-      let query = supabase
-        .from('paiements')
-        .select('*, factures(numero_facture, montant_ttc), users!paiements_caissier_id_fkey(nom, prenom)')
-        .eq('statut', 'effectue');
-
+      // Get payments based on period (limit relevé volontairement haut : la requête native
+      // d'origine n'avait aucune limite, listPaiements en impose une par défaut à 2000)
       const startDate = getStartDateForPeriod(supervisionPeriod);
-      if (startDate) {
-        query = query.gte('date_paiement', startDate.toISOString());
-      }
-
-      if (selectedCaissier !== 'all') {
-        query = query.eq('caissier_id', selectedCaissier);
-      }
-
-      const { data: payments } = await query;
+      const payments = await listPaiements({
+        periode: startDate ? { debut: startDate.toISOString() } : undefined,
+        caissierId: selectedCaissier !== 'all' ? selectedCaissier : undefined,
+        limit: 100000,
+      }).catch(() => []);
 
       // Calculate supervision metrics
       const totalEncaisse = payments?.reduce((sum, p) => sum + Number(p.montant || 0), 0) || 0;
@@ -399,10 +395,7 @@ const Caisse = () => {
       const activeCaissiers = new Set(payments?.map(p => p.caissier_id)).size;
       
       // Get open sessions
-      const { data: sessions } = await supabase
-        .from('sessions_caisse')
-        .select('*')
-        .eq('statut', 'ouverte');
+      const sessions = await getAlertes().catch(() => []);
 
       // Calculate trend (vs previous period)
       const tendance = await calculateTrend(payments);
@@ -470,13 +463,11 @@ const Caisse = () => {
     const now = new Date();
     const previousStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
     const previousEnd = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    const { data: previousPayments } = await supabase
-      .from('paiements')
-      .select('montant')
-      .eq('statut', 'effectue')
-      .gte('date_paiement', previousStart.toISOString())
-      .lt('date_paiement', previousEnd.toISOString());
+
+    const previousPayments = await listPaiements({
+      periode: { debut: previousStart.toISOString(), fin: previousEnd.toISOString() },
+      limit: 100000,
+    }).catch(() => []);
 
     const previousTotal = previousPayments?.reduce((sum, p) => sum + Number(p.montant || 0), 0) || 0;
     
@@ -521,51 +512,22 @@ const Caisse = () => {
 
   const fetchEtatCaisse = async () => {
     try {
-      const debutJour = new Date();
-      debutJour.setHours(0, 0, 0, 0);
-      const debutMois = new Date();
-      debutMois.setDate(1);
-      debutMois.setHours(0, 0, 0, 0);
-
       // Récupérer la session du jour pour le fond de caisse
       const session = await fetchSessionCaisse();
       const fondCaisse = parseFloat(session?.fond_caisse || 0);
 
-      // Calculer le total journalier (paiements du jour ; si caissier : uniquement les siens)
-      let qJour = supabase.from('paiements').select('*').eq('statut', 'effectue').gte('date_paiement', debutJour.toISOString());
-      if (caissierId) qJour = qJour.eq('caissier_id', caissierId);
-      const { data: paiements, error } = await qJour;
-      if (error) throw error;
-
-      // Total du mois (si caissier : uniquement les siens)
-      let qMois = supabase.from('paiements').select('*').eq('statut', 'effectue').gte('date_paiement', debutMois.toISOString());
-      if (caissierId) qMois = qMois.eq('caissier_id', caissierId);
-      const { data: paiementsMois, error: errMois } = await qMois;
-      if (errMois) throw errMois;
-
-      const calc = (arr, pred) => (arr || []).filter(pred).reduce((sum, p) => sum + parseFloat(p.montant || 0), 0);
-      const aujourdhui = calc(paiements, () => true);
-      const mois = calc(paiementsMois, () => true);
-
-      // Par mode (pour la journée uniquement)
-      const parMode = (paiements || []).reduce(
-        (acc, p) => {
-          const m = p.mode_paiement || 'especes';
-          acc[m] = (acc[m] || 0) + parseFloat(p.montant || 0);
-          return acc;
-        },
-        { especes: 0, carte: 0, virement: 0, cheque: 0, orange_money: 0, wave: 0, yas: 0 }
-      );
+      // Total journalier + mensuel + répartition par mode (si caissier : uniquement les siens)
+      const { totalAujourdhui, totalMois, parModePaiement } = await getTotauxCaisse({ caissierId });
 
       // Solde actuel = fond de caisse + total journée
-      const soldeActuel = fondCaisse + aujourdhui;
+      const soldeActuel = fondCaisse + totalAujourdhui;
 
       setEtatCaisse({
         solde: soldeActuel,
         fondCaisse,
-        totalAujourdhui: aujourdhui,
-        totalMois: mois,
-        parModePaiement: parMode,
+        totalAujourdhui,
+        totalMois,
+        parModePaiement,
       });
     } catch (err) {
       console.error('fetchEtatCaisse:', err);
@@ -670,12 +632,8 @@ const Caisse = () => {
 
   const fetchAssurancesList = async () => {
     try {
-      const { data, error } = await supabase
-        .from('assurances')
-        .select('id, nom, taux_remboursement')
-        .order('nom');
-      if (error) throw error;
-      setAssurancesList(data || []);
+      const data = await listAssurances({ fields: 'id, nom, taux_remboursement' });
+      setAssurancesList(data);
     } catch (err) {
       console.error('fetchAssurancesList:', err);
       setAssurancesList([]);
@@ -706,83 +664,10 @@ const Caisse = () => {
     }
     try {
       setLoadingHistoriquePatient(true);
-      let facturesPayeesPatient = [];
-
-      if (isCaissier && caissierId) {
-        // Ce caissier ne voit que les factures qu'il a encaissées pour ce patient (via ses paiements)
-        const { data: paiementsCaissier, error: e0 } = await supabase
-          .from('paiements')
-          .select(
-            `id, date_paiement, mode_paiement, montant, facture_id,
-             factures (
-               id, numero_facture, montant_ttc, date_paiement, mode_paiement, patient_id,
-               consultations ( date_consultation, patients ( id, nom, prenom, numero_secu, assurances ( id, nom, taux_remboursement ) ) )
-             )`
-          )
-          .eq('caissier_id', caissierId)
-          .order('date_paiement', { ascending: false })
-          .limit(500);
-        if (e0) throw e0;
-        const byFactureId = {};
-        (paiementsCaissier || []).forEach((p) => {
-          const f = p.factures;
-          if (!f || String(f.patient_id) !== String(filterPatientId)) return;
-          if (!byFactureId[f.id]) {
-            byFactureId[f.id] = { ...f, date_paiement: p.date_paiement, mode_paiement: p.mode_paiement || f.mode_paiement };
-          }
-        });
-        facturesPayeesPatient = Object.values(byFactureId);
-      } else {
-        const { data, error: e1 } = await supabase
-          .from('factures')
-          .select(
-            `*,
-            consultations ( date_consultation, patients ( id, nom, prenom, numero_secu, assurances ( id, nom, taux_remboursement ) ) )
-            `
-          )
-          .eq('statut_paiement', 'paye')
-          .eq('patient_id', filterPatientId)
-          .is('facture_parent_id', null)
-          .order('date_paiement', { ascending: false })
-          .limit(500);
-        if (e1) throw e1;
-        facturesPayeesPatient = data || [];
-      }
-
-      const lignes = facturesPayeesPatient.map((f) => {
-        const patient = f.consultations?.patients;
-        const assurance = patient?.assurances;
-        const montantFacture = parseFloat(f.montant_ttc || 0);
-        const taux = Number(assurance?.taux_remboursement) || 0;
-        let partCouverture = 0;
-        let partPatient = montantFacture;
-        if (taux > 0 && montantFacture > 0) {
-          partCouverture = Math.round(montantFacture * (taux / 100));
-          partPatient = montantFacture - partCouverture;
-        }
-        return {
-          id: f.id,
-          numero_facture: f.numero_facture,
-          date_paiement: f.date_paiement,
-          montant_ttc: montantFacture,
-          partPatient,
-          partCouverture,
-          mode_paiement: f.mode_paiement,
-          assurance: assurance?.nom,
-          taux,
-        };
-      });
-
-      const stats = { jour: 0, semaine: 0, mois: 0 };
-      ['jour', 'semaine', 'mois'].forEach((p) => {
-        const { debut } = getDateRangeForPeriod(p);
-        lignes.forEach((l) => {
-          const d = new Date(l.date_paiement);
-          if (d >= debut) stats[p] += l.partPatient;
-        });
-      });
-
-      setHistoriquePatientData({ lignes, stats });
+      // caissierId n'est déjà non-null que si isCaissier (voir déclaration en haut du composant),
+      // ce qui reproduit exactement la condition d'origine `isCaissier && caissierId`.
+      const data = await getHistoriquePatient(filterPatientId, { caissierId });
+      setHistoriquePatientData(data);
     } catch (err) {
       console.error('fetchHistoriquePatient:', err);
       setHistoriquePatientData({ lignes: [], stats: { jour: 0, semaine: 0, mois: 0 } });
@@ -917,89 +802,10 @@ const Caisse = () => {
     }
     try {
       setLoadingHistoriqueCouverture(true);
-      let facturesSource = [];
-
-      if (isCaissier && caissierId) {
-        const { data: paiementsCaissier, error: e0 } = await supabase
-          .from('paiements')
-          .select(
-            `id, date_paiement, mode_paiement, montant, facture_id,
-             factures (
-               id, numero_facture, montant_ttc, date_paiement, mode_paiement,
-               consultations ( date_consultation, patients ( id, nom, prenom, assurance_id, assurances ( id, nom, taux_remboursement ) ) )
-             )`
-          )
-          .eq('caissier_id', caissierId)
-          .order('date_paiement', { ascending: false })
-          .limit(1000);
-        if (e0) throw e0;
-        const byFactureId = {};
-        (paiementsCaissier || []).forEach((p) => {
-          const f = p.factures;
-          if (!f) return;
-          const patient = f.consultations?.patients;
-          const aid = patient?.assurance_id ?? patient?.assurances?.id;
-          if (String(aid) !== String(filterAssuranceId)) return;
-          if (!byFactureId[f.id]) {
-            byFactureId[f.id] = { ...f, date_paiement: p.date_paiement, mode_paiement: p.mode_paiement || f.mode_paiement };
-          }
-        });
-        facturesSource = Object.values(byFactureId);
-      } else {
-        const { data, error: e2 } = await supabase
-          .from('factures')
-          .select(
-            `*,
-            consultations ( date_consultation, patients ( id, nom, prenom, assurance_id, assurances ( id, nom, taux_remboursement ) ) )
-            `
-          )
-          .eq('statut_paiement', 'paye')
-          .is('facture_parent_id', null)
-          .order('date_paiement', { ascending: false })
-          .limit(1000);
-        if (e2) throw e2;
-        facturesSource = data || [];
-      }
-
-      const lignes = [];
-      facturesSource.forEach((f) => {
-        const patient = f.consultations?.patients;
-        const aid = patient?.assurance_id ?? patient?.assurances?.id;
-        if (String(aid) !== String(filterAssuranceId)) return;
-        const assurance = patient?.assurances;
-        const montantFacture = parseFloat(f.montant_ttc || 0);
-        const taux = Number(assurance?.taux_remboursement) || 0;
-        let partCouverture = 0;
-        let partPatient = montantFacture;
-        if (taux > 0 && montantFacture > 0) {
-          partCouverture = Math.round(montantFacture * (taux / 100));
-          partPatient = montantFacture - partCouverture;
-        }
-        if (partCouverture <= 0) return;
-        lignes.push({
-          id: f.id,
-          numero_facture: f.numero_facture,
-          date_paiement: f.date_paiement,
-          patient: `${patient?.prenom || ''} ${patient?.nom || ''}`.trim(),
-          montant_ttc: montantFacture,
-          partPatient,
-          partCouverture,
-          mode_paiement: f.mode_paiement,
-          assurance: assurance?.nom,
-        });
-      });
-
-      const stats = { jour: 0, semaine: 0, mois: 0 };
-      ['jour', 'semaine', 'mois'].forEach((p) => {
-        const { debut } = getDateRangeForPeriod(p);
-        lignes.forEach((l) => {
-          const d = new Date(l.date_paiement);
-          if (d >= debut) stats[p] += l.partCouverture;
-        });
-      });
-
-      const global = { jour: stats.jour, semaine: stats.semaine, mois: stats.mois };
-      setHistoriqueCouvertureData({ lignes, stats, global });
+      // caissierId n'est déjà non-null que si isCaissier (voir déclaration en haut du composant),
+      // ce qui reproduit exactement la condition d'origine `isCaissier && caissierId`.
+      const data = await getHistoriqueCouverture(filterAssuranceId, { caissierId });
+      setHistoriqueCouvertureData(data);
     } catch (err) {
       console.error('fetchHistoriqueCouverture:', err);
       setHistoriqueCouvertureData({ lignes: [], stats: { jour: 0, semaine: 0, mois: 0 }, global: {} });
@@ -1037,22 +843,8 @@ const Caisse = () => {
 
   const fetchFacturesPayees = async () => {
     try {
-      const { data: payees, error } = await supabase
-        .from('factures')
-        .select(
-          `*,
-          consultations (
-            date_consultation,
-            patients ( id, nom, prenom, assurances ( nom, taux_remboursement ) )
-          )
-        `
-        )
-        .eq('statut_paiement', 'paye')
-        .order('date_paiement', { ascending: false })
-        .limit(100);
-
-      if (error) throw error;
-      setFacturesPayees(facturesCaisse(payees || []));
+      const payees = await listFactures({ statut: 'paye', dateField: 'date_paiement', limit: 100 });
+      setFacturesPayees(facturesCaisse(payees));
     } catch (err) {
       console.error('fetchFacturesPayees:', err);
       setFacturesPayees([]);
@@ -1063,60 +855,25 @@ const Caisse = () => {
     try {
       setLoading(true);
 
-      const { data: enAttente, error: e1 } = await supabase
-        .from('factures')
-        .select(
-          `*,
-          consultations (
-            date_consultation,
-            patient_id,
-            patients (
-              id, nom, prenom, numero_secu, assurance_id,
-              assurances ( id, nom, taux_remboursement )
-            )
-          )
-        `
-        )
-        .or('statut_paiement.eq.en_attente,statut_paiement.eq.partiel')
-        .order('created_at', { ascending: false })
-        .limit(1000);
-
-      if (e1) throw e1;
-      const list = facturesCaisse(enAttente || []);
-      setFactures(enAttente || []);
+      const enAttente = await listFactures({ statut: 'outstanding', dateField: 'created_at', limit: 1000 });
+      const list = facturesCaisse(enAttente);
+      setFactures(enAttente);
       setSearchResults(list);
 
       // Factures couverture déjà créées (quel que soit leur statut — payée ou non, ça reste
       // "déjà scindée" côté facture patient) : sert à savoir si le flag "à réclamer à
-      // l'assurance" doit être affiché, ou si c'est déjà réglé.
-      const { data: enfantsCouverture, error: e3 } = await supabase
-        .from('factures')
-        .select('id, facture_parent_id, montant_ttc, statut_paiement')
-        .eq('type', 'couverture')
-        .not('facture_parent_id', 'is', null);
-      if (e3) throw e3;
+      // l'assurance" doit être affiché, ou si c'est déjà réglé. Toute facture de type
+      // 'couverture' porte déjà un facture_parent_id non nul (voir la logique de scission plus
+      // bas), le filtre `.not('facture_parent_id', 'is', null)' d'origine est donc redondant ici.
+      const enfantsCouverture = await listFactures({ type: 'couverture', limit: 100000 });
       const enfantsParParent = {};
-      (enfantsCouverture || []).forEach((c) => {
+      enfantsCouverture.forEach((c) => {
         enfantsParParent[c.facture_parent_id] = c;
       });
       setCouvertureEnfantsParParent(enfantsParParent);
 
-      const { data: payees, error: e2 } = await supabase
-        .from('factures')
-        .select(
-          `*,
-          consultations (
-            date_consultation,
-            patients ( id, nom, prenom, assurances ( nom, taux_remboursement ) )
-          )
-        `
-        )
-        .eq('statut_paiement', 'paye')
-        .order('date_paiement', { ascending: false })
-        .limit(100);
-
-      if (e2) throw e2;
-      setFacturesPayees(facturesCaisse(payees || []));
+      const payees = await listFactures({ statut: 'paye', dateField: 'date_paiement', limit: 100 });
+      setFacturesPayees(facturesCaisse(payees));
     } catch (err) {
       console.error('fetchFactures:', err);
       setFactures([]);
@@ -1168,42 +925,21 @@ const Caisse = () => {
         return;
       }
 
-      const aujourdhui = new Date().toISOString().split('T')[0];
       const currentCaissierId = userProfile?.id ?? null;
 
-      // Vérifier s'il y a déjà une session ouverte aujourd'hui POUR CE CAISSIER
-      let checkQ = supabase
-        .from('sessions_caisse')
-        .select('id')
-        .eq('date_session', aujourdhui)
-        .eq('statut', 'ouverte');
-      if (currentCaissierId != null && currentCaissierId !== '') {
-        checkQ = checkQ.eq('caissier_id', currentCaissierId);
-      } else {
-        checkQ = checkQ.is('caissier_id', null);
+      // ouvrirSession() vérifie qu'aucune session n'est déjà ouverte aujourd'hui pour ce
+      // caissier avant d'insérer (voir sessionCaisseService.js) ; elle lève une erreur
+      // SESSION_DEJA_OUVERTE dans ce cas, gérée juste en dessous.
+      let data;
+      try {
+        data = await ouvrirSession({ caissierId: currentCaissierId, fondCaisse });
+      } catch (err) {
+        if (err?.message === 'SESSION_DEJA_OUVERTE') {
+          unifiedNotificationService.error('Votre session de caisse est déjà ouverte aujourd\'hui. Utilisez « Rafraîchir » pour mettre à jour l\'affichage ou fermez la session en fin de journée.');
+          return;
+        }
+        throw err;
       }
-      const { data: existing, error: checkErr } = await checkQ.maybeSingle();
-
-      if (checkErr && checkErr.code !== 'PGRST116') throw checkErr;
-
-      if (existing) {
-        unifiedNotificationService.error('Votre session de caisse est déjà ouverte aujourd\'hui. Utilisez « Rafraîchir » pour mettre à jour l\'affichage ou fermez la session en fin de journée.');
-        return;
-      }
-
-      // Créer une nouvelle session (liée à ce caissier)
-      const { data, error } = await supabase
-        .from('sessions_caisse')
-        .insert({
-          date_session: aujourdhui,
-          fond_caisse: fondCaisse,
-          caissier_id: currentCaissierId,
-          statut: 'ouverte',
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
 
       setSessionCaisse(data);
       setShowOpenCaisseModal(false);
@@ -1232,11 +968,7 @@ const Caisse = () => {
       }
 
       // Utiliser la fonction SQL pour fermer (calcule automatiquement le montant journalier)
-      const { data, error } = await supabase.rpc('fermer_session_caisse', {
-        p_session_id: sessionCaisse.id,
-      });
-
-      if (error) throw error;
+      const data = await fermerSession(sessionCaisse.id);
 
       setSessionCaisse(null);
       setShowCloseCaisseModal(false);
@@ -1268,11 +1000,7 @@ const Caisse = () => {
   // Charger l'arrêté comptable mensuel
   const fetchArreteMensuel = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_arrete_comptable_mensuel', {
-        p_annee: arreteMois.annee,
-        p_mois: arreteMois.mois,
-      });
-      if (error) throw error;
+      const data = await getArreteComptableMensuel({ annee: arreteMois.annee, mois: arreteMois.mois });
       setArreteData(data || []);
     } catch (err) {
       console.error('fetchArreteMensuel:', err);

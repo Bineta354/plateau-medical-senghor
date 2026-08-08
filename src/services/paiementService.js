@@ -165,6 +165,7 @@ function getDateRangeForPeriod(period) {
  * @param {number|string} [params.assuranceId]
  * @param {number|string} [params.medecinId] - filtré côté client (medecin_id vit sur `consultations`, pas simplement filtrable en jointure côté serveur — même limitation documentée dans RechercheRapports.jsx:105-106)
  * @param {number|string} [params.patientId]
+ * @param {string} [params.type] - filtre `.eq('type', type)` (ex. 'couverture' pour ne récupérer que les factures -C), voir Caisse.jsx:fetchFactures
  * @param {boolean} [params.excludeCouverture=false] - si true, ne renvoie que les factures "parent" (facture_parent_id is null), comme Recapitulatif.jsx
  * @param {number} [params.limit=500]
  * @param {boolean} [params.ascending=false] - tri sur `dateField`
@@ -177,6 +178,7 @@ export async function listFactures({
   assuranceId,
   medecinId,
   patientId,
+  type,
   excludeCouverture = false,
   limit = 500,
   ascending = false,
@@ -184,7 +186,7 @@ export async function listFactures({
   let query = supabase
     .from('factures')
     .select(`
-      id, numero_facture, date_facture, montant_ht, tva, montant_ttc, montant_paye, montant_restant,
+      id, numero_facture, date_facture, date_paiement, montant_ht, tva, montant_ttc, montant_paye, montant_restant,
       statut_paiement, mode_paiement, notes, type, facture_parent_id, patient_id, assurance_id,
       consultation_id, created_at, updated_at,
       patients ( id, nom, prenom, telephone, email, numero_secu, assurance_id, assurances ( id, nom, taux_remboursement ) ),
@@ -212,6 +214,7 @@ export async function listFactures({
 
   if (assuranceId) query = query.eq('assurance_id', assuranceId);
   if (patientId) query = query.eq('patient_id', patientId);
+  if (type) query = query.eq('type', type);
   if (excludeCouverture) query = query.is('facture_parent_id', null);
 
   const { data, error } = await query;
