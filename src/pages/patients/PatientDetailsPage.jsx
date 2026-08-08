@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
-import { 
+import { patientService } from '../../lib/services';
+import {
   ArrowLeft,
   Edit,
   Calendar,
@@ -32,22 +32,7 @@ const PatientDetailsPage = () => {
   const loadPatient = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('patients')
-        .select(`
-          *,
-          assurances (
-            id,
-            nom,
-            type_assurance,
-            taux_remboursement,
-            description
-          )
-        `)
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
+      const data = await patientService.getByIdWithAssurance(id);
       setPatient(data);
       console.log('✅ Patient chargé avec assurance:', data);
     } catch (error) {

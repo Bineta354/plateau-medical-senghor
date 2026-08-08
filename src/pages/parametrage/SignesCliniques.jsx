@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ParametrageLayout from '../../components/ParametrageLayout';
-import { supabase } from '../../lib/supabase';
+import { signesCliniquesRefService } from '../../services/referentielService';
+import { specialtyService } from '../../lib/services/specialtyService';
 
 const EMPTY_ITEM = { nom: '', description: '', categorie: 'generale', actif: true };
 
@@ -36,18 +37,19 @@ const SignesCliniques = () => {
   }, []);
 
   const fetchSpecialites = async () => {
-    const { data } = await supabase.from('specialites').select('id, nom').eq('actif', true).order('nom');
-    setSpecialites(data || []);
+    try {
+      const data = await specialtyService.getAll();
+      setSpecialites(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des spécialités:', error);
+      setSpecialites([]);
+    }
   };
 
   const fetchItems = async () => {
     try {
-      const { data, error } = await supabase
-        .from('signes_cliniques')
-        .select(`*, signes_cliniques_specialites(specialite_id, specialites(id, nom))`)
-        .order('nom');
-      if (error) throw error;
-      setItems(data || []);
+      const data = await signesCliniquesRefService.list();
+      setItems(data);
     } catch (error) {
       console.error('Erreur lors du chargement des signes cliniques:', error);
     } finally {
@@ -73,21 +75,13 @@ const SignesCliniques = () => {
 
       let itemId = editingId;
       if (editingId) {
-        const { error } = await supabase.from('signes_cliniques').update(dataToSave).eq('id', editingId);
-        if (error) throw error;
+        await signesCliniquesRefService.update(editingId, dataToSave);
       } else {
-        const { data, error } = await supabase.from('signes_cliniques').insert([dataToSave]).select('id').single();
-        if (error) throw error;
-        itemId = data.id;
+        const created = await signesCliniquesRefService.create(dataToSave);
+        itemId = created.id;
       }
 
-      // Mise à jour des liaisons spécialités
-      await supabase.from('signes_cliniques_specialites').delete().eq('signe_clinique_id', itemId);
-      if (selectedSpecialites.length > 0) {
-        await supabase.from('signes_cliniques_specialites').insert(
-          selectedSpecialites.map(specialite_id => ({ signe_clinique_id: itemId, specialite_id }))
-        );
-      }
+      await signesCliniquesRefService.syncSpecialites(itemId, selectedSpecialites);
 
       setNewItem(EMPTY_ITEM);
       setSelectedSpecialites([]);
@@ -128,8 +122,7 @@ const SignesCliniques = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer cet élément ?')) {
       try {
-        const { error } = await supabase.from('signes_cliniques').delete().eq('id', id);
-        if (error) throw error;
+        await signesCliniquesRefService.remove(id);
         fetchItems();
       } catch (error) {
         console.error('Erreur lors de la suppression:', error);
