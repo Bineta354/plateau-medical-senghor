@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import Dropdown from '../components/common/Dropdown';
 import { 
   Pill, 
   Search, 
@@ -472,15 +473,16 @@ const PrescriptionsPage = () => {
                   
                   {/* Filtre par statut */}
                   <div className="relative">
-                    <select
+                    <Dropdown
                       value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
-                      className="pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent appearance-none bg-white cursor-pointer min-w-[180px]"
-                    >
-                      <option value="all">Tous les statuts</option>
-                      <option value="actif">Actives</option>
-                      <option value="termine">Terminées</option>
-                    </select>
+                      onChange={(value) => setFilterStatus(value)}
+                      options={[
+                        { value: 'all', label: 'Tous les statuts' },
+                        { value: 'actif', label: 'Actives' },
+                        { value: 'termine', label: 'Terminées' },
+                      ]}
+                      size="sm"
+                    />
                   </div>
                   
                   {/* Bouton rafraîchir */}

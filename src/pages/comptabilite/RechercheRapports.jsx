@@ -8,6 +8,7 @@ import { formatMontant } from '../../utils/currency';
 import { getStatusColor, getStatusLabel } from '../../utils/factureStatus';
 import { MODES_PAIEMENT, getModePaiementLabel } from '../../config/modesPaiement';
 import KpiCard from '../../components/common/KpiCard';
+import ExportUtils from '../../utils/ExportUtils';
 
 /**
  * Recherche & Rapports — fusionne RechercheAvancee.jsx, RapportsFinanciers.jsx
@@ -27,27 +28,6 @@ const DEFAULT_FILTERS = {
   modePaiement: 'all',
   montantMin: '',
   montantMax: '',
-};
-
-const downloadCsv = (filename, headers, rows) => {
-  const escape = (v) => {
-    if (v === null || v === undefined) return '';
-    const s = String(v);
-    if (s.includes('"') || s.includes(';') || s.includes('\n')) {
-      return `"${s.replace(/"/g, '""')}"`;
-    }
-    return s;
-  };
-  const lines = [headers.map(escape).join(';'), ...rows.map((r) => r.map(escape).join(';'))];
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 };
 
 const RechercheRapports = () => {
@@ -137,20 +117,30 @@ const RechercheRapports = () => {
   }, [filteredFactures]);
 
   const handleExportCsv = () => {
-    const headers = ['Numéro', 'Date', 'Patient', 'Médecin', 'Type', 'Montant TTC', 'Payé', 'Reste', 'Statut', 'Mode paiement'];
-    const rows = filteredFactures.map((f) => [
-      f.numero_facture,
-      f.date_facture,
-      `${f.patients?.prenom || ''} ${f.patients?.nom || ''}`.trim(),
-      f.consultations?.users ? `Dr. ${f.consultations.users.prenom} ${f.consultations.users.nom}` : '',
-      f.type || 'patient',
-      f.montant_ttc,
-      f.montant_paye,
-      f.montant_restant,
-      getStatusLabel(f.statut_paiement),
-      f.mode_paiement ? getModePaiementLabel(f.mode_paiement) : '',
+    const rows = filteredFactures.map((f) => ({
+      numero: f.numero_facture,
+      date: f.date_facture,
+      patient: `${f.patients?.prenom || ''} ${f.patients?.nom || ''}`.trim(),
+      medecin: f.consultations?.users ? `Dr. ${f.consultations.users.prenom} ${f.consultations.users.nom}` : '',
+      type: f.type || 'patient',
+      montantTtc: f.montant_ttc,
+      paye: f.montant_paye,
+      reste: f.montant_restant,
+      statut: getStatusLabel(f.statut_paiement),
+      modePaiement: f.mode_paiement ? getModePaiementLabel(f.mode_paiement) : '',
+    }));
+    ExportUtils.exportToCSV(rows, `recherche-factures-${new Date().toISOString().split('T')[0]}`, [
+      { key: 'numero', label: 'Numéro' },
+      { key: 'date', label: 'Date' },
+      { key: 'patient', label: 'Patient' },
+      { key: 'medecin', label: 'Médecin' },
+      { key: 'type', label: 'Type' },
+      { key: 'montantTtc', label: 'Montant TTC' },
+      { key: 'paye', label: 'Payé' },
+      { key: 'reste', label: 'Reste' },
+      { key: 'statut', label: 'Statut' },
+      { key: 'modePaiement', label: 'Mode paiement' },
     ]);
-    downloadCsv(`recherche-factures-${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
   };
 
   const updateFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));

@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { BarChart3, FileText, Printer } from 'lucide-react';
+import { BarChart3, FileText, Printer, Download, RefreshCw, X } from 'lucide-react';
 import SearchableSelect from '../../components/common/SearchableSelect';
+import Dropdown from '../../components/common/Dropdown';
+import Pagination from '../../components/common/Pagination';
 import { formatMontant } from '../../utils/currency';
 import { getStatusColor, getStatusLabel } from '../../utils/factureStatus';
 import { listFactures } from '../../services/paiementService';
 import { listAssurances } from '../../services/assuranceService';
 import { patientService } from '../../lib/services';
 import { fetchParametres } from '../../services/parametrageService';
+import ExportUtils from '../../utils/ExportUtils';
 
 const PERIODS = [
   { value: 'all', label: 'Toutes les dates' },
@@ -15,6 +18,8 @@ const PERIODS = [
   { value: 'month', label: 'Par mois' },
   { value: 'range', label: 'Par période (du ... au ...)' },
 ];
+
+const ITEMS_PER_PAGE = 10;
 
 const getDateRange = (period, dateDebut, dateFin) => {
   const now = new Date();
@@ -51,6 +56,8 @@ const Recapitulatif = () => {
   const [loading, setLoading] = useState(false);
   const [resumePatient, setResumePatient] = useState([]);
   const [resumeCouverture, setResumeCouverture] = useState([]);
+  const [factureView, setFactureView] = useState('couverture'); // 'couverture' | 'liste'
+  const [currentPage, setCurrentPage] = useState(1);
   const printRef = useRef(null);
   const [printSingleId, setPrintSingleId] = useState(null);
 
@@ -158,8 +165,11 @@ const Recapitulatif = () => {
     fetchRecap();
   }, [period, dateDebut, dateFin, filterPatient, filterMedecin, filterCouverture]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [period, dateDebut, dateFin, filterPatient, filterMedecin, filterCouverture]);
+
   const patientLabel = filterPatient ? patients.find((p) => String(p.id) === String(filterPatient)) : null;
-  const medecinLabel = filterMedecin ? medecins.find((m) => String(m.id) === String(filterMedecin)) : null;
   const couvertureLabel = filterCouverture ? assurances.find((a) => String(a.id) === String(filterCouverture)) : null;
 
   // Couverture effective : facture.assurance_id/assurances si renseignés, sinon patient.assurance_id/assurances (liste des couvertures = source de vérité)
@@ -168,14 +178,6 @@ const Recapitulatif = () => {
     const nom = f.assurances?.nom ?? f.patients?.assurances?.nom ?? null;
     return { id: id ?? 'sans', nom: nom || 'Sans couverture' };
   };
-
-  const printTitle = filterPatient && patientLabel
-    ? `Facture – Patient: ${patientLabel.prenom} ${patientLabel.nom}`
-    : filterMedecin && medecinLabel
-      ? `Facture – Médecin: Dr. ${medecinLabel.prenom} ${medecinLabel.nom}`
-      : filterCouverture && couvertureLabel
-        ? `Facture – Couverture: ${couvertureLabel.nom}`
-        : 'Factures (période / filtres)';
 
   const totalTTC = factures.reduce((s, f) => s + parseFloat(f.montant_ttc || 0), 0);
   const totalPaye = factures.reduce((s, f) => s + parseFloat(f.montant_paye || 0), 0);
@@ -204,7 +206,7 @@ const Recapitulatif = () => {
 
   // Regroupement par couverture (pour section "Facture par couverture") — couverture = facture ou patient
   const facturesParCouverture = (() => {
-    if (filterPatient || filterCouverture || !factures.length) return [];
+    if (filterPatient || !factures.length) return [];
     const byId = {};
     factures.forEach((f) => {
       const { id, nom } = getCouvertureFacture(f);
@@ -510,120 +512,200 @@ const Recapitulatif = () => {
     }, 100);
   };
 
-  const facturesToShow = printSingleId ? factures.filter((f) => f.id === printSingleId) : factures.slice(0, 200);
-  const facturePartielle = printSingleId ? factures.find((f) => f.id === printSingleId) : null;
-  const effectivePrintTitle = facturePartielle
-    ? `Facture partielle – ${facturePartielle.numero_facture}`
-    : printTitle;
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+
+  const handleExportResumePatient = () => {
+    const rows = resumePatient.map((r) => ({
+      patient: `${r.patient?.prenom || ''} ${r.patient?.nom || ''}`.trim(),
+      reste: Math.round(r.totalRestant),
+    }));
+    ExportUtils.exportToCSV(rows, `reste_a_payer_par_patient_${todayStr()}`, [
+      { key: 'patient', label: 'Patient' },
+      { key: 'reste', label: 'Reste (FCFA)' },
+    ]);
+  };
+
+  const handleExportResumeCouverture = () => {
+    const rows = resumeCouverture.map((r) => ({
+      couverture: r.nom,
+      reste: Math.round(r.total),
+    }));
+    ExportUtils.exportToCSV(rows, `reste_a_payer_par_couverture_${todayStr()}`, [
+      { key: 'couverture', label: 'Couverture' },
+      { key: 'reste', label: 'Reste (FCFA)' },
+    ]);
+  };
+
+  const handleExportFacturesParCouverture = () => {
+    const rows = facturesParCouverture.map((c) => ({
+      couverture: c.nom,
+      nbFactures: c.factures.length,
+      totalPaye: Math.round(c.totalPaye),
+      totalRestant: Math.round(c.totalRestant),
+    }));
+    ExportUtils.exportToCSV(rows, `facture_par_couverture_${todayStr()}`, [
+      { key: 'couverture', label: 'Couverture' },
+      { key: 'nbFactures', label: 'Nb factures' },
+      { key: 'totalPaye', label: 'Total payé (FCFA)' },
+      { key: 'totalRestant', label: 'Total restant (FCFA)' },
+    ]);
+  };
+
+  const handleExportFactures = () => {
+    const rows = factures.map((f) => {
+      const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0)));
+      const medecin = f.consultations?.users ? `${f.consultations.users.prenom || ''} ${f.consultations.users.nom || ''}`.trim() : '';
+      return {
+        numero: f.numero_facture || '',
+        date: f.date_facture ? new Date(f.date_facture).toLocaleDateString('fr-FR') : '',
+        patient: f.patients ? `${f.patients.prenom || ''} ${f.patients.nom || ''}`.trim() : '',
+        medecin,
+        couverture: getCouvertureFacture(f).nom,
+        ttc: Math.round(parseFloat(f.montant_ttc || 0)),
+        paye: Math.round(parseFloat(f.montant_paye || 0)),
+        reste: Math.round(restant),
+        statut: getStatusLabel(f.statut_paiement),
+      };
+    });
+    // Exporte toutes les factures de la période (pas seulement les 200 premières affichées à l'écran).
+    ExportUtils.exportToCSV(rows, `factures_${todayStr()}`, [
+      { key: 'numero', label: 'N° facture' },
+      { key: 'date', label: 'Date' },
+      { key: 'patient', label: 'Patient' },
+      { key: 'medecin', label: 'Médecin' },
+      { key: 'couverture', label: 'Couverture' },
+      { key: 'ttc', label: 'TTC (FCFA)' },
+      { key: 'paye', label: 'Payé (FCFA)' },
+      { key: 'reste', label: 'Reste (FCFA)' },
+      { key: 'statut', label: 'Statut' },
+    ]);
+  };
+
+  const totalPagesFactures = Math.max(1, Math.ceil(factures.length / ITEMS_PER_PAGE));
+  const facturesToShow = printSingleId
+    ? factures.filter((f) => f.id === printSingleId)
+    : factures.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  const activePeriodLabel = PERIODS.find((p) => p.value === period)?.label || '';
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 mb-6">
-        <BarChart3 className="w-8 h-8 text-indigo-600" />
-        Récapitulatif
-      </h1>
-
-      <div className="bg-white rounded-xl shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-2">Filtres</h2>
-        <p className="text-sm text-gray-500 mb-4">Filtres disponibles : Par jour, Par mois, Par période (du … au …). Sélectionnez un patient ou une couverture pour afficher le détail et générer une facture.</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Période</label>
-            <select
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            >
-              {PERIODS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
-          </div>
-          {period === 'range' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Du</label>
-                <input
-                  type="date"
-                  value={dateDebut}
-                  onChange={(e) => setDateDebut(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Au</label>
-                <input
-                  type="date"
-                  value={dateFin}
-                  onChange={(e) => setDateFin(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
-            </>
-          )}
-          <div>
-            <SearchableSelect
-              label="Patient"
-              options={[
-                { id: '', label: 'Tous' },
-                ...patients.map((p) => ({
-                  id: p.id,
-                  label: `${p.prenom || ''} ${p.nom || ''}`.trim() || `Patient #${p.id}`,
-                  prenom: p.prenom,
-                  nom: p.nom,
-                })),
-              ]}
-              value={filterPatient}
-              onChange={(id) => setFilterPatient(id ?? '')}
-              placeholder="Tous les patients"
-              searchPlaceholder="Taper pour filtrer (ex. A...)"
-              emptyMessage="Aucun patient trouvé"
-            />
-          </div>
-          <div>
-            <SearchableSelect
-              label="Médecin"
-              options={[
-                { id: '', label: 'Tous' },
-                ...medecins.map((m) => ({
-                  id: m.id,
-                  label: `${m.prenom || ''} ${m.nom || ''}`.trim() || `Médecin #${m.id}`,
-                  prenom: m.prenom,
-                  nom: m.nom,
-                })),
-              ]}
-              value={filterMedecin}
-              onChange={(id) => setFilterMedecin(id ?? '')}
-              placeholder="Tous les médecins"
-              searchPlaceholder="Taper pour filtrer (ex. A...)"
-              emptyMessage="Aucun médecin trouvé"
-            />
-          </div>
-          <div>
-            <SearchableSelect
-              label="Couverture"
-              options={[
-                { id: '', label: 'Toutes' },
-                ...assurances.map((a) => ({
-                  id: a.id,
-                  label: a.nom || `Couverture #${a.id}`,
-                  nom: a.nom,
-                })),
-              ]}
-              value={filterCouverture}
-              onChange={(id) => setFilterCouverture(id ?? '')}
-              placeholder="Toutes les couvertures"
-              searchPlaceholder="Taper pour filtrer (ex. A...)"
-              emptyMessage="Aucune couverture trouvée"
-            />
-          </div>
+    <div className="p-6 max-w-[1280px] mx-auto">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-11 h-11 rounded-xl bg-medical-primary/10 flex items-center justify-center flex-shrink-0">
+          <BarChart3 className="w-5 h-5 text-medical-primary" />
         </div>
-        <div className="mt-4 flex gap-2">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Récapitulatif</h1>
+          <p className="text-[13px] text-gray-500 mt-0.5">Suivi des factures, du reste à payer et des couvertures</p>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-6 mb-5">
+        <p className="text-sm font-semibold text-gray-900 mb-1">Filtres</p>
+        <p className="text-[12.5px] text-gray-500 mb-4">Sélectionnez un patient ou une couverture pour afficher le détail et générer une facture.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <Dropdown
+            label="Période"
+            value={period}
+            onChange={(v) => setPeriod(v || 'all')}
+            options={PERIODS}
+            size="md"
+          />
+          <SearchableSelect
+            label="Patient"
+            options={[
+              { id: '', label: 'Tous' },
+              ...patients.map((p) => ({
+                id: p.id,
+                label: `${p.prenom || ''} ${p.nom || ''}`.trim() || `Patient #${p.id}`,
+                prenom: p.prenom,
+                nom: p.nom,
+              })),
+            ]}
+            value={filterPatient}
+            onChange={(id) => setFilterPatient(id ?? '')}
+            placeholder="Tous les patients"
+            searchPlaceholder="Taper pour filtrer (ex. A...)"
+            emptyMessage="Aucun patient trouvé"
+          />
+          <SearchableSelect
+            label="Médecin"
+            options={[
+              { id: '', label: 'Tous' },
+              ...medecins.map((m) => ({
+                id: m.id,
+                label: `${m.prenom || ''} ${m.nom || ''}`.trim() || `Médecin #${m.id}`,
+                prenom: m.prenom,
+                nom: m.nom,
+              })),
+            ]}
+            value={filterMedecin}
+            onChange={(id) => setFilterMedecin(id ?? '')}
+            placeholder="Tous les médecins"
+            searchPlaceholder="Taper pour filtrer (ex. A...)"
+            emptyMessage="Aucun médecin trouvé"
+          />
+          <SearchableSelect
+            label="Couverture"
+            options={[
+              { id: '', label: 'Toutes' },
+              ...assurances.map((a) => ({
+                id: a.id,
+                label: a.nom || `Couverture #${a.id}`,
+                nom: a.nom,
+              })),
+            ]}
+            value={filterCouverture}
+            onChange={(id) => setFilterCouverture(id ?? '')}
+            placeholder="Toutes les couvertures"
+            searchPlaceholder="Taper pour filtrer (ex. A...)"
+            emptyMessage="Aucune couverture trouvée"
+          />
+        </div>
+
+        {period === 'range' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-3.5">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Du</label>
+              <input
+                type="date"
+                value={dateDebut}
+                onChange={(e) => setDateDebut(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs shadow-sm focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Au</label>
+              <input
+                type="date"
+                value={dateFin}
+                onChange={(e) => setDateFin(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs shadow-sm focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-medical-primary/10 text-medical-primary rounded-full text-xs font-medium">
+              {activePeriodLabel}
+              {period !== 'all' && (
+                <button type="button" onClick={() => setPeriod('all')} className="hover:text-medical-primary-dark" title="Réinitialiser la période">
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              )}
+            </span>
+            <span className="text-[12.5px] text-gray-500">
+              → <strong className="text-gray-900 font-semibold">{factures.length} facture{factures.length > 1 ? 's' : ''}</strong> correspondent à ces filtres
+            </span>
+          </div>
           <button
             type="button"
             onClick={fetchRecap}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-medical-primary text-white rounded-xl text-sm font-medium hover:bg-medical-primary-dark transition-colors shadow-[0_4px_14px_rgb(var(--medical-primary-rgb)/0.35)]"
           >
+            <RefreshCw className="w-3.5 h-3.5" />
             Actualiser
           </button>
         </div>
@@ -635,27 +717,57 @@ const Recapitulatif = () => {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div className="bg-white rounded-xl shadow p-6">
-              <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <FileText className="w-5 h-5" /> Reste à payer par patient
-              </h3>
-              <div className="overflow-x-auto max-h-80 overflow-y-auto">
-                <table className="min-w-full text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+            <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-5">
+              <p className="text-[10.5px] font-semibold tracking-[0.14em] uppercase text-gray-400 mb-1.5">Total TTC</p>
+              <p className="text-2xl font-semibold text-gray-900">
+                {formatMontant(totalTTC)}
+              </p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-5">
+              <p className="text-[10.5px] font-semibold tracking-[0.14em] uppercase text-gray-400 mb-1.5">Total payé</p>
+              <p className="text-2xl font-semibold text-emerald-700">
+                {formatMontant(totalPaye)}
+              </p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-5">
+              <p className="text-[10.5px] font-semibold tracking-[0.14em] uppercase text-gray-400 mb-1.5">Total restant</p>
+              <p className="text-2xl font-semibold text-orange-700">
+                {formatMontant(totalRestant)}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+            <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-2">
+                <p className="text-[13px] font-semibold text-gray-900">Reste à payer par patient</p>
+                {resumePatient.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleExportResumePatient}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-[11.5px] font-medium hover:bg-gray-200 transition-colors"
+                  >
+                    <Download className="w-3 h-3" /> CSV
+                  </button>
+                )}
+              </div>
+              <div className="overflow-x-auto max-h-[230px] overflow-y-auto">
+                <table className="min-w-full text-[13px]">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
-                      <th className="px-3 py-2 text-left font-medium text-gray-700">Patient</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-700">Reste (F CFA)</th>
+                      <th className="px-5 py-2.5 text-left text-[11.5px] font-semibold text-gray-500">Patient</th>
+                      <th className="px-5 py-2.5 text-right text-[11.5px] font-semibold text-gray-500">Reste (F CFA)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-gray-100">
                     {resumePatient.length === 0 ? (
-                      <tr><td colSpan={2} className="px-3 py-4 text-center text-gray-500">Aucun</td></tr>
+                      <tr><td colSpan={2} className="px-5 py-4 text-center text-gray-500">Aucun</td></tr>
                     ) : (
                       resumePatient.map((r, idx) => (
                         <tr key={r.patient?.id ?? `p-${idx}`} className="hover:bg-gray-50">
-                          <td className="px-3 py-2">{r.patient?.prenom} {r.patient?.nom}</td>
-                          <td className="px-3 py-2 text-right font-medium text-amber-700">{formatMontant(r.totalRestant)}</td>
+                          <td className="px-5 py-2.5 text-gray-900">{r.patient?.prenom} {r.patient?.nom}</td>
+                          <td className="px-5 py-2.5 text-right font-medium text-orange-700">{formatMontant(r.totalRestant)}</td>
                         </tr>
                       ))
                     )}
@@ -663,24 +775,35 @@ const Recapitulatif = () => {
                 </table>
               </div>
             </div>
-            <div className="bg-white rounded-xl shadow p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Reste à payer par couverture</h3>
-              <div className="overflow-x-auto max-h-80 overflow-y-auto">
-                <table className="min-w-full text-sm">
+            <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-2">
+                <p className="text-[13px] font-semibold text-gray-900">Reste à payer par couverture</p>
+                {resumeCouverture.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleExportResumeCouverture}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-[11.5px] font-medium hover:bg-gray-200 transition-colors"
+                  >
+                    <Download className="w-3 h-3" /> CSV
+                  </button>
+                )}
+              </div>
+              <div className="overflow-x-auto max-h-[230px] overflow-y-auto">
+                <table className="min-w-full text-[13px]">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
-                      <th className="px-3 py-2 text-left font-medium text-gray-700">Couverture</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-700">Reste (F CFA)</th>
+                      <th className="px-5 py-2.5 text-left text-[11.5px] font-semibold text-gray-500">Couverture</th>
+                      <th className="px-5 py-2.5 text-right text-[11.5px] font-semibold text-gray-500">Reste (F CFA)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-gray-100">
                     {resumeCouverture.length === 0 ? (
-                      <tr><td colSpan={2} className="px-3 py-4 text-center text-gray-500">Aucun</td></tr>
+                      <tr><td colSpan={2} className="px-5 py-4 text-center text-gray-500">Aucun</td></tr>
                     ) : (
                       resumeCouverture.map((r) => (
                         <tr key={r.nom} className="hover:bg-gray-50">
-                          <td className="px-3 py-2">{r.nom}</td>
-                          <td className="px-3 py-2 text-right font-medium text-amber-700">{formatMontant(r.total)}</td>
+                          <td className="px-5 py-2.5 text-gray-900">{r.nom}</td>
+                          <td className="px-5 py-2.5 text-right font-medium text-orange-700">{formatMontant(r.total)}</td>
                         </tr>
                       ))
                     )}
@@ -692,269 +815,249 @@ const Recapitulatif = () => {
 
           {/* Facture totale – Tous les patients (visible sans filtre) */}
           {!filterPatient && !filterCouverture && factures.length > 0 && (
-            <div className="bg-white rounded-xl shadow p-6 mb-6 border-2 border-indigo-200">
-              <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-indigo-600" />
-                Facture totale – Tous les patients
-              </h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Récapitulatif global de la période : {factures.length} facture(s). Génération d&apos;une facture globale.
+            <div className="bg-white border border-[#ece7fb] rounded-[20px] shadow-sm p-6 mb-5">
+              <p className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-1">
+                <FileText className="w-4 h-4 text-medical-primary" />
+                Facture totale — Tous les patients
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div className="text-sm p-4 bg-gray-50 rounded-lg">
-                  <p className="font-semibold text-gray-800">Total TTC</p>
-                  <p className="text-lg">{formatMontant(totalTTC)}</p>
-                </div>
-                <div className="text-sm p-4 bg-green-50 rounded-lg">
-                  <p className="font-semibold text-gray-800">Total payé</p>
-                  <p className="text-lg text-green-700">{formatMontant(totalPaye)}</p>
-                </div>
-                <div className="text-sm p-4 bg-amber-50 rounded-lg">
-                  <p className="font-semibold text-gray-800">Total restant</p>
-                  <p className="text-lg text-amber-700">{formatMontant(totalRestant)}</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-3 border-t border-gray-200 pt-4">
-                <button type="button" onClick={handleGenererFactureTousPatients} className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50">
-                  <FileText className="w-5 h-5" /> Générer facture globale
-                </button>
-                <button type="button" onClick={handlePrintFactureTousPatients} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                  <Printer className="w-5 h-5" /> Imprimer facture globale
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Facture par couverture (visible sans filtre) */}
-          {!filterPatient && !filterCouverture && facturesParCouverture.length > 0 && (
-            <div className="bg-white rounded-xl shadow p-6 mb-6 border-2 border-emerald-200">
-              <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-emerald-600" />
-                Facture par couverture
-              </h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Total global par couverture pour la période. Générer ou imprimer une facture par couverture.
+              <p className="text-[12.5px] text-gray-500 mb-4">
+                Récapitulatif global de la période : {factures.length} facture{factures.length > 1 ? 's' : ''}.
               </p>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm border border-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Couverture</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-700 border-b">Nb factures</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-700 border-b">Total payé (F CFA)</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-700 border-b">Total restant (F CFA)</th>
-                      <th className="px-3 py-2 text-center font-medium text-gray-700 border-b">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {facturesParCouverture.map((couv) => (
-                      <tr key={couv.id} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 font-medium">{couv.nom}</td>
-                        <td className="px-3 py-2 text-right">{couv.factures.length}</td>
-                        <td className="px-3 py-2 text-right text-green-700">{formatMontant(couv.totalPaye)}</td>
-                        <td className="px-3 py-2 text-right text-amber-700">{formatMontant(couv.totalRestant)}</td>
-                        <td className="px-3 py-2">
-                          <div className="flex flex-wrap justify-center gap-2">
-                            <button type="button" onClick={() => handleGenererFactureCouverture(couv)} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-white border border-emerald-600 text-emerald-600 rounded hover:bg-emerald-50">
-                              <FileText className="w-4 h-4" /> Générer
-                            </button>
-                            <button type="button" onClick={() => handlePrintFactureCouverture(couv)} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700">
-                              <Printer className="w-4 h-4" /> Imprimer
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex flex-wrap gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleGenererFactureTousPatients}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-medical-primary text-medical-primary rounded-xl text-sm font-medium hover:bg-medical-primary/5 transition-colors"
+                >
+                  <FileText className="w-3.5 h-3.5" /> Générer facture globale
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePrintFactureTousPatients}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-medical-primary text-white rounded-xl text-sm font-medium hover:bg-medical-primary-dark transition-colors shadow-[0_4px_14px_rgb(var(--medical-primary-rgb)/0.35)]"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Imprimer facture globale
+                </button>
               </div>
             </div>
           )}
 
-          {/* Filtre par Patient : liste factures, totaux, couverture %, actions */}
-          {filterPatient && factures.length > 0 && (
-            <div className="bg-white rounded-xl shadow p-6 mb-6 border-2 border-indigo-100">
-              <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-indigo-600" />
-                Filtre par Patient – {patientLabel ? `${patientLabel.prenom} ${patientLabel.nom}` : ''}
-              </h3>
-              <p className="text-sm text-gray-500 mb-4">Liste de toutes les factures (payées et restant à payer).</p>
-              <div className="overflow-x-auto mb-4">
-                <table className="min-w-full text-sm border border-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">N° facture</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Date</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-700 border-b">Somme partielle payée (F CFA)</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-700 border-b">Somme restante à payer (F CFA)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {factures.map((f) => {
-                      const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0)));
-                      return (
-                        <tr key={f.id}>
-                          <td className="px-3 py-2">{f.numero_facture}</td>
-                          <td className="px-3 py-2">{f.date_facture ? new Date(f.date_facture).toLocaleDateString('fr-FR') : ''}</td>
-                          <td className="px-3 py-2 text-right">{formatMontant(parseFloat(f.montant_paye || 0))}</td>
-                          <td className="px-3 py-2 text-right font-medium text-amber-700">{formatMontant(restant)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div className="text-sm p-4 bg-gray-50 rounded-lg">
-                  <p className="font-semibold text-gray-800 mb-2">Totaux globaux</p>
-                  <p><strong>Total somme partielle payée :</strong> {formatMontant(totalPaye)}</p>
-                  <p><strong>Total somme restante à payer :</strong> <span className="text-amber-700 font-semibold">{formatMontant(totalRestant)}</span></p>
-                  <p><strong>Somme totale payée :</strong> {formatMontant(totalPaye)}</p>
+          {/* Facture – patient ou couverture sélectionné(e) (mêmes handlers que la facture globale) */}
+          {(filterPatient || filterCouverture) && factures.length > 0 && (
+            <div className="bg-white border border-[#ece7fb] rounded-[20px] shadow-sm p-6 mb-5">
+              <p className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-1">
+                <FileText className="w-4 h-4 text-medical-primary" />
+                {filterPatient && patientLabel
+                  ? `Facture — ${patientLabel.prenom} ${patientLabel.nom}`
+                  : `Facture — ${couvertureLabel?.nom || ''}`}
+              </p>
+              <p className="text-[12.5px] text-gray-500 mb-4">
+                {factures.length} facture{factures.length > 1 ? 's' : ''} correspondent à ce filtre.
+              </p>
+              {filterPatient && tauxCouverture > 0 && patientAssurance && (
+                <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl text-[12.5px] text-blue-900">
+                  Couverture <strong>{patientAssurance.nom}</strong> — {tauxCouverture}% pris en charge, soit{' '}
+                  <strong>{formatMontant(montantChargeCouverture)}</strong> à la charge de la couverture.
                 </div>
-                {tauxCouverture > 0 && patientAssurance && (
-                  <div className="text-sm p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="font-semibold text-gray-800 mb-2">Couverture médicale</p>
-                    <p><strong>Couverture :</strong> {patientAssurance.nom}</p>
-                    <p><strong>Pourcentage de couverture :</strong> {tauxCouverture} %</p>
-                    <p><strong>Montant à charge de la couverture :</strong> {formatMontant(montantChargeCouverture)}</p>
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-3 border-t border-gray-200 pt-4">
-                <button type="button" onClick={handleGenererFacture} className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50">
-                  <FileText className="w-5 h-5" /> Générer Facture
+              )}
+              <div className="flex flex-wrap gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleGenererFacture}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-medical-primary text-medical-primary rounded-xl text-sm font-medium hover:bg-medical-primary/5 transition-colors"
+                >
+                  <FileText className="w-3.5 h-3.5" /> Générer facture
                 </button>
-                <button type="button" onClick={handlePrintGlobale} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                  <Printer className="w-5 h-5" /> Imprimer Facture
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Filtre par Couverture : liste patients, totaux, actions */}
-          {filterCouverture && factures.length > 0 && (
-            <div className="bg-white rounded-xl shadow p-6 mb-6 border-2 border-emerald-100">
-              <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-emerald-600" />
-                Filtre par Couverture médicale – {couvertureLabel?.nom || ''}
-              </h3>
-              <p className="text-sm text-gray-500 mb-4">Liste des patients concernés par cette couverture.</p>
-              <div className="overflow-x-auto mb-4">
-                <table className="min-w-full text-sm border border-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Patient</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-700 border-b">Somme partielle payée (F CFA)</th>
-                      <th className="px-3 py-2 text-right font-medium text-gray-700 border-b">Reste à payer (F CFA)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {facturesByPatientCouverture.map((row, idx) => (
-                      <tr key={row.patient?.id ?? idx}>
-                        <td className="px-3 py-2">{row.patient?.prenom} {row.patient?.nom}</td>
-                        <td className="px-3 py-2 text-right">{formatMontant(row.totalPaye)}</td>
-                        <td className="px-3 py-2 text-right font-medium text-amber-700">{formatMontant(row.totalRestant)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="text-sm p-4 bg-gray-50 rounded-lg mb-4">
-                <p className="font-semibold text-gray-800 mb-2">Totaux globaux</p>
-                <p><strong>Total somme partielle :</strong> {formatMontant(facturesByPatientCouverture.reduce((s, r) => s + r.totalPaye, 0))}</p>
-                <p><strong>Total reste à payer :</strong> <span className="text-amber-700 font-semibold">{formatMontant(facturesByPatientCouverture.reduce((s, r) => s + r.totalRestant, 0))}</span></p>
-                <p><strong>Somme totale due par la couverture :</strong> {formatMontant(facturesByPatientCouverture.reduce((s, r) => s + r.totalPaye + r.totalRestant, 0))}</p>
-              </div>
-              <div className="flex flex-wrap gap-3 border-t border-gray-200 pt-4">
-                <button type="button" onClick={handleGenererFacture} className="flex items-center gap-2 px-4 py-2 bg-white border border-emerald-600 text-emerald-600 rounded-lg hover:bg-emerald-50">
-                  <FileText className="w-5 h-5" /> Générer Facture
-                </button>
-                <button type="button" onClick={handlePrintGlobale} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">
-                  <Printer className="w-5 h-5" /> Imprimer Facture
+                <button
+                  type="button"
+                  onClick={handlePrintGlobale}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-medical-primary text-white rounded-xl text-sm font-medium hover:bg-medical-primary-dark transition-colors shadow-[0_4px_14px_rgb(var(--medical-primary-rgb)/0.35)]"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Imprimer facture
                 </button>
               </div>
             </div>
           )}
 
-          <div ref={printRef} className="bg-white rounded-xl shadow p-6 print:shadow-none">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-4 print:block">
-              <h3 className="font-semibold text-gray-900">{effectivePrintTitle}</h3>
-              <div className="flex flex-wrap items-center gap-2 print:hidden">
-                {factures.length > 0 && (
+          <div ref={printRef} className="bg-white border border-gray-200 rounded-[20px] shadow-sm overflow-hidden print:shadow-none print:border-0">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3 print:block">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Facturation</p>
+                <p className="text-[12.5px] text-gray-500 mt-1">
+                  {factureView === 'couverture'
+                    ? 'Total global par couverture pour la période.'
+                    : 'Toutes les factures de la période, filtrables par patient ou couverture.'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2.5 print:hidden">
+                <div className="flex gap-0.5 bg-gray-100 rounded-full p-[3px]">
                   <button
                     type="button"
-                    onClick={() => window.print()}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+                    onClick={() => setFactureView('couverture')}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                      factureView === 'couverture' ? 'bg-white text-medical-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
                   >
-                    <Printer className="w-4 h-4" /> Imprimer la liste
+                    Par couverture
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setFactureView('liste')}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                      factureView === 'liste' ? 'bg-white text-medical-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Liste des factures
+                  </button>
+                </div>
+                {factureView === 'couverture' ? (
+                  facturesParCouverture.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleExportFacturesParCouverture}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" /> Exporter CSV
+                    </button>
+                  )
+                ) : (
+                  factures.length > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleExportFactures}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Exporter CSV
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-gray-800 text-white rounded-lg text-xs font-medium hover:bg-gray-900 transition-colors"
+                      >
+                        <Printer className="w-3.5 h-3.5" /> Imprimer
+                      </button>
+                    </>
+                  )
                 )}
               </div>
             </div>
-            <p className="text-sm text-gray-500 mb-2 print:hidden">
-              {filterPatient && patientLabel
-                ? `Factures du patient (payées et restant à payer). Facture globale ci‑dessus ; facture partielle : icône imprimante par ligne.`
-                : filterCouverture && couvertureLabel
-                  ? `Factures de la couverture. Facture globale ci‑dessus ; facture partielle : icône par ligne.`
-                  : 'Filtrez par patient ou par couverture pour afficher et imprimer une facture globale.'}
-            </p>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700">N° facture</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700">Date</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700">Patient</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700">Médecin</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700">Couverture</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-700">TTC</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-700">Payé</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-700">Reste</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700">Statut</th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-700 print:hidden">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {factures.length === 0 ? (
-                    <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-500">Aucune facture.</td></tr>
-                  ) : (
-                    facturesToShow.map((f) => {
-                      const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0)));
-                      const medecin = f.consultations?.users ? `${f.consultations.users.prenom || ''} ${f.consultations.users.nom || ''}`.trim() : '–';
-                      return (
-                        <tr key={f.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3">{f.numero_facture}</td>
-                          <td className="px-4 py-3">{f.date_facture}</td>
-                          <td className="px-4 py-3">{f.patients?.prenom} {f.patients?.nom}</td>
-                          <td className="px-4 py-3">{medecin}</td>
-                          <td className="px-4 py-3">{getCouvertureFacture(f).nom}</td>
-                          <td className="px-4 py-3 text-right">{formatMontant(parseFloat(f.montant_ttc || 0))}</td>
-                          <td className="px-4 py-3 text-right">{formatMontant(parseFloat(f.montant_paye || 0))}</td>
-                          <td className="px-4 py-3 text-right font-medium text-amber-700">{formatMontant(restant)}</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-0.5 rounded text-xs border ${getStatusColor(f.statut_paiement)}`}>
-                              {getStatusLabel(f.statut_paiement)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 print:hidden">
-                            <button
-                              type="button"
-                              onClick={() => handlePrintPartielle(f.id)}
-                              title="Imprimer (facture partielle)"
-                              className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded"
-                            >
-                              <Printer className="w-4 h-4" />
-                            </button>
+
+            {factureView === 'couverture' ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-[11.5px] font-semibold text-gray-500">Couverture</th>
+                      <th className="px-5 py-3 text-right text-[11.5px] font-semibold text-gray-500">Nb factures</th>
+                      <th className="px-5 py-3 text-right text-[11.5px] font-semibold text-gray-500">Total payé</th>
+                      <th className="px-5 py-3 text-right text-[11.5px] font-semibold text-gray-500">Total restant</th>
+                      <th className="px-6 py-3 text-center text-[11.5px] font-semibold text-gray-500">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {facturesParCouverture.length === 0 ? (
+                      <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">Aucune couverture pour ces filtres.</td></tr>
+                    ) : (
+                      facturesParCouverture.map((couv) => (
+                        <tr key={couv.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-3 font-medium text-gray-900">{couv.nom}</td>
+                          <td className="px-5 py-3 text-right text-gray-600">{couv.factures.length}</td>
+                          <td className="px-5 py-3 text-right text-emerald-700">{formatMontant(couv.totalPaye)}</td>
+                          <td className="px-5 py-3 text-right text-orange-700 font-medium">{formatMontant(couv.totalRestant)}</td>
+                          <td className="px-6 py-3">
+                            <div className="flex justify-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleGenererFactureCouverture(couv)}
+                                className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-[11.5px] font-medium hover:bg-gray-50 transition-colors"
+                              >
+                                Générer
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handlePrintFactureCouverture(couv)}
+                                className="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-[11.5px] font-medium hover:bg-gray-800 transition-colors"
+                              >
+                                Imprimer
+                              </button>
+                            </div>
                           </td>
                         </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {factures.length > 200 && !printSingleId && (
-              <p className="text-sm text-gray-500 mt-2">Affichage des 200 premières factures.</p>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-5 py-3 text-left text-[11px] font-semibold text-gray-500 whitespace-nowrap">N° facture</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 whitespace-nowrap">Date</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500">Patient</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500">Médecin</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500">Couverture</th>
+                        <th className="px-4 py-3 text-right text-[11px] font-semibold text-gray-500">TTC</th>
+                        <th className="px-4 py-3 text-right text-[11px] font-semibold text-gray-500">Payé</th>
+                        <th className="px-4 py-3 text-right text-[11px] font-semibold text-gray-500">Reste</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500">Statut</th>
+                        <th className="px-5 py-3 text-center text-[11px] font-semibold text-gray-500 print:hidden">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {factures.length === 0 ? (
+                        <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-500">Aucune facture.</td></tr>
+                      ) : (
+                        facturesToShow.map((f) => {
+                          const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0)));
+                          const medecin = f.consultations?.users ? `${f.consultations.users.prenom || ''} ${f.consultations.users.nom || ''}`.trim() : '–';
+                          return (
+                            <tr key={f.id} className="hover:bg-gray-50">
+                              <td className="px-5 py-3 text-gray-900">{f.numero_facture}</td>
+                              <td className="px-4 py-3 text-gray-600">{f.date_facture ? new Date(f.date_facture).toLocaleDateString('fr-FR') : ''}</td>
+                              <td className="px-4 py-3 text-gray-900">{f.patients?.prenom} {f.patients?.nom}</td>
+                              <td className="px-4 py-3 text-gray-600">{medecin}</td>
+                              <td className="px-4 py-3 text-gray-600">{getCouvertureFacture(f).nom}</td>
+                              <td className="px-4 py-3 text-right text-gray-900">{formatMontant(parseFloat(f.montant_ttc || 0))}</td>
+                              <td className="px-4 py-3 text-right text-emerald-700">{formatMontant(parseFloat(f.montant_paye || 0))}</td>
+                              <td className="px-4 py-3 text-right text-orange-700 font-medium">{formatMontant(restant)}</td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${getStatusColor(f.statut_paiement)}`}>
+                                  {getStatusLabel(f.statut_paiement)}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3 print:hidden">
+                                <div className="flex justify-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePrintPartielle(f.id)}
+                                    title="Imprimer (facture partielle)"
+                                    className="p-1.5 bg-medical-primary/10 text-medical-primary rounded-lg hover:bg-medical-primary/20 transition-colors"
+                                  >
+                                    <Printer className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {factures.length > 0 && !printSingleId && (
+                  <div className="border-t border-gray-100 print:hidden">
+                    <Pagination
+                      currentPage={currentPage}
+                      totalPages={totalPagesFactures}
+                      onPageChange={setCurrentPage}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </>

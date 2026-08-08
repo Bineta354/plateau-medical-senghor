@@ -26,6 +26,7 @@ import { useReactToPrint } from 'react-to-print';
 import { useAuth } from '../../contexts/AuthContext';
 import { ROLES } from '../../utils/permissions';
 import { formatMontant } from '../../utils/currency';
+import Dropdown from '../../components/common/Dropdown';
 import {
   CheckCircleIcon,
   BanknotesIcon,
@@ -57,6 +58,7 @@ import {
 import { getCaissiers } from '../../services/caissierService';
 import { listAssurances } from '../../services/assuranceService';
 import KpiCard from '../../components/common/KpiCard';
+import ExportUtils from '../../utils/ExportUtils';
 
 const ETAPES_MOBILE_MONEY = (nom, montant) =>
   ETAPES_MOBILE_MONEY_BASE(nom, formatMontant(Number(montant)));
@@ -658,123 +660,82 @@ const Caisse = () => {
     }
   };
 
-  // Helpers export CSV
-  const downloadCsv = (filename, headers, rows) => {
-    const escape = (v) => {
-      if (v === null || v === undefined) return '';
-      const s = String(v);
-      if (s.includes('"') || s.includes(';') || s.includes('\n')) {
-        return `"${s.replace(/"/g, '""')}"`;
-      }
-      return s;
-    };
-    const lines = [];
-    lines.push(headers.map(escape).join(';'));
-    rows.forEach((r) => lines.push(r.map(escape).join(';')));
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
+  // Helpers export CSV — voir src/utils/ExportUtils.js (source unique pour tous les exports CSV de l'app)
   const handleExportJourneeCsv = () => {
     if (!detailsJournee.lignes.length) return;
-    const headers = [
-      'Patient',
-      'Numéro facture',
-      'Montant facture',
-      'Part patient',
-      'Part couverture',
-      'Mode',
-      'Date paiement',
-      'Heure paiement',
-    ];
     const rows = detailsJournee.lignes.map((l) => {
       const d = l.date_paiement ? new Date(l.date_paiement) : null;
-      const formatNumberOnly = (val) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(val).replace(/\u00A0/g, ' ');
-      return [
-        `${l.patient?.prenom || ''} ${l.patient?.nom || ''}`.trim(),
-        l.numero_facture,
-        formatNumberOnly(l.montant_facture),
-        formatNumberOnly(l.partPatient),
-        formatNumberOnly(l.partCouverture),
-        MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement,
-        d ? d.toLocaleDateString('fr-FR') : '',
-        d ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '',
-      ];
+      return {
+        patient: `${l.patient?.prenom || ''} ${l.patient?.nom || ''}`.trim(),
+        numeroFacture: l.numero_facture,
+        montantFacture: l.montant_facture,
+        partPatient: l.partPatient,
+        partCouverture: l.partCouverture,
+        mode: MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement,
+        datePaiement: d ? d.toLocaleDateString('fr-FR') : '',
+        heurePaiement: d ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '',
+      };
     });
-    downloadCsv(
-      `etat_caisse_jour_${new Date().toISOString().slice(0, 10)}.csv`,
-      headers,
-      rows
-    );
+    ExportUtils.exportToCSV(rows, `etat_caisse_jour_${new Date().toISOString().slice(0, 10)}`, [
+      { key: 'patient', label: 'Patient' },
+      { key: 'numeroFacture', label: 'Numéro facture' },
+      { key: 'montantFacture', label: 'Montant facture' },
+      { key: 'partPatient', label: 'Part patient' },
+      { key: 'partCouverture', label: 'Part couverture' },
+      { key: 'mode', label: 'Mode' },
+      { key: 'datePaiement', label: 'Date paiement' },
+      { key: 'heurePaiement', label: 'Heure paiement' },
+    ]);
   };
 
   const handleExportHistoriquePatientCsv = () => {
     if (!historiquePatientData.lignes.length) return;
-    const headers = [
-      'Numéro facture',
-      'Date paiement',
-      'Montant facture',
-      'Part patient',
-      'Part couverture',
-      'Couverture',
-      'Mode',
-    ];
     const rows = historiquePatientData.lignes.map((l) => {
       const d = l.date_paiement ? new Date(l.date_paiement) : null;
-      const formatNumberOnly = (val) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(val).replace(/\u00A0/g, ' ');
-      return [
-        l.numero_facture,
-        d ? d.toLocaleDateString('fr-FR') : '',
-        formatNumberOnly(l.montant_ttc),
-        formatNumberOnly(l.partPatient),
-        formatNumberOnly(l.partCouverture),
-        l.assurance || '',
-        MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement,
-      ];
+      return {
+        numeroFacture: l.numero_facture,
+        datePaiement: d ? d.toLocaleDateString('fr-FR') : '',
+        montantFacture: l.montant_ttc,
+        partPatient: l.partPatient,
+        partCouverture: l.partCouverture,
+        couverture: l.assurance || '',
+        mode: MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement,
+      };
     });
-    downloadCsv(
-      `historique_patient_${filterPatientId}_${new Date().toISOString().slice(0, 10)}.csv`,
-      headers,
-      rows
-    );
+    ExportUtils.exportToCSV(rows, `historique_patient_${filterPatientId}_${new Date().toISOString().slice(0, 10)}`, [
+      { key: 'numeroFacture', label: 'Numéro facture' },
+      { key: 'datePaiement', label: 'Date paiement' },
+      { key: 'montantFacture', label: 'Montant facture' },
+      { key: 'partPatient', label: 'Part patient' },
+      { key: 'partCouverture', label: 'Part couverture' },
+      { key: 'couverture', label: 'Couverture' },
+      { key: 'mode', label: 'Mode' },
+    ]);
   };
 
   const handleExportHistoriqueCouvertureCsv = () => {
     if (!historiqueCouvertureData.lignes.length) return;
-    const headers = [
-      'Date',
-      'Patient',
-      'Numéro facture',
-      'Montant facture',
-      'Part patient',
-      'Part couverture',
-      'Mode',
-    ];
     const rows = historiqueCouvertureData.lignes.map((l) => {
       const d = l.date_paiement ? new Date(l.date_paiement) : null;
-      const formatNumberOnly = (val) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(val).replace(/\u00A0/g, ' ');
-      return [
-        d ? d.toLocaleDateString('fr-FR') : '',
-        l.patient,
-        l.numero_facture,
-        formatNumberOnly(l.montant_ttc),
-        formatNumberOnly(l.partPatient),
-        formatNumberOnly(l.partCouverture),
-        MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement,
-      ];
+      return {
+        date: d ? d.toLocaleDateString('fr-FR') : '',
+        patient: l.patient,
+        numeroFacture: l.numero_facture,
+        montantFacture: l.montant_ttc,
+        partPatient: l.partPatient,
+        partCouverture: l.partCouverture,
+        mode: MODES_PAIEMENT.find((m) => m.value === l.mode_paiement)?.label || l.mode_paiement,
+      };
     });
-    downloadCsv(
-      `historique_couverture_${filterAssuranceId}_${new Date().toISOString().slice(0, 10)}.csv`,
-      headers,
-      rows
-    );
+    ExportUtils.exportToCSV(rows, `historique_couverture_${filterAssuranceId}_${new Date().toISOString().slice(0, 10)}`, [
+      { key: 'date', label: 'Date' },
+      { key: 'patient', label: 'Patient' },
+      { key: 'numeroFacture', label: 'Numéro facture' },
+      { key: 'montantFacture', label: 'Montant facture' },
+      { key: 'partPatient', label: 'Part patient' },
+      { key: 'partCouverture', label: 'Part couverture' },
+      { key: 'mode', label: 'Mode' },
+    ]);
   };
 
   const fetchHistoriqueCouverture = async () => {
@@ -1756,13 +1717,12 @@ const Caisse = () => {
             <div className="flex flex-wrap items-center gap-4 mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Afficher</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-                  className="border border-gray-300 rounded px-2 py-1 text-sm"
-                >
-                  {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
+                <Dropdown
+                  value={String(pageSize)}
+                  onChange={(value) => { setPageSize(Number(value)); setPage(1); }}
+                  options={PAGE_SIZES.map((n) => ({ value: String(n), label: String(n) }))}
+                  size="sm"
+                />
                 <span className="text-sm text-gray-600">entrées</span>
               </div>
               <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
@@ -1909,13 +1869,12 @@ const Caisse = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600">Afficher</span>
-                  <select
-                    value={payeesPageSize}
-                    onChange={(e) => { setPayeesPageSize(Number(e.target.value)); setPayeesPage(1); }}
-                    className="border border-gray-300 rounded px-2 py-1 text-sm"
-                  >
-                    {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
+                  <Dropdown
+                    value={String(payeesPageSize)}
+                    onChange={(value) => { setPayeesPageSize(Number(value)); setPayeesPage(1); }}
+                    options={PAGE_SIZES.map((n) => ({ value: String(n), label: String(n) }))}
+                    size="sm"
+                  />
                   <span className="text-sm text-gray-600">entrées</span>
                 </div>
                 <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
@@ -2168,16 +2127,19 @@ const Caisse = () => {
             <div className="mb-4 flex flex-wrap items-end gap-3">
               <div className="w-full sm:w-auto sm:min-w-[220px]">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Filtrer par couverture</label>
-                <select
+                <Dropdown
                   value={filterAssuranceId}
-                  onChange={(e) => setFilterAssuranceId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                >
-                  <option value="">— Choisir une couverture —</option>
-                  {assurancesList.map((a) => (
-                    <option key={a.id} value={a.id}>{a.nom} ({a.taux_remboursement}%)</option>
-                  ))}
-                </select>
+                  onChange={(value) => setFilterAssuranceId(value)}
+                  options={[
+                    { value: '', label: '— Choisir une couverture —' },
+                    ...assurancesList.map((a) => ({
+                      value: a.id,
+                      label: `${a.nom} (${a.taux_remboursement}%)`,
+                    })),
+                  ]}
+                  size="md"
+                  className="w-full"
+                />
               </div>
             </div>
             {filterAssuranceId && (
@@ -2643,18 +2605,19 @@ const Caisse = () => {
               <div className="mb-4 flex flex-wrap gap-3 items-end">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Mois</label>
-                  <select
-                    value={arreteMois.mois}
-                    onChange={(e) => {
-                      setArreteMois((a) => ({ ...a, mois: Number(e.target.value) }));
+                  <Dropdown
+                    value={String(arreteMois.mois)}
+                    onChange={(value) => {
+                      setArreteMois((a) => ({ ...a, mois: Number(value) }));
                       setTimeout(() => fetchArreteMensuel(), 100);
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => (
-                      <option key={m} value={m}>{new Date(2000, m - 1).toLocaleString('fr-FR', { month: 'long' })}</option>
-                    ))}
-                  </select>
+                    options={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => ({
+                      value: String(m),
+                      label: new Date(2000, m - 1).toLocaleString('fr-FR', { month: 'long' }),
+                    }))}
+                    size="md"
+                    className="w-full"
+                  />
                 </div>
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Année</label>

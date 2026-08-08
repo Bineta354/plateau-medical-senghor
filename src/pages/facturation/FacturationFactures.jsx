@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import Dropdown from '../../components/common/Dropdown';
 import {
   Receipt,
   Search,
@@ -671,48 +672,51 @@ const FacturationFactures = () => {
           
           <div className="ml-16">
             <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
-            <select
+            <Dropdown
               value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-            >
-              <option value="all">Tous les types</option>
-              {types.map(type => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
+              onChange={(value) => setSelectedType(value)}
+              options={[
+                { value: 'all', label: 'Tous les types' },
+                ...types.map(type => ({ value: type, label: type })),
+              ]}
+              size="md"
+              className="w-48"
+            />
           </div>
           
           <div className="ml-8">
             <label className="block text-sm font-medium text-gray-700 mb-2">Statut</label>
-            <select
+            <Dropdown
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-60 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-            >
-              <option value="all">Tous les statuts</option>
-              <option value="outstanding">À encaisser (non payées)</option>
-              <option value="paye">Payées</option>
-              <option value="partiel">Partiellement payées</option>
-              <option value="en_attente">En attente</option>
-              <option value="impaye">Impayées</option>
-            </select>
+              onChange={(value) => setSelectedStatus(value)}
+              options={[
+                { value: 'all', label: 'Tous les statuts' },
+                { value: 'outstanding', label: 'À encaisser (non payées)' },
+                { value: 'paye', label: 'Payées' },
+                { value: 'partiel', label: 'Partiellement payées' },
+                { value: 'en_attente', label: 'En attente' },
+                { value: 'impaye', label: 'Impayées' },
+              ]}
+              size="md"
+              className="w-60"
+            />
           </div>
           
           <div className="ml-auto">
             <label className="block text-sm font-medium text-gray-700 mb-2">Période</label>
-            <select
+            <Dropdown
               value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-              style={{ width: '168px' }}
-            >
-              <option value="today">Aujourd'hui</option>
-              <option value="week">Cette semaine</option>
-              <option value="month">Ce mois</option>
-              <option value="quarter">Ce trimestre</option>
-              <option value="year">Cette année</option>
-            </select>
+              onChange={(value) => setSelectedPeriod(value)}
+              options={[
+                { value: 'today', label: "Aujourd'hui" },
+                { value: 'week', label: 'Cette semaine' },
+                { value: 'month', label: 'Ce mois' },
+                { value: 'quarter', label: 'Ce trimestre' },
+                { value: 'year', label: 'Cette année' },
+              ]}
+              size="md"
+              wrapperClassName="w-[168px]"
+            />
           </div>
         </div>
       </div>
@@ -1019,17 +1023,16 @@ const FacturationFactures = () => {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Type de facturation *</label>
-                  <select
+                  <Dropdown
                     value={factureData.type}
-                    onChange={(e) => setFactureData({...factureData, type: e.target.value})}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  >
-                    <option value="">Sélectionner un type</option>
-                    {types.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFactureData({...factureData, type: value})}
+                    options={[
+                      { value: '', label: 'Sélectionner un type' },
+                      ...types.map(type => ({ value: type, label: type })),
+                    ]}
+                    size="md"
+                    className="w-full"
+                  />
                 </div>
               </div>
               

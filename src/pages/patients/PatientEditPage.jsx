@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { patientService } from '../../lib/services';
 import { validatePatientForm, getDateNaissanceError, normalizePatientPayload } from '../../schemas/patientSchema';
+import Dropdown from '../../components/common/Dropdown';
 import { 
   ArrowLeft,
   Save,
@@ -332,16 +333,16 @@ const PatientEditPage = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Sexe *</label>
-                <select
-                  name="sexe"
+                <Dropdown
                   value={formData.sexe}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                >
-                  <option value="M">Masculin</option>
-                  <option value="F">Féminin</option>
-                </select>
+                  onChange={(value) => handleInputChange({ target: { name: 'sexe', value } })}
+                  options={[
+                    { value: 'M', label: 'Masculin' },
+                    { value: 'F', label: 'Féminin' },
+                  ]}
+                  size="md"
+                  className="w-full"
+                />
               </div>
 
               <div>
@@ -427,18 +428,19 @@ const PatientEditPage = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Situation familiale</label>
-                <select
-                  name="situation_familiale"
+                <Dropdown
                   value={formData.situation_familiale}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                >
-                  <option value="">Sélectionner</option>
-                  <option value="celibataire">Célibataire</option>
-                  <option value="marie">Marié(e)</option>
-                  <option value="divorce">Divorcé(e)</option>
-                  <option value="veuf">Veuf/Veuve</option>
-                </select>
+                  onChange={(value) => handleInputChange({ target: { name: 'situation_familiale', value } })}
+                  options={[
+                    { value: '', label: 'Sélectionner' },
+                    { value: 'celibataire', label: 'Célibataire' },
+                    { value: 'marie', label: 'Marié(e)' },
+                    { value: 'divorce', label: 'Divorcé(e)' },
+                    { value: 'veuf', label: 'Veuf/Veuve' },
+                  ]}
+                  size="md"
+                  className="w-full"
+                />
               </div>
 
               <div>

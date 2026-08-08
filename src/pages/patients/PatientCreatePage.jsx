@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase'
 import SearchableSelect from '../../components/common/SearchableSelect';
+import Dropdown from '../../components/common/Dropdown';
 import { generateNumeroDossier, validateBirthDate } from '../../services/patientService';
 import { validatePatientForm, getDateNaissanceError, normalizePatientPayload } from '../../schemas/patientSchema';
 import { 
@@ -428,36 +429,37 @@ const PatientCreatePage = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Sexe *</label>
-                <select
-                  name="sexe"
+                <Dropdown
                   value={formData.sexe}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                >
-                  <option value="M">Masculin</option>
-                  <option value="F">Féminin</option>
-                </select>
+                  onChange={(value) => handleInputChange({ target: { name: 'sexe', value } })}
+                  options={[
+                    { value: 'M', label: 'Masculin' },
+                    { value: 'F', label: 'Féminin' },
+                  ]}
+                  size="md"
+                  className="w-full"
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Groupe sanguin</label>
-                <select
-                  name="groupe_sanguin"
+                <Dropdown
                   value={formData.groupe_sanguin}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                >
-                  <option value="">Sélectionner</option>
-                  <option value="A+">A+</option>
-                  <option value="A-">A-</option>
-                  <option value="B+">B+</option>
-                  <option value="B-">B-</option>
-                  <option value="AB+">AB+</option>
-                  <option value="AB-">AB-</option>
-                  <option value="O+">O+</option>
-                  <option value="O-">O-</option>
-                </select>
+                  onChange={(value) => handleInputChange({ target: { name: 'groupe_sanguin', value } })}
+                  options={[
+                    { value: '', label: 'Sélectionner' },
+                    { value: 'A+', label: 'A+' },
+                    { value: 'A-', label: 'A-' },
+                    { value: 'B+', label: 'B+' },
+                    { value: 'B-', label: 'B-' },
+                    { value: 'AB+', label: 'AB+' },
+                    { value: 'AB-', label: 'AB-' },
+                    { value: 'O+', label: 'O+' },
+                    { value: 'O-', label: 'O-' },
+                  ]}
+                  size="md"
+                  className="w-full"
+                />
               </div>
 
               <div>
@@ -543,18 +545,19 @@ const PatientCreatePage = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Situation familiale</label>
-                <select
-                  name="situation_familiale"
+                <Dropdown
                   value={formData.situation_familiale}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                >
-                  <option value="">Sélectionner</option>
-                  <option value="celibataire">Célibataire</option>
-                  <option value="marie">Marié(e)</option>
-                  <option value="divorce">Divorcé(e)</option>
-                  <option value="veuf">Veuf/Veuve</option>
-                </select>
+                  onChange={(value) => handleInputChange({ target: { name: 'situation_familiale', value } })}
+                  options={[
+                    { value: '', label: 'Sélectionner' },
+                    { value: 'celibataire', label: 'Célibataire' },
+                    { value: 'marie', label: 'Marié(e)' },
+                    { value: 'divorce', label: 'Divorcé(e)' },
+                    { value: 'veuf', label: 'Veuf/Veuve' },
+                  ]}
+                  size="md"
+                  className="w-full"
+                />
               </div>
 
               <div>
@@ -687,16 +690,18 @@ const PatientCreatePage = () => {
                             <label className="block text-xs font-medium text-gray-700 mb-1">
                               Type d'assurance
                             </label>
-                            <select
+                            <Dropdown
                               value={newAssurance.type_assurance}
-                              onChange={(e) => setNewAssurance({...newAssurance, type_assurance: e.target.value})}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent text-sm"
-                            >
-                              <option value="mutuelle">Mutuelle</option>
-                              <option value="securite_sociale">Sécurité sociale</option>
-                              <option value="privee">Privée</option>
-                              <option value="autre">Autre</option>
-                            </select>
+                              onChange={(value) => setNewAssurance({...newAssurance, type_assurance: value})}
+                              options={[
+                                { value: 'mutuelle', label: 'Mutuelle' },
+                                { value: 'securite_sociale', label: 'Sécurité sociale' },
+                                { value: 'privee', label: 'Privée' },
+                                { value: 'autre', label: 'Autre' },
+                              ]}
+                              size="sm"
+                              className="w-full"
+                            />
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">

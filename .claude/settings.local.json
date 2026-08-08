@@ -31,7 +31,8 @@
       "Bash(npx vite *)",
       "Bash(grep *)",
       "Bash(awk 'NR>=2560 && NR<=2685' src/pages/secretary/Caisse.jsx)",
-      "Bash(awk 'NR>=2560 && NR<=2685 { if \\($0 ~ /<div/\\) print NR\": OPEN  \"$0; if \\($0 ~ /<\\\\/div>/\\) print NR\": CLOSE \"$0 }' src/pages/secretary/Caisse.jsx)"
+      "Bash(awk 'NR>=2560 && NR<=2685 { if \\($0 ~ /<div/\\) print NR\": OPEN  \"$0; if \\($0 ~ /<\\\\/div>/\\) print NR\": CLOSE \"$0 }' src/pages/secretary/Caisse.jsx)",
+      "Bash(netstat -ano)"
     ]
   },
   "enabledMcpjsonServers": [

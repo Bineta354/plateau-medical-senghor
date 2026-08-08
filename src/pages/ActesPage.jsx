@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { unifiedNotificationService } from '../services/unifiedNotificationService';
 import { useTypesActes } from '../hooks/useTypesActes';
 import { formatMontant } from '../utils/currency';
+import Dropdown from '../components/common/Dropdown';
 
 const ActesPage = () => {
   const { userProfile } = useAuth();
@@ -129,16 +130,16 @@ const ActesPage = () => {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Catégorie</label>
-            <select
+            <Dropdown
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-            >
-              <option value="all">Toutes les catégories</option>
-              {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
+              onChange={(value) => setSelectedCategory(value)}
+              options={[
+                { value: 'all', label: 'Toutes les catégories' },
+                ...categories.map(category => ({ value: category, label: category })),
+              ]}
+              size="md"
+              className="w-full"
+            />
           </div>
         </div>
       </div>

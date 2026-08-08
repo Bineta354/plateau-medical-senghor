@@ -5,30 +5,38 @@ import { formatMontant } from './currency';
 // Utilitaire pour l'exportation des données
 const ExportUtils = {
   // Exporter en CSV
-  exportToCSV: (data, filename) => {
+  // `columns` (optionnel) : [{ key, label }] pour choisir l'ordre, les en-têtes français
+  // et exclure des champs internes. Sans ce paramètre, retombe sur les clés brutes de
+  // data[0] (comportement historique).
+  exportToCSV: (data, filename, columns) => {
     if (!data || data.length === 0) {
       alert('Aucune donnée à exporter');
       return;
     }
 
-    // Créer le contenu CSV
-    const headers = Object.keys(data[0]);
+    const cols = columns && columns.length > 0
+      ? columns
+      : Object.keys(data[0]).map((key) => ({ key, label: key }));
+
+    // Séparateur ';' (pas ',') : en locale fr-FR, Excel réserve la virgule au séparateur
+    // décimal et n'ouvre pas correctement un CSV séparé par virgules en colonnes distinctes.
+    const escapeCell = (value) => {
+      if (value === null || value === undefined) return '';
+      const str = String(value);
+      if (str.includes(';') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
     const csvContent = [
-      headers.join(','),
-      ...data.map(row => 
-        headers.map(header => {
-          const value = row[header];
-          // Échapper les virgules et guillemets
-          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value;
-        }).join(',')
-      )
+      cols.map((c) => escapeCell(c.label)).join(';'),
+      ...data.map((row) => cols.map((c) => escapeCell(row[c.key])).join(';')),
     ].join('\n');
 
-    // Créer le blob et télécharger
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // BOM UTF-8 pour que les accents s'affichent correctement à l'ouverture dans Excel.
+    const BOM = String.fromCharCode(0xFEFF);
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
@@ -37,6 +45,7 @@ const ExportUtils = {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   },
 
   // Exporter en JSON

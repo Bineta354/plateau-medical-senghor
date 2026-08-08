@@ -10,6 +10,7 @@ import { fr as frLocale } from 'date-fns/locale';
 registerLocale('fr', frLocale);
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import SearchableSelect from '../../components/common/SearchableSelect';
+import Dropdown from '../../components/common/Dropdown';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import { useAlert } from '../../contexts/AlertContext';
 import {
@@ -358,49 +359,50 @@ const PriseRendezVousPage = () => {
 
           <div className="flex-1 min-w-[180px]">
             <label className="block text-xs font-medium text-gray-500 mb-1">Spécialité</label>
-            <select
+            <Dropdown
               value={selectedSpecialiteFilter}
-              onChange={(e) => {
-                setSelectedSpecialiteFilter(e.target.value);
+              onChange={(value) => {
+                setSelectedSpecialiteFilter(value);
                 setSelectedDoctorFilter(''); // Reset doctor filter when speciality changes
               }}
-              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-            >
-              <option value="">Toutes les spécialités</option>
-              {specialites
-                .filter((s) => !s.parent_id)
-                .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'accent' }))
-                .flatMap((parent) => {
-                  const children = specialites
-                    .filter((s) => s.parent_id === parent.id)
-                    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'accent' }));
-                  return [
-                    <option key={parent.id} value={parent.id}>{parent.nom}</option>,
-                    ...children.map((child) => (
-                      <option key={child.id} value={child.id}>{'— ' + child.nom}</option>
-                    ))
-                  ];
-                })}
-            </select>
+              options={[
+                { value: '', label: 'Toutes les spécialités' },
+                ...specialites
+                  .filter((s) => !s.parent_id)
+                  .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'accent' }))
+                  .flatMap((parent) => {
+                    const children = specialites
+                      .filter((s) => s.parent_id === parent.id)
+                      .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'accent' }));
+                    return [
+                      { value: parent.id, label: parent.nom },
+                      ...children.map((child) => ({ value: child.id, label: '— ' + child.nom })),
+                    ];
+                  }),
+              ]}
+              size="sm"
+              className="w-full"
+            />
           </div>
 
           <div className="flex-1 min-w-[180px]">
             <label className="block text-xs font-medium text-gray-500 mb-1">Médecin</label>
-            <select
+            <Dropdown
               value={selectedDoctorFilter}
-              onChange={(e) => {
-                setSelectedDoctorFilter(e.target.value);
+              onChange={(value) => {
+                setSelectedDoctorFilter(value);
                 setSelectedSpecialiteFilter(''); // Reset speciality filter when doctor changes
               }}
-              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-            >
-              <option value="">Tous les médecins</option>
-              {allDoctors.map(doctor => (
-                <option key={doctor.id} value={doctor.id}>
-                  Dr. {doctor.prenom} {doctor.nom} - {doctor.specialite}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: 'Tous les médecins' },
+                ...allDoctors.map(doctor => ({
+                  value: doctor.id,
+                  label: `Dr. ${doctor.prenom} ${doctor.nom} - ${doctor.specialite}`,
+                })),
+              ]}
+              size="sm"
+              className="w-full"
+            />
           </div>
 
           <button

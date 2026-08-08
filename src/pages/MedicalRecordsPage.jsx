@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import Dropdown from '../components/common/Dropdown';
 import { 
   FileText, 
   Search, 
@@ -652,20 +653,22 @@ const MedicalRecordsPage = () => {
                   {/* Filtre par type */}
                   <div className="relative">
                     <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-                    <select
+                    <Dropdown
                       value={filterType}
-                      onChange={(e) => setFilterType(e.target.value)}
-                      className="pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent appearance-none bg-white cursor-pointer min-w-[180px]"
-                    >
-                      <option value="all">Tous les types</option>
-                      <option value="consultation">Consultation</option>
-                      <option value="examen">Examen</option>
-                      <option value="prescription">Prescription</option>
-                      <option value="hospitalisation">Hospitalisation</option>
-                      <option value="vaccination">Vaccination</option>
-                    </select>
+                      onChange={(value) => setFilterType(value)}
+                      options={[
+                        { value: 'all', label: 'Tous les types' },
+                        { value: 'consultation', label: 'Consultation' },
+                        { value: 'examen', label: 'Examen' },
+                        { value: 'prescription', label: 'Prescription' },
+                        { value: 'hospitalisation', label: 'Hospitalisation' },
+                        { value: 'vaccination', label: 'Vaccination' },
+                      ]}
+                      size="sm"
+                      className="pl-9 min-w-[180px]"
+                    />
                   </div>
-                  
+
                   {/* Bouton rafraîchir */}
                   <button
                     onClick={handleRefresh}
@@ -774,17 +777,19 @@ const MedicalRecordsPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Type de dossier</label>
-                  <select
+                  <Dropdown
                     value={newRecord.type}
-                    onChange={(e) => setNewRecord(prev => ({ ...prev, type: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  >
-                    <option value="consultation">Consultation</option>
-                    <option value="examen">Examen</option>
-                    <option value="prescription">Prescription</option>
-                    <option value="hospitalisation">Hospitalisation</option>
-                    <option value="vaccination">Vaccination</option>
-                  </select>
+                    onChange={(value) => setNewRecord(prev => ({ ...prev, type: value }))}
+                    options={[
+                      { value: 'consultation', label: 'Consultation' },
+                      { value: 'examen', label: 'Examen' },
+                      { value: 'prescription', label: 'Prescription' },
+                      { value: 'hospitalisation', label: 'Hospitalisation' },
+                      { value: 'vaccination', label: 'Vaccination' },
+                    ]}
+                    size="md"
+                    className="w-full"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Titre</label>

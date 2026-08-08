@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import AppointmentTypeMotifFields, { resolveAppointmentMotif } from '../components/common/AppointmentTypeMotifFields';
+import Dropdown from '../components/common/Dropdown';
 import patientStatusService from '../services/patientStatusService';
 import { sendNotification, NOTIFICATION_TYPES } from '../lib/notifications';
 import { 
@@ -496,16 +497,18 @@ const AppointmentsPage = () => {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Statut</label>
-            <select
+            <Dropdown
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-            >
-              <option value="all">Tous les statuts</option>
-              <option value="confirme">Confirmé</option>
-              <option value="en_attente">En attente</option>
-              <option value="annule">Annulé</option>
-            </select>
+              onChange={(value) => setFilterStatus(value)}
+              options={[
+                { value: 'all', label: 'Tous les statuts' },
+                { value: 'confirme', label: 'Confirmé' },
+                { value: 'en_attente', label: 'En attente' },
+                { value: 'annule', label: 'Annulé' },
+              ]}
+              size="md"
+              className="w-full"
+            />
           </div>
           
           <div className="flex items-end">
@@ -645,36 +648,36 @@ const AppointmentsPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Patient *</label>
-                  <select
+                  <Dropdown
                     value={formData.patient_id}
-                    onChange={(e) => setFormData({...formData, patient_id: e.target.value})}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  >
-                    <option value="">Sélectionner un patient</option>
-                    {patients.map(patient => (
-                      <option key={patient.id} value={patient.id}>
-                        {patient.prenom} {patient.nom}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFormData({...formData, patient_id: value})}
+                    options={[
+                      { value: '', label: 'Sélectionner un patient' },
+                      ...patients.map(patient => ({
+                        value: patient.id,
+                        label: `${patient.prenom} ${patient.nom}`,
+                      })),
+                    ]}
+                    size="md"
+                    className="w-full"
+                  />
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Médecin *</label>
-                  <select
+                  <Dropdown
                     value={formData.medecin_id}
-                    onChange={(e) => setFormData({...formData, medecin_id: e.target.value})}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  >
-                    <option value="">Sélectionner un médecin</option>
-                    {doctors.map(doctor => (
-                      <option key={doctor.id} value={doctor.id}>
-                        Dr. {doctor.prenom} {doctor.nom} - {doctor.specialite}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFormData({...formData, medecin_id: value})}
+                    options={[
+                      { value: '', label: 'Sélectionner un médecin' },
+                      ...doctors.map(doctor => ({
+                        value: doctor.id,
+                        label: `Dr. ${doctor.prenom} ${doctor.nom} - ${doctor.specialite}`,
+                      })),
+                    ]}
+                    size="md"
+                    className="w-full"
+                  />
                 </div>
                 
                 <div>
@@ -714,15 +717,17 @@ const AppointmentsPage = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Statut</label>
-                <select
+                <Dropdown
                   value={formData.statut}
-                  onChange={(e) => setFormData({...formData, statut: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                >
-                  <option value="confirme">Confirmé</option>
-                  <option value="en_attente">En attente</option>
-                  <option value="annule">Annulé</option>
-                </select>
+                  onChange={(value) => setFormData({...formData, statut: value})}
+                  options={[
+                    { value: 'confirme', label: 'Confirmé' },
+                    { value: 'en_attente', label: 'En attente' },
+                    { value: 'annule', label: 'Annulé' },
+                  ]}
+                  size="md"
+                  className="w-full"
+                />
               </div>
               
               <div>

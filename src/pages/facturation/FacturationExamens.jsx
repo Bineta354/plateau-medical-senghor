@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Dropdown from '../../components/common/Dropdown';
 import {
   FileSearch,
   Search,
@@ -606,31 +607,33 @@ const FacturationExamens = () => {
           
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Statut</label>
-            <select
+            <Dropdown
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent text-sm"
-            >
-              <option value="all">Tous</option>
-              <option value="payee">Réalisés</option>
-              <option value="programme">Programmés</option>
-              <option value="en_cours">En cours</option>
-              <option value="annule">Annulés</option>
-            </select>
+              onChange={(value) => setSelectedStatus(value)}
+              options={[
+                { value: 'all', label: 'Tous' },
+                { value: 'payee', label: 'Réalisés' },
+                { value: 'programme', label: 'Programmés' },
+                { value: 'en_cours', label: 'En cours' },
+                { value: 'annule', label: 'Annulés' },
+              ]}
+              size="sm"
+              className="w-full"
+            />
           </div>
           
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
-            <select
+            <Dropdown
               value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent text-sm"
-            >
-              <option value="all">Tous</option>
-              {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
+              onChange={(value) => setSelectedType(value)}
+              options={[
+                { value: 'all', label: 'Tous' },
+                ...categories.map(category => ({ value: category, label: category })),
+              ]}
+              size="sm"
+              className="w-full"
+            />
           </div>
           
           <div className="flex items-end">

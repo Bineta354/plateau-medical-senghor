@@ -3,6 +3,7 @@ console.log('📦 [SalleAttentePage.jsx] Fichier chargé');
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import Dropdown from '../components/common/Dropdown';
 import {
   Users,
   Clock,
@@ -732,17 +733,19 @@ const SalleAttentePage = () => {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Statut</label>
-                <select
+                <Dropdown
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs"
-                >
-                  <option value="all">Tous</option>
-                  <option value="waiting">En attente</option>
-                  <option value="present">Présents</option>
-                  <option value="called">Appelés</option>
-                  <option value="in_consultation">En consultation</option>
-                </select>
+                  onChange={(value) => setStatusFilter(value)}
+                  options={[
+                    { value: 'all', label: 'Tous' },
+                    { value: 'waiting', label: 'En attente' },
+                    { value: 'present', label: 'Présents' },
+                    { value: 'called', label: 'Appelés' },
+                    { value: 'in_consultation', label: 'En consultation' },
+                  ]}
+                  size="sm"
+                  className="w-full"
+                />
               </div>
             </div>
           </div>

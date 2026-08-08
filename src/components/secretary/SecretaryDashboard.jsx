@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import Dropdown from '../common/Dropdown';
 import {
   Users,
   Search,
@@ -284,19 +285,20 @@ const SecretaryDashboard = () => {
 
               <div className="flex items-center gap-1.5">
                 <Filter className="w-4 h-4 text-gray-400" />
-                <select
+                <Dropdown
                   value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                >
-                  <option value="all">Tous les statuts</option>
-                  <option value="waiting">En attente</option>
-                  <option value="appele">Appelé</option>
-                  <option value="entre">Entré</option>
-                  <option value="in_consultation">En consultation</option>
-                  <option value="urgent">Urgences</option>
-                  <option value="finished">Terminé</option>
-                </select>
+                  onChange={(value) => setFilterStatus(value)}
+                  options={[
+                    { value: 'all', label: 'Tous les statuts' },
+                    { value: 'waiting', label: 'En attente' },
+                    { value: 'appele', label: 'Appelé' },
+                    { value: 'entre', label: 'Entré' },
+                    { value: 'in_consultation', label: 'En consultation' },
+                    { value: 'urgent', label: 'Urgences' },
+                    { value: 'finished', label: 'Terminé' },
+                  ]}
+                  size="sm"
+                />
               </div>
             </div>
 

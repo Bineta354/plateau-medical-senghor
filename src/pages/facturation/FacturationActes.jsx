@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTypesActes } from '../../hooks/useTypesActes';
+import Dropdown from '../../components/common/Dropdown';
 import { 
   Activity, 
   Search, 
@@ -652,16 +653,18 @@ const FacturationActes = () => {
           
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Statut</label>
-            <select
+            <Dropdown
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent text-sm"
-            >
-              <option value="all">Tous les statuts</option>
-              <option value="payee">Payées</option>
-              <option value="en_attente">En attente</option>
-              <option value="impayee">Impayées</option>
-            </select>
+              onChange={(value) => setSelectedStatus(value)}
+              options={[
+                { value: 'all', label: 'Tous les statuts' },
+                { value: 'payee', label: 'Payées' },
+                { value: 'en_attente', label: 'En attente' },
+                { value: 'impayee', label: 'Impayées' },
+              ]}
+              size="sm"
+              className="w-full"
+            />
           </div>
           
           <div className="flex items-end">

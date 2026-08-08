@@ -8,6 +8,7 @@ import { updateOrdonnance } from '../../../services/consultation/ordonnanceServi
 import
 { Pill } from 'lucide-react';
 import PropTypes from 'prop-types';
+import Dropdown from '../../common/Dropdown';
 
 const EditOrdonnanceModal = ({ ordonnance, onClose, onSave }) => {
   const [formData, setFormData] = useState({
@@ -67,15 +68,17 @@ const EditOrdonnanceModal = ({ ordonnance, onClose, onSave }) => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Statut</label>
-            <select
+            <Dropdown
               value={formData.statut}
-              onChange={(e) => setFormData({ ...formData, statut: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="active">Active</option>
-              <option value="terminee">Terminée</option>
-              <option value="annulee">Annulée</option>
-            </select>
+              onChange={(value) => setFormData({ ...formData, statut: value })}
+              options={[
+                { value: 'active', label: 'Active' },
+                { value: 'terminee', label: 'Terminée' },
+                { value: 'annulee', label: 'Annulée' },
+              ]}
+              size="md"
+              className="w-full"
+            />
           </div>
           {ordonnance.lignes_ordonnance && ordonnance.lignes_ordonnance.length > 0 && (
             <div className="mt-4">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { X, Stethoscope, Check } from 'lucide-react';
+import Dropdown from '../common/Dropdown';
 
 const DoctorReassignModal = ({ 
   isOpen, 
@@ -211,16 +212,18 @@ const DoctorReassignModal = ({
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Raison de la réassignation
             </label>
-            <select
+            <Dropdown
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-medical-primary"
-            >
-              <option value="Médecin indisponible">Médecin indisponible</option>
-              <option value="Urgence médicale">Urgence médicale</option>
-              <option value="Demande du patient">Demande du patient</option>
-              <option value="Autre">Autre</option>
-            </select>
+              onChange={(value) => setReason(value)}
+              options={[
+                { value: 'Médecin indisponible', label: 'Médecin indisponible' },
+                { value: 'Urgence médicale', label: 'Urgence médicale' },
+                { value: 'Demande du patient', label: 'Demande du patient' },
+                { value: 'Autre', label: 'Autre' },
+              ]}
+              size="md"
+              className="w-full"
+            />
           </div>
 
           {error && (

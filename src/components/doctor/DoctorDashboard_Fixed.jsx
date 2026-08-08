@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { unifiedNotificationService } from '../../services/unifiedNotificationService';
 import { sendNotification, NOTIFICATION_TYPES } from '../../lib/notifications';
 import { NewAppointmentModal } from '../rendez-vous/NewAppointmentModal';
+import Dropdown from '../common/Dropdown';
 import {
   Users,
   Clock,
@@ -20,7 +21,6 @@ import {
   Plus,
   X,
   FolderOpen,
-  ChevronDown,
   Lock
 } from 'lucide-react';
 
@@ -666,8 +666,8 @@ const DoctorDashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Patient Actuel */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-200">
+              <div className="px-6 py-4 border-b border-gray-100 rounded-t-3xl flex items-center justify-between gap-3 flex-wrap">
                 <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-gray-400">Patient actuel</p>
                 {waitingQueue.length > 0 && (
                   <div className="flex items-center gap-1.5">
@@ -679,20 +679,14 @@ const DoctorDashboard = () => {
                         <Lock className="w-3 h-3" />
                       </span>
                     )}
-                    <div className="relative">
-                      <select
-                        value={selectedCurrentPatientId || ''}
-                        onChange={(e) => handleSelectCurrentPatient(e.target.value || null)}
-                        disabled={isLockedInConsultation}
-                        title={isLockedInConsultation ? "Verrouillé pendant la consultation en cours" : undefined}
-                        className={`appearance-none text-xs border rounded-lg pl-2.5 pr-7 py-1.5 shadow-sm focus:ring-2 focus:ring-medical-primary focus:border-transparent transition-colors min-w-[180px] ${
-                          isLockedInConsultation
-                            ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed'
-                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
-                        }`}
-                      >
-                        <option value="">🤖 Auto (par défaut)</option>
-                        {waitingQueue
+                    <Dropdown
+                      value={selectedCurrentPatientId || ''}
+                      onChange={handleSelectCurrentPatient}
+                      disabled={isLockedInConsultation}
+                      title={isLockedInConsultation ? "Verrouillé pendant la consultation en cours" : undefined}
+                      options={[
+                        { value: '', label: '🤖 Auto (par défaut)' },
+                        ...waitingQueue
                           .filter(p => ['waiting', 'present', 'authorized', 'medecin_pret', 'en_route', 'in_consultation', 'arrive'].includes(p.status))
                           .sort((a, b) => {
                             // Trier par statut puis par nom
@@ -720,15 +714,13 @@ const DoctorDashboard = () => {
                               'arrive': 'Arrivé'
                             }[patient.status] || 'En attente';
 
-                            return (
-                              <option key={patient.id || patient.waiting_queue_id} value={patient.id || patient.waiting_queue_id}>
-                                {statusIcon} {patient.patient_prenom} {patient.patient_nom} ({statusText})
-                              </option>
-                            );
-                          })}
-                      </select>
-                      <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
+                            return {
+                              value: patient.id || patient.waiting_queue_id,
+                              label: `${statusIcon} ${patient.patient_prenom} ${patient.patient_nom} (${statusText})`,
+                            };
+                          }),
+                      ]}
+                    />
                     {selectedCurrentPatientId && !isLockedInConsultation && (
                       <button
                         onClick={() => handleSelectCurrentPatient(null)}

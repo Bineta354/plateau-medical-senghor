@@ -8,6 +8,7 @@ import { updateFacture } from '../../../services/paiementService';
 import { Receipt } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { formatMontant } from '../../../utils/currency';
+import Dropdown from '../../common/Dropdown';
 
 const EditFactureModal = ({ facture, onClose, onSave }) => {
 
@@ -113,31 +114,35 @@ const EditFactureModal = ({ facture, onClose, onSave }) => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Statut paiement</label>
-              <select
+              <Dropdown
                 value={formData.statut_paiement}
-                onChange={(e) => setFormData({ ...formData, statut_paiement: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="en_attente">En attente</option>
-                <option value="partiel">Partiel</option>
-                <option value="paye">Payé</option>
-                <option value="impaye">Impayé</option>
-              </select>
+                onChange={(value) => setFormData({ ...formData, statut_paiement: value })}
+                options={[
+                  { value: 'en_attente', label: 'En attente' },
+                  { value: 'partiel', label: 'Partiel' },
+                  { value: 'paye', label: 'Payé' },
+                  { value: 'impaye', label: 'Impayé' },
+                ]}
+                size="md"
+                className="w-full"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Mode de paiement</label>
-              <select
+              <Dropdown
                 value={formData.mode_paiement}
-                onChange={(e) => setFormData({ ...formData, mode_paiement: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Sélectionner</option>
-                <option value="especes">Espèces</option>
-                <option value="carte">Carte</option>
-                <option value="cheque">Chèque</option>
-                <option value="assurance">Assurance</option>
-                <option value="monnaie_electronique">Monnaie électronique</option>
-              </select>
+                onChange={(value) => setFormData({ ...formData, mode_paiement: value })}
+                options={[
+                  { value: '', label: 'Sélectionner' },
+                  { value: 'especes', label: 'Espèces' },
+                  { value: 'carte', label: 'Carte' },
+                  { value: 'cheque', label: 'Chèque' },
+                  { value: 'assurance', label: 'Assurance' },
+                  { value: 'monnaie_electronique', label: 'Monnaie électronique' },
+                ]}
+                size="md"
+                className="w-full"
+              />
             </div>
           </div>
           <div>

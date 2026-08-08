@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import SearchableSelect from '../../components/common/SearchableSelect';
+import Dropdown from '../../components/common/Dropdown';
 import {
   Calendar,
   Filter,
@@ -363,18 +364,19 @@ const RechercheRendezVousPage = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Spécialité</label>
-              <select
+              <Dropdown
                 value={filters.specialite}
-                onChange={(e) => handleFilterChange('specialite', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-              >
-                <option value="">Toutes les spécialités</option>
-                {specialitesDisponibles.map((specialite) => (
-                  <option key={specialite.id} value={specialite.id}>
-                    {specialite.nom}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => handleFilterChange('specialite', value)}
+                options={[
+                  { value: '', label: 'Toutes les spécialités' },
+                  ...specialitesDisponibles.map((specialite) => ({
+                    value: specialite.id,
+                    label: specialite.nom,
+                  })),
+                ]}
+                size="md"
+                className="w-full"
+              />
             </div>
           </div>
 

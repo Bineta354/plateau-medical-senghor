@@ -1,6 +1,7 @@
 import React from 'react';
 import DatePicker from 'react-datepicker';
 import SearchableSelect from '../../components/common/SearchableSelect';
+import Dropdown from '../common/Dropdown';
 
 export const Step0PatientContext = ({
   formData, setFormData,
@@ -128,19 +129,20 @@ export const Step0PatientContext = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Sexe
             </label>
-            <select
+            <Dropdown
               value={quickBooking.patient_sexe || 'M'}
-              onChange={(e) =>
+              onChange={(value) =>
                 setQuickBooking({
                   ...quickBooking,
-                  patient_sexe: e.target.value
+                  patient_sexe: value
                 })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-            >
-              <option value="M">Masculin</option>
-              <option value="F">FÃ©minin</option>
-            </select>
+              options={[
+                { value: 'M', label: 'Masculin' },
+                { value: 'F', label: 'Féminin' }
+              ]}
+              size="md"
+            />
           </div>
         </div>
       ) : (
@@ -181,27 +183,28 @@ export const Step0PatientContext = ({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Spécialité *
           </label>
-          <select
+          <Dropdown
             value={selectedSpecialiteStepper}
-            onChange={(e) => setSelectedSpecialiteStepper(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-          >
-            <option value="">Sélectionner une spécialité</option>
-            {specialites
-              .filter((s) => !s.parent_id)
-              .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'accent' }))
-              .flatMap((parent) => {
-                const children = specialites
-                  .filter((s) => s.parent_id === parent.id)
-                  .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'accent' }));
-                return [
-                  <option key={parent.id} value={parent.id}>{parent.nom}</option>,
-                  ...children.map((child) => (
-                    <option key={child.id} value={child.id}>{'— ' + child.nom}</option>
-                  ))
-                ];
-              })}
-          </select>
+            onChange={(value) => setSelectedSpecialiteStepper(value)}
+            options={[
+              { value: '', label: 'Sélectionner une spécialité' },
+              ...specialites
+                .filter((s) => !s.parent_id)
+                .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'accent' }))
+                .flatMap((parent) => {
+                  const children = specialites
+                    .filter((s) => s.parent_id === parent.id)
+                    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'accent' }));
+                  return [
+                    { value: parent.id, label: parent.nom },
+                    ...children.map((child) => ({ value: child.id, label: '— ' + child.nom }))
+                  ];
+                })
+            ]}
+            searchable
+            searchPlaceholder="Rechercher une spécialité..."
+            size="md"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import PatientPostCreateMenu from '../components/common/PatientPostCreateMenu';
 import KpiCard from '../components/common/KpiCard';
+import Dropdown from '../components/common/Dropdown';
 
 const PatientsPage = () => {
   console.log('🔄 [PatientsFinal] Chargement de la page Patients - VERSION FINALE');
@@ -590,15 +591,15 @@ const PatientsPage = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-0.5">Sexe</label>
-                    <select
-                      name="sexe"
+                    <Dropdown
                       value={formData.sexe}
-                      onChange={handleInputChange}
-                      className="form-select text-xs py-1.5"
-                    >
-                      <option value="M">M</option>
-                      <option value="F">F</option>
-                    </select>
+                      onChange={(value) => handleInputChange({ target: { name: 'sexe', value } })}
+                      options={[
+                        { value: 'M', label: 'M' },
+                        { value: 'F', label: 'F' },
+                      ]}
+                      size="sm"
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-0.5">Téléphone *</label>
@@ -664,18 +665,18 @@ const PatientsPage = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-0.5">Situation familiale</label>
-                    <select
-                      name="situation_familiale"
+                    <Dropdown
                       value={formData.situation_familiale}
-                      onChange={handleInputChange}
-                      className="form-select text-xs py-1.5"
-                    >
-                      <option value="">-</option>
-                      <option value="celibataire">Célibataire</option>
-                      <option value="marie">Marié(e)</option>
-                      <option value="divorce">Divorcé(e)</option>
-                      <option value="veuf">Veuf/Veuve</option>
-                    </select>
+                      onChange={(value) => handleInputChange({ target: { name: 'situation_familiale', value } })}
+                      options={[
+                        { value: '', label: '-' },
+                        { value: 'celibataire', label: 'Célibataire' },
+                        { value: 'marie', label: 'Marié(e)' },
+                        { value: 'divorce', label: 'Divorcé(e)' },
+                        { value: 'veuf', label: 'Veuf/Veuve' },
+                      ]}
+                      size="sm"
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-0.5">Numéro IPM/CSS</label>
@@ -709,23 +710,19 @@ const PatientsPage = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-0.5">Assurance</label>
-                    <select
-                      name="assurance_id"
+                    <Dropdown
                       value={formData.assurance_id || ''}
-                      onChange={handleInputChange}
-                      className="form-select text-xs py-1.5"
-                    >
-                      <option value="">Aucune assurance</option>
-                      {loadingAssurances ? (
-                        <option value="">Chargement...</option>
-                      ) : (
-                        assurances.map(assurance => (
-                          <option key={assurance.id} value={assurance.id}>
-                            {assurance.nom} {assurance.taux_remboursement ? `(${assurance.taux_remboursement}%)` : ''}
-                          </option>
-                        ))
-                      )}
-                    </select>
+                      onChange={(value) => handleInputChange({ target: { name: 'assurance_id', value } })}
+                      disabled={loadingAssurances}
+                      options={[
+                        { value: '', label: loadingAssurances ? 'Chargement...' : 'Aucune assurance' },
+                        ...(loadingAssurances ? [] : assurances.map(assurance => ({
+                          value: assurance.id,
+                          label: `${assurance.nom} ${assurance.taux_remboursement ? `(${assurance.taux_remboursement}%)` : ''}`,
+                        }))),
+                      ]}
+                      size="sm"
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-0.5">Numéro Assurance</label>
@@ -859,15 +856,16 @@ const PatientsPage = () => {
           </div>
           
          <div className="mx-2 flex items-center">
-         <select
+         <Dropdown
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="form-select"
-          >
-            <option value="all">Tous les statuts</option>
-            <option value="actif">Actifs</option>
-            <option value="inactif">Inactifs</option>
-          </select>
+            onChange={(value) => setFilterStatus(value)}
+            options={[
+              { value: 'all', label: 'Tous les statuts' },
+              { value: 'actif', label: 'Actifs' },
+              { value: 'inactif', label: 'Inactifs' },
+            ]}
+            size="sm"
+          />
          </div>
           
           <button 
@@ -900,31 +898,33 @@ const PatientsPage = () => {
               {/* Filtre par sexe */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Sexe</label>
-                <select
+                <Dropdown
                   value={filters.sexe}
-                  onChange={(e) => handleFilterChange('sexe', e.target.value)}
-                  className="form-select"
-                >
-                  <option value="all">Tous</option>
-                  <option value="M">Masculin</option>
-                  <option value="F">Féminin</option>
-                </select>
+                  onChange={(value) => handleFilterChange('sexe', value)}
+                  options={[
+                    { value: 'all', label: 'Tous' },
+                    { value: 'M', label: 'Masculin' },
+                    { value: 'F', label: 'Féminin' },
+                  ]}
+                  size="sm"
+                />
               </div>
               
               {/* Filtre par situation familiale */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Situation familiale</label>
-                <select
+                <Dropdown
                   value={filters.situation_familiale}
-                  onChange={(e) => handleFilterChange('situation_familiale', e.target.value)}
-                  className="form-select"
-                >
-                  <option value="all">Toutes</option>
-                  <option value="celibataire">Célibataire</option>
-                  <option value="marie">Marié(e)</option>
-                  <option value="divorce">Divorcé(e)</option>
-                  <option value="veuf">Veuf/Veuve</option>
-                </select>
+                  onChange={(value) => handleFilterChange('situation_familiale', value)}
+                  options={[
+                    { value: 'all', label: 'Toutes' },
+                    { value: 'celibataire', label: 'Célibataire' },
+                    { value: 'marie', label: 'Marié(e)' },
+                    { value: 'divorce', label: 'Divorcé(e)' },
+                    { value: 'veuf', label: 'Veuf/Veuve' },
+                  ]}
+                  size="sm"
+                />
               </div>
               
               {/* Filtre par mutuelle */}

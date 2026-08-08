@@ -20,6 +20,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { formatMontant } from '../../utils/currency';
 import KpiCard from '../../components/common/KpiCard';
+import ExportUtils from '../../utils/ExportUtils';
 
 const PERIODS = [
   { value: 'today', label: "Aujourd'hui" },
@@ -174,24 +175,25 @@ const SuiviCaissiers = () => {
     return count > 0 ? grandTotal / count : 0;
   }, [grandTotal, filteredPaiements]);
 
-  // Export functionality
-  const exportToCSV = () => {
-    const headers = ['Date', 'Caissier', 'Facture', 'Mode', 'Montant'];
-    const rows = filteredPaiements.map(p => [
-      p.date_paiement ? new Date(p.date_paiement).toLocaleString('fr-FR') : '',
-      caissierById.get(String(p.caissier_id)) ? 
-        `${caissierById.get(String(p.caissier_id)).prenom} ${caissierById.get(String(p.caissier_id)).nom}` : '',
-      p.factures?.numero_facture || '',
-      p.mode_paiement || '',
-      Number(p.montant || 0).toFixed(0)
+  // Export functionality — voir src/utils/ExportUtils.js (source unique pour tous les exports CSV de l'app)
+  const handleExportCsv = () => {
+    const rows = filteredPaiements.map((p) => {
+      const caissier = caissierById.get(String(p.caissier_id));
+      return {
+        date: p.date_paiement ? new Date(p.date_paiement).toLocaleString('fr-FR') : '',
+        caissier: caissier ? `${caissier.prenom} ${caissier.nom}` : '',
+        facture: p.factures?.numero_facture || '',
+        mode: p.mode_paiement || '',
+        montant: Number(p.montant || 0),
+      };
+    });
+    ExportUtils.exportToCSV(rows, `suivi_caissiers_${new Date().toISOString().split('T')[0]}`, [
+      { key: 'date', label: 'Date' },
+      { key: 'caissier', label: 'Caissier' },
+      { key: 'facture', label: 'Facture' },
+      { key: 'mode', label: 'Mode' },
+      { key: 'montant', label: 'Montant' },
     ]);
-    
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `suivi_caissiers_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
   };
 
   return (
@@ -210,7 +212,7 @@ const SuiviCaissiers = () => {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={exportToCSV}
+            onClick={handleExportCsv}
             className="btn btn-secondary flex items-center gap-2"
           >
             <Download className="w-5 h-5" />
