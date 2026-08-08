@@ -544,30 +544,12 @@ const Caisse = () => {
       const finJour = new Date();
       finJour.setHours(23, 59, 59, 999);
 
-      let qPaiements = supabase
-        .from('paiements')
-        .select(
-          `*,
-          factures (
-            id,
-            numero_facture,
-            montant_ttc,
-            consultations (
-              date_consultation,
-              patients (
-                id, nom, prenom, numero_secu,
-                assurances ( id, nom, taux_remboursement )
-              )
-            )
-          )`
-        )
-        .eq('statut', 'effectue')
-        .gte('date_paiement', debutJour.toISOString())
-        .lte('date_paiement', finJour.toISOString());
-      if (caissierId) qPaiements = qPaiements.eq('caissier_id', caissierId);
-      const { data, error } = await qPaiements.order('date_paiement', { ascending: true });
-
-      if (error) throw error;
+      const data = await listPaiements({
+        periode: { debut: debutJour.toISOString(), fin: finJour.toISOString() },
+        caissierId,
+        ascending: true,
+        limit: 100000,
+      });
 
       const lignes = (data || []).map((p) => {
         const facture = p.factures;
