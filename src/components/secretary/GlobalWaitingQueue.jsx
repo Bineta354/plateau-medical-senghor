@@ -48,6 +48,12 @@ const GlobalWaitingQueue = ({
   const { userProfile } = useAuth();
   const tenantId = userProfile?.tenant_id || null;
   const [waitingQueues, setWaitingQueues] = useState({});
+  // Copie non filtrée (tous statuts) de la file du jour par médecin, utilisée
+  // uniquement pour distinguer les vrais walk-in (sans RDV) des consultations
+  // "orphelines" rattachées à un RDV d'un autre jour — voir doctorStats plus
+  // bas (même problème/fix que DoctorSpecificQueue.jsx).
+  const [rawWaitingQueuesToday, setRawWaitingQueuesToday] = useState({});
+  const [appointmentPatientIdsByDoctor, setAppointmentPatientIdsByDoctor] = useState({});
   const [consultationsByDoctor, setConsultationsByDoctor] = useState({});
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -116,7 +122,13 @@ const GlobalWaitingQueue = ({
       queueTomorrow.setDate(queueTomorrow.getDate() + 1);
       const queueTomorrowStart = queueTomorrow.toISOString();
 
-      // 1) Récupérer les files d'attente avec jointure sur appointments (tous les rendez-vous du jour)
+      // 1) Récupérer les files d'attente avec jointure sur appointments
+      // Scope sur `waiting_queue.created_at` du jour (même logique que
+      // DoctorSpecificQueue.jsx / SalleAttentePage.jsx) : sans ça, une ligne
+      // jamais clôturée la veille (statut resté "waiting") continue
+      // d'apparaître dans la file du jour. Filtrer sur `appointments.date_heure`
+      // (ressource embarquée) transforme en plus la jointure en INNER JOIN côté
+      // PostgREST, ce qui exclurait à tort toute ligne sans rendez-vous associé.
       const { data: waitingData, error: waitingError } = await supabase
         .from('waiting_queue')
         .select(`
@@ -124,8 +136,8 @@ const GlobalWaitingQueue = ({
           appointments(date_heure, statut_arrivee, heure_arrivee)
         `)
         .in('medecin_id', medecinIds)
-        .gte('appointments.date_heure', queueTodayStart)
-        .lt('appointments.date_heure', queueTomorrowStart)
+        .gte('created_at', queueTodayStart)
+        .lt('created_at', queueTomorrowStart)
         .order('order_position', { ascending: true });
 
       if (waitingError) {
@@ -222,6 +234,10 @@ const GlobalWaitingQueue = ({
         }
       }
 
+      // Conserver une copie non filtrée (tous statuts) avant le filtrage actif
+      // ci-dessous, pour identifier plus tard les vrais walk-in du jour.
+      const rawQueues = { ...queues };
+
       // 6) Filtrer les patients actifs et exclure ceux avec rendez-vous passés et consultations bloquées
       Object.keys(queues).forEach(doctorId => {
         const activeItems = filterActiveQueueItems(queues[doctorId]);
@@ -236,6 +252,7 @@ const GlobalWaitingQueue = ({
       tomorrow.setDate(tomorrow.getDate() + 1);
 
       setWaitingQueues(queues);
+      setRawWaitingQueuesToday(rawQueues);
 
       // 7) Récupérer les consultations du jour pour chaque médecin
       const { data: consultationsData, error: consultationsError } = await supabase
@@ -255,6 +272,33 @@ const GlobalWaitingQueue = ({
           consultationsByDoc[key].push(consultation);
         });
         setConsultationsByDoctor(consultationsByDoc);
+      }
+
+      // 8) Récupérer les RDV du jour par médecin (indépendamment de la file
+      // d'attente) : une consultation "terminée aujourd'hui" (date_consultation)
+      // peut être rattachée à un RDV d'un autre jour resté ouvert (RDV de la
+      // veille jamais clôturé, consulté après minuit) — consultations.appointment_id
+      // n'étant pas fiabilisé, on ne peut pas filtrer dessus directement. On ne
+      // garde donc dans doctorStats que les consultations dont le patient a
+      // soit un RDV aujourd'hui, soit un passage en file aujourd'hui sans RDV
+      // (vrai walk-in) — voir doctorStats plus bas.
+      const { data: appointmentsTodayData, error: appointmentsTodayError } = await supabase
+        .from('appointments')
+        .select('id, patient_id, medecin_id')
+        .in('medecin_id', medecinIds)
+        .gte('date_heure', today.toISOString())
+        .lt('date_heure', tomorrow.toISOString());
+
+      if (appointmentsTodayError) {
+        console.error('Erreur RDV du jour:', appointmentsTodayError);
+      } else if (appointmentsTodayData) {
+        const patientIdsByDoc = {};
+        appointmentsTodayData.forEach(appointment => {
+          const key = appointment.medecin_id;
+          if (!patientIdsByDoc[key]) patientIdsByDoc[key] = new Set();
+          patientIdsByDoc[key].add(appointment.patient_id);
+        });
+        setAppointmentPatientIdsByDoctor(patientIdsByDoc);
       }
     } catch (error) {
       console.error('Erreur lors du chargement des files d\'attente:', error);
@@ -589,13 +633,22 @@ const GlobalWaitingQueue = ({
 
     const enConsultation = activeDoctorQueue.filter(p => isInConsultationQueueStatus(p.status)).length;
 
-    // Utiliser la table consultations pour les consultations terminées
+    // Utiliser la table consultations pour les consultations terminées, en
+    // excluant les orphelines (RDV d'un autre jour resté ouvert) — voir le
+    // commentaire de l'étape 8 dans fetchAllData.
     const doctorConsultations = consultationsByDoctor[doctor.id] || [];
+    const todayApptPatientIds = appointmentPatientIdsByDoctor[doctor.id] || new Set();
+    const todayWalkinPatientIds = new Set(
+      (rawWaitingQueuesToday[doctor.id] || [])
+        .filter(q => !q.appointment_id)
+        .map(q => q.patient_id)
+    );
     const finishedConsultations = doctorConsultations.filter(c =>
-      c.statut === 'terminee' ||
-      c.statut === 'termine' ||
-      c.statut === 'finished' ||
-      c.statut === 'completed'
+      (c.statut === 'terminee' ||
+        c.statut === 'termine' ||
+        c.statut === 'finished' ||
+        c.statut === 'completed') &&
+      (todayApptPatientIds.has(c.patient_id) || todayWalkinPatientIds.has(c.patient_id))
     );
     const terminees = finishedConsultations.length;
 

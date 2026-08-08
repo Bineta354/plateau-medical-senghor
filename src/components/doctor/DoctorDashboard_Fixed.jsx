@@ -66,13 +66,24 @@ const DoctorDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
       // Récupérer la file d'attente du médecin
+      // Scope sur `created_at` du jour (même logique que DoctorSpecificQueue.jsx
+      // côté secrétaire) : sans ça, un patient jamais "clôturé" la veille (statut
+      // resté "waiting") continue d'apparaître comme "Patient actuel" / salle
+      // d'attente du médecin alors qu'il a disparu de la vue secrétaire.
       const { data: queueData, error: queueError } = await supabase
         .from('v_waiting_queue_complete')
         .select('*')
         .eq('medecin_id', userProfile.id)
         .in('status', ['waiting', 'present', 'authorized', 'medecin_pret', 'en_route', 'in_consultation'])
+        .gte('created_at', today.toISOString())
+        .lt('created_at', tomorrow.toISOString())
         .order('priorite_calculee', { ascending: true })
         .order('order_position', { ascending: true });
 
@@ -109,11 +120,6 @@ const DoctorDashboard = () => {
       setWaitingQueue(enrichedQueue);
 
       // Récupérer les RDV du jour
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('appointments')
         .select(`
@@ -135,13 +141,20 @@ const DoctorDashboard = () => {
       // `q.status === 'termine'` dessus ne matchait jamais rien et le
       // compteur "Terminées" du dashboard restait bloqué à 0. Voir
       // FIX_ETAPE_2_MEDECIN.md point 1.
+      //
+      // Filtre sur `created_at` (et non `updated_at`) : une consultation
+      // créée hier mais clôturée après minuit (updated_at = aujourd'hui)
+      // ne doit pas compter dans le "Terminé" du jour — sinon ce compteur
+      // (et donc "Total RDV" = onBench + inConsultation + termine) diverge
+      // de "RDV du jour", qui lui est scopé sur la date du rendez-vous.
+      // Reste cohérent avec le scope de `queueData` ci-dessus.
       const { count: finishedCount, error: finishedError } = await supabase
         .from('waiting_queue')
         .select('id', { count: 'exact', head: true })
         .eq('medecin_id', userProfile.id)
         .eq('status', 'termine')
-        .gte('updated_at', today.toISOString())
-        .lt('updated_at', tomorrow.toISOString());
+        .gte('created_at', today.toISOString())
+        .lt('created_at', tomorrow.toISOString());
 
       if (finishedError) {
         console.warn('Erreur récupération consultations terminées:', finishedError);
@@ -977,7 +990,7 @@ const DoctorDashboard = () => {
                   Voir mon calendrier
                 </button>
               </div>
-              <div className="p-3.5 flex flex-col gap-2 max-h-64 overflow-y-auto">
+              <div className={`p-3.5 flex flex-col gap-2 ${todayAppointments.length > 3 ? 'max-h-64 overflow-y-auto' : ''}`}>
                 {todayAppointments.length > 0 ? (
                   todayAppointments.map((appointment) => {
                     const badge = getAppointmentStatusBadge(appointment);

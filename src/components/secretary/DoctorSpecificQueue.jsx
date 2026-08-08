@@ -37,6 +37,10 @@ const DoctorSpecificQueue = ({
 }) => {
   const { userProfile } = useAuth();
   const [waitingQueue, setWaitingQueue] = useState([]);
+  // Copie non filtrée (tous statuts) de la file du jour, utilisée uniquement
+  // pour distinguer les vrais walk-in (sans RDV) des consultations "orphelines"
+  // rattachées à un RDV d'un autre jour — voir rendezVousDuJour plus bas.
+  const [rawWaitingQueueToday, setRawWaitingQueueToday] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [finishedConsultations, setFinishedConsultations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -191,6 +195,7 @@ const DoctorSpecificQueue = ({
       })));
 
       setWaitingQueue(filterActiveQueueItems(enriched));
+      setRawWaitingQueueToday(enriched);
     } catch (error) {
       console.error('❌ [DoctorSpecificQueue] Erreur lors du chargement de la file d\'attente:', error);
     }
@@ -230,7 +235,7 @@ const DoctorSpecificQueue = ({
 
       const { data, error } = await supabase
         .from('consultations')
-        .select('id, statut')
+        .select('id, statut, patient_id')
         .eq('medecin_id', doctor.id)
         .gte('date_consultation', today.toISOString())
         .lt('date_consultation', tomorrow.toISOString())
@@ -477,13 +482,27 @@ const DoctorSpecificQueue = ({
   const urgentCount = filterActiveQueueItems(waitingQueue).filter(
     (p) => isOnWaitingBench(p.status) && isUrgentQueuePriority(p.priority),
   ).length;
+  // Une consultation "terminée aujourd'hui" (date_consultation) peut être
+  // rattachée à un RDV d'un autre jour resté ouvert (ex: RDV de la veille
+  // jamais clôturé, consulté après minuit) : consultations.appointment_id
+  // n'est pas fiabilisé, donc on ne peut pas filtrer dessus. On ne garde donc
+  // dans les KPI que les consultations dont le patient a soit un RDV
+  // aujourd'hui, soit un passage en file aujourd'hui sans RDV (vrai walk-in)
+  // — ça exclut ces orphelines sans faire disparaître les vrais walk-in.
+  const todayAppointmentPatientIds = new Set(appointments.map((a) => a.patient_id));
+  const todayWalkinPatientIds = new Set(
+    rawWaitingQueueToday.filter((q) => !q.appointment_id).map((q) => q.patient_id),
+  );
+  const relevantFinishedConsultations = finishedConsultations.filter(
+    (c) => todayAppointmentPatientIds.has(c.patient_id) || todayWalkinPatientIds.has(c.patient_id),
+  );
   // Total cohérent avec les 3 autres KPI (mêmes patients, mêmes bornes du
   // jour) plutôt que appointments.length : un rendez-vous et un passage en
   // file/consultation ne se recoupent pas forcément 1 pour 1 (walk-in sans
   // RDV, RDV sans passage en file...), ce qui rendait "Rendez-vous" plus
   // petit que "Salle d'attente" + "Terminé" — incohérent à l'affichage.
   const rendezVousDuJour =
-    queueStats.onBench + queueStats.inConsultation + finishedConsultations.length;
+    queueStats.onBench + queueStats.inConsultation + relevantFinishedConsultations.length;
 
   return (
     <div key={refreshKey} className="p-6">
@@ -534,7 +553,7 @@ const DoctorSpecificQueue = ({
             tone="green"
             icon={CheckCircle}
             label="Terminé"
-            value={finishedConsultations.length}
+            value={relevantFinishedConsultations.length}
             hoverMessage="Consultations terminées aujourd'hui"
           />
         </div>
@@ -704,7 +723,7 @@ const DoctorSpecificQueue = ({
           
           <div className="p-4">
             {filteredAppointments.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
                 {filteredAppointments.map((appointment) => {
                   // Ne pas se fier qu'à la file active : un RDV "terminé" ou
                   // "annulé" n'est plus dans waitingQueue (filterActiveQueueItems
