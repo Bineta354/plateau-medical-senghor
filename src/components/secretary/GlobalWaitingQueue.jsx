@@ -54,6 +54,7 @@ const GlobalWaitingQueue = ({
   // bas (même problème/fix que DoctorSpecificQueue.jsx).
   const [rawWaitingQueuesToday, setRawWaitingQueuesToday] = useState({});
   const [appointmentPatientIdsByDoctor, setAppointmentPatientIdsByDoctor] = useState({});
+  const [appointmentCountByDoctor, setAppointmentCountByDoctor] = useState({});
   const [consultationsByDoctor, setConsultationsByDoctor] = useState({});
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -293,12 +294,15 @@ const GlobalWaitingQueue = ({
         console.error('Erreur RDV du jour:', appointmentsTodayError);
       } else if (appointmentsTodayData) {
         const patientIdsByDoc = {};
+        const countByDoc = {};
         appointmentsTodayData.forEach(appointment => {
           const key = appointment.medecin_id;
           if (!patientIdsByDoc[key]) patientIdsByDoc[key] = new Set();
           patientIdsByDoc[key].add(appointment.patient_id);
+          countByDoc[key] = (countByDoc[key] || 0) + 1;
         });
         setAppointmentPatientIdsByDoctor(patientIdsByDoc);
+        setAppointmentCountByDoctor(countByDoc);
       }
     } catch (error) {
       console.error('Erreur lors du chargement des files d\'attente:', error);
@@ -652,7 +656,15 @@ const GlobalWaitingQueue = ({
     );
     const terminees = finishedConsultations.length;
 
-    const total = enAttente + enConsultation + terminees;
+    // "Total du jour" doit s'incrémenter dès la création d'un RDV,
+    // indépendamment de la présence du patient (pas seulement une fois
+    // arrivé/en consultation/terminé) — donc basé sur le nombre de RDV
+    // planifiés aujourd'hui, plus les vrais walk-in ajoutés en file sans RDV.
+    const todayApptCount = appointmentCountByDoctor[doctor.id] || 0;
+    const walkinOnlyPatientIds = Array.from(todayWalkinPatientIds).filter(
+      patientId => !todayApptPatientIds.has(patientId)
+    );
+    const total = todayApptCount + walkinOnlyPatientIds.length;
 
     // Répartition par urgence : "Dont (urgence)" doit décomposer le même
     // total que la colonne "Total du jour", donc elle doit couvrir les MÊMES

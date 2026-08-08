@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import {
   isOnWaitingBench,
-  isInConsultationQueueStatus,
   isUrgentQueuePriority,
 } from '../../utils/waitingQueueStatus';
 
@@ -144,9 +143,7 @@ const DoctorDashboard = () => {
       //
       // Filtre sur `created_at` (et non `updated_at`) : une consultation
       // créée hier mais clôturée après minuit (updated_at = aujourd'hui)
-      // ne doit pas compter dans le "Terminé" du jour — sinon ce compteur
-      // (et donc "Total RDV" = onBench + inConsultation + termine) diverge
-      // de "RDV du jour", qui lui est scopé sur la date du rendez-vous.
+      // ne doit pas compter dans le "Terminé" du jour.
       // Reste cohérent avec le scope de `queueData` ci-dessus.
       const { count: finishedCount, error: finishedError } = await supabase
         .from('waiting_queue')
@@ -160,17 +157,41 @@ const DoctorDashboard = () => {
         console.warn('Erreur récupération consultations terminées:', finishedError);
       }
 
+      // "Total RDV" doit s'incrémenter dès la création d'un RDV, indépendamment
+      // de la présence du patient (pas seulement une fois arrivé/en
+      // consultation/terminé) — donc basé sur `appointmentsData` (RDV du jour),
+      // plus les vrais walk-in ajoutés en file sans RDV (même logique que
+      // DoctorSpecificQueue.jsx côté secrétaire). `queueData` ne suffit pas seul
+      // pour détecter les walk-in car il est filtré sur les statuts actifs
+      // (n'inclut pas 'termine') : on refait une requête brute tous statuts.
+      const { data: rawQueueToday, error: rawQueueError } = await supabase
+        .from('waiting_queue')
+        .select('patient_id, appointment_id')
+        .eq('medecin_id', userProfile.id)
+        .gte('created_at', today.toISOString())
+        .lt('created_at', tomorrow.toISOString());
+
+      if (rawQueueError) {
+        console.warn('Erreur récupération file brute du jour:', rawQueueError);
+      }
+
+      const appointmentPatientIds = new Set((appointmentsData || []).map(a => a.patient_id));
+      const walkinOnlyPatientIds = new Set(
+        (rawQueueToday || [])
+          .filter(q => !q.appointment_id && !appointmentPatientIds.has(q.patient_id))
+          .map(q => q.patient_id)
+      );
+
       // Calculer les statistiques — mêmes définitions que DoctorSpecificQueue.jsx
       // (secrétaire) pour rester cohérent entre les deux vues d'un médecin.
       const onBench = (queueData || []).filter(q => isOnWaitingBench(q.status)).length;
-      const inConsultation = (queueData || []).filter(q => isInConsultationQueueStatus(q.status)).length;
       const urgenceEnAttente = (queueData || []).filter(
         q => isOnWaitingBench(q.status) && isUrgentQueuePriority(q.priority)
       ).length;
       const termine = finishedCount || 0;
 
       setStats({
-        totalRDV: onBench + inConsultation + termine,
+        totalRDV: (appointmentsData || []).length + walkinOnlyPatientIds.size,
         salleAttente: onBench,
         urgenceEnAttente,
         termine,

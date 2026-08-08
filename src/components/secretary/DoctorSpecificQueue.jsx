@@ -496,13 +496,15 @@ const DoctorSpecificQueue = ({
   const relevantFinishedConsultations = finishedConsultations.filter(
     (c) => todayAppointmentPatientIds.has(c.patient_id) || todayWalkinPatientIds.has(c.patient_id),
   );
-  // Total cohérent avec les 3 autres KPI (mêmes patients, mêmes bornes du
-  // jour) plutôt que appointments.length : un rendez-vous et un passage en
-  // file/consultation ne se recoupent pas forcément 1 pour 1 (walk-in sans
-  // RDV, RDV sans passage en file...), ce qui rendait "Rendez-vous" plus
-  // petit que "Salle d'attente" + "Terminé" — incohérent à l'affichage.
-  const rendezVousDuJour =
-    queueStats.onBench + queueStats.inConsultation + relevantFinishedConsultations.length;
+  // "Rendez-vous" doit s'incrémenter dès la création d'un RDV, indépendamment
+  // de la présence du patient (pas seulement une fois arrivé/en
+  // consultation/terminé) — donc basé sur `appointments` (même source que le
+  // panneau "Rendez-vous du Jour" ci-dessous), plus les vrais walk-in ajoutés
+  // en file sans RDV (qui n'apparaissent pas dans `appointments`).
+  const walkinOnlyPatientIds = Array.from(todayWalkinPatientIds).filter(
+    (patientId) => !todayAppointmentPatientIds.has(patientId),
+  );
+  const rendezVousDuJour = appointments.length + walkinOnlyPatientIds.length;
 
   return (
     <div key={refreshKey} className="p-6">
