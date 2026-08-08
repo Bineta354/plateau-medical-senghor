@@ -220,7 +220,9 @@ const Appareils = () => {
             </div>
           </form>
         )}
+      </ParametrageLayout>
 
+      <div className="px-6">
         <div className="mb-4 flex flex-col md:flex-row gap-4">
           <input
             type="text"
@@ -282,7 +284,7 @@ const Appareils = () => {
             </tbody>
           </table>
         </div>
-      </ParametrageLayout>
+      </div>
     </div>
   );
 };

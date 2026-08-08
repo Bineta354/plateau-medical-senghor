@@ -236,7 +236,9 @@ const SignesCliniques = () => {
             </div>
           </form>
         )}
+      </ParametrageLayout>
 
+      <div className="px-6">
         {/* Filtres */}
         <div className="mb-4 flex flex-col md:flex-row gap-4">
           <input
@@ -305,7 +307,7 @@ const SignesCliniques = () => {
             </tbody>
           </table>
         </div>
-      </ParametrageLayout>
+      </div>
     </div>
   );
 };

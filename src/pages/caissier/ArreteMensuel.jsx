@@ -140,8 +140,8 @@ const ArreteMensuel = () => {
                 {data.length === 0 ? (
                   <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Aucune session pour ce mois.</td></tr>
                 ) : (
-                  data.map((row) => (
-                    <tr key={row.date_session} className="hover:bg-gray-50">
+                  data.map((row, index) => (
+                    <tr key={`${row.date_session}-${row.caissier_nom || 'na'}-${index}`} className="hover:bg-gray-50">
                       <td className="px-4 py-3">{row.date_session}</td>
                       <td className="px-4 py-3 text-right font-medium">{formatMontant(parseFloat(row.fond_caisse || 0))}</td>
                       <td className="px-4 py-3 text-right font-medium">{formatMontant(parseFloat(row.montant_journalier || 0))}</td>
