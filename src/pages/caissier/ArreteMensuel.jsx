@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
 import { DocumentTextIcon, CalendarIcon, PrinterIcon } from '@heroicons/react/24/outline';
 import { formatMontant } from '../../utils/currency';
 import KpiCard from '../../components/common/KpiCard';
+import { getArreteComptableMensuel } from '../../services/sessionCaisseService';
 
 const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
@@ -26,11 +26,7 @@ const ArreteMensuel = () => {
     setLoading(true);
     setError(null);
     try {
-      const { data: res, error: err } = await supabase.rpc('get_arrete_comptable_mensuel', {
-        p_annee: annee,
-        p_mois: mois,
-      });
-      if (err) throw err;
+      const res = await getArreteComptableMensuel({ annee, mois });
       setData(res || []);
     } catch (e) {
       setError(e?.message || 'Erreur chargement arrêté');
@@ -144,8 +140,8 @@ const ArreteMensuel = () => {
                 {data.length === 0 ? (
                   <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Aucune session pour ce mois.</td></tr>
                 ) : (
-                  data.map((row) => (
-                    <tr key={row.date_session} className="hover:bg-gray-50">
+                  data.map((row, index) => (
+                    <tr key={`${row.date_session}-${row.caissier_nom || 'na'}-${index}`} className="hover:bg-gray-50">
                       <td className="px-4 py-3">{row.date_session}</td>
                       <td className="px-4 py-3 text-right font-medium">{formatMontant(parseFloat(row.fond_caisse || 0))}</td>
                       <td className="px-4 py-3 text-right font-medium">{formatMontant(parseFloat(row.montant_journalier || 0))}</td>

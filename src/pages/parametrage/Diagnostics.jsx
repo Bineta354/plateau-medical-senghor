@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import ParametrageLayout from '../../components/ParametrageLayout';
 import ParametrageList from '../../components/ParametrageList';
-import { supabase } from '../../lib/supabase';
+import { diagnosticsRefService } from '../../services/referentielService';
+import { specialtyService } from '../../lib/services/specialtyService';
 
 const EMPTY_DIAG = {
   nom: '', description: '', code_cim: '',
@@ -33,19 +34,19 @@ const Diagnostics = () => {
   }, []);
 
   const fetchSpecialites = async () => {
-    const { data } = await supabase.from('specialites').select('id, nom').eq('actif', true).order('nom');
-    setSpecialites(data || []);
+    try {
+      const data = await specialtyService.getAll();
+      setSpecialites(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des spécialités:', error);
+      setSpecialites([]);
+    }
   };
 
   const fetchDiagnostics = async () => {
     try {
-      const { data, error } = await supabase
-        .from('diagnostics')
-        .select(`*, diagnostics_specialites(specialite_id, specialites(id, nom))`)
-        .order('ordre_affichage', { ascending: true })
-        .order('nom');
-      if (error) throw error;
-      setDiagnostics(data || []);
+      const data = await diagnosticsRefService.list();
+      setDiagnostics(data);
     } catch (error) {
       console.error('Erreur lors du chargement des diagnostics:', error);
     } finally {
@@ -73,21 +74,13 @@ const Diagnostics = () => {
 
       let diagId = editingId;
       if (editingId) {
-        const { error } = await supabase.from('diagnostics').update(dataToSave).eq('id', editingId);
-        if (error) throw error;
+        await diagnosticsRefService.update(editingId, dataToSave);
       } else {
-        const { data, error } = await supabase.from('diagnostics').insert([dataToSave]).select('id').single();
-        if (error) throw error;
-        diagId = data.id;
+        const created = await diagnosticsRefService.create(dataToSave);
+        diagId = created.id;
       }
 
-      // Mise à jour des liaisons spécialités
-      await supabase.from('diagnostics_specialites').delete().eq('diagnostic_id', diagId);
-      if (selectedSpecialites.length > 0) {
-        await supabase.from('diagnostics_specialites').insert(
-          selectedSpecialites.map(specialite_id => ({ diagnostic_id: diagId, specialite_id }))
-        );
-      }
+      await diagnosticsRefService.syncSpecialites(diagId, selectedSpecialites);
 
       setNewDiagnostic(EMPTY_DIAG);
       setSelectedSpecialites([]);
@@ -132,8 +125,7 @@ const Diagnostics = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer ce diagnostic ?')) {
       try {
-        const { error } = await supabase.from('diagnostics').delete().eq('id', id);
-        if (error) throw error;
+        await diagnosticsRefService.remove(id);
         fetchDiagnostics();
       } catch (error) {
         console.error('Erreur lors de la suppression:', error);

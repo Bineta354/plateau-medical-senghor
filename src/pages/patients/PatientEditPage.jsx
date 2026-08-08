@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { patientService } from '../../lib/services';
 import { validatePatientForm, getDateNaissanceError, normalizePatientPayload } from '../../schemas/patientSchema';
 import { 
   ArrowLeft,
@@ -59,13 +59,7 @@ const PatientEditPage = () => {
   const loadPatient = async () => {
     try {
       setInitialLoading(true);
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
+      const data = await patientService.getById(id);
       if (data) {
         // Formater la date pour l'input date
         const formattedData = {
@@ -177,12 +171,7 @@ const PatientEditPage = () => {
 
       console.log('📤 [PatientEdit] Données finales à mettre à jour:', normalizedFormData);
 
-      const { error } = await supabase
-        .from('patients')
-        .update(normalizedFormData)
-        .eq('id', id);
-
-      if (error) throw error;
+      await patientService.update(id, normalizedFormData);
 
       console.log('✅ [PatientEdit] Patient modifié avec succès!');
       

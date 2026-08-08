@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
 import { Plus, Edit, Trash2, Search } from 'lucide-react';
+import { antecedentsRefService } from '../../services/referentielService';
+import { specialtyService } from '../../lib/services/specialtyService';
 
 const Antecedents = () => {
   const navigate = useNavigate();
@@ -55,31 +56,20 @@ const Antecedents = () => {
   }, [location.state, navigate, location.pathname]);
 
   const fetchSpecialites = async () => {
-    const { data } = await supabase
-      .from('specialites')
-      .select('id, nom')
-      .eq('actif', true)
-      .order('nom');
-    setSpecialites(data || []);
+    try {
+      const data = await specialtyService.getAll();
+      setSpecialites(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des spécialités:', error);
+      setSpecialites([]);
+    }
   };
 
   const fetchAntecedents = async () => {
     try {
       setLoading(true);
-      // On charge les antécédents avec leurs spécialités associées via join
-      const { data, error } = await supabase
-        .from('antecedents')
-        .select(`
-          *,
-          antecedents_specialites (
-            specialite_id,
-            specialites ( id, nom )
-          )
-        `)
-        .order('ordre_affichage', { ascending: true });
-
-      if (error) throw error;
-      setAntecedents(data || []);
+      const data = await antecedentsRefService.list();
+      setAntecedents(data);
     } catch (error) {
       console.error('Erreur lors du chargement des antécédents:', error);
     } finally {
@@ -98,12 +88,7 @@ const Antecedents = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer cet antécédent ?')) {
       try {
-        const { error } = await supabase
-          .from('antecedents')
-          .delete()
-          .eq('id', id);
-
-        if (error) throw error;
+        await antecedentsRefService.remove(id);
         fetchAntecedents();
       } catch (error) {
         console.error('Erreur lors de la suppression:', error);

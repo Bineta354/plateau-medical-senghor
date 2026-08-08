@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { CreditCardIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { formatMontant } from '../../utils/currency';
+import { listReversements, createReversement } from '../../services/reversementBancaireService';
 
 const MODES = [
   { value: 'virement', label: 'Virement' },
@@ -50,27 +50,9 @@ const ReversementBancaire = () => {
     setError(null);
     try {
       const { debut, fin } = getDateRange();
-      let q = supabase
-        .from('reversements_bancaires')
-        .select(`
-          id,
-          date_reversement,
-          montant,
-          mode,
-          reference_banque,
-          banque_nom,
-          compte_iban,
-          notes,
-          caissier_id,
-          users ( prenom, nom )
-        `)
-        .order('date_reversement', { ascending: false })
-        .limit(500);
-      if (filterPeriod !== 'all') {
-        q = q.gte('date_reversement', debut).lte('date_reversement', fin);
-      }
-      const { data, error: err } = await q;
-      if (err) throw err;
+      const data = await listReversements(
+        filterPeriod !== 'all' ? { dateDebut: debut, dateFin: fin } : {}
+      );
       setList(data || []);
     } catch (e) {
       setError(e?.message || 'Erreur chargement');
@@ -94,17 +76,16 @@ const ReversementBancaire = () => {
     setSubmitting(true);
     setError(null);
     try {
-      const { error: err } = await supabase.from('reversements_bancaires').insert({
-        date_reversement: form.date_reversement,
+      await createReversement({
+        dateReversement: form.date_reversement,
         montant,
         mode: form.mode,
-        reference_banque: form.reference_banque || null,
-        banque_nom: form.banque_nom || null,
-        compte_iban: form.compte_iban || null,
+        referenceBanque: form.reference_banque || null,
+        banqueNom: form.banque_nom || null,
+        compteIban: form.compte_iban || null,
         notes: form.notes || null,
-        caissier_id: userProfile?.id || null,
+        caissierId: userProfile?.id || null,
       });
-      if (err) throw err;
       setForm({
         date_reversement: new Date().toISOString().slice(0, 10),
         montant: '',

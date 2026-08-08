@@ -236,6 +236,41 @@ export const patientService = {
     return data
   },
 
+  // Récupérer un patient par ID avec sa jointure assurance — extrait de
+  // src/pages/patients/PatientDetailsPage.jsx -> loadPatient() (lignes ~32-52).
+  // Additif : ne remplace pas getById() ci-dessus, utilisé quand la page a besoin
+  // du détail de l'assurance (nom, type, taux, description) en plus du patient.
+  async getByIdWithAssurance(id) {
+    const { data, error } = await supabase
+      .from('patients')
+      .select(`
+        *,
+        assurances (
+          id,
+          nom,
+          type_assurance,
+          taux_remboursement,
+          description
+        )
+      `)
+      .eq('id', id)
+      .single()
+    if (error) throw error
+    return data
+  },
+
+  // Liste de tous les patients avec leur assurance liée (colonnes réduites) — extrait de
+  // src/pages/caissier/Recapitulatif.jsx (chargement initial, sélecteur "Patient").
+  // Additif : distinct de getAll() ci-dessus (qui fait select('*') sans jointure).
+  async getAllWithAssurance() {
+    const { data, error } = await supabase
+      .from('patients')
+      .select('id, nom, prenom, assurance_id, assurances ( id, nom, taux_remboursement )')
+      .order('nom', { ascending: true })
+    if (error) throw error
+    return data || []
+  },
+
   // Créer un nouveau patient
   async create(patientData) {
     const { data, error } = await supabase

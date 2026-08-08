@@ -743,7 +743,12 @@ const AppContent = () => {
             <LazyPageWrapper Component={AntecedentsForm} message="Chargement formulaire antécédent..." />
           </ProtectedRoute>
         } />
-        
+        <Route path="/parametrage/antecedents/form/:id" element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <LazyPageWrapper Component={AntecedentsForm} message="Chargement formulaire antécédent..." />
+          </ProtectedRoute>
+        } />
+
         <Route path="/parametrage/medicaments" element={
           <ProtectedRoute allowedRoles={['admin']}>
             <LazyPageWrapper Component={Medicaments} message="Chargement médicaments..." />

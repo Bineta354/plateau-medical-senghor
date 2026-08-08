@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useTypesActes } from '../../hooks/useTypesActes';
 import { supabase } from '../../lib/supabase';
+import {
+    listConsultationsForDropdown,
+    listTarifsActifs,
+    listActesConsultation,
+    createActeConsultation,
+    updateActeConsultation,
+    deleteActeConsultation,
+} from '../../services/acteConsultationService';
 import { motion } from 'framer-motion';
 import { formatMontant } from '../../utils/currency';
 import KpiCard from '../../components/common/KpiCard';
@@ -45,29 +53,14 @@ const ActesPage = () => {
             setLoading(true);
 
             // Récupérer les consultations
-            const { data: consultationsData, error: consultationsError } = await supabase
-                .from('consultations')
-                .select(`
-                    id,
-                    date_consultation,
-                    patients (nom, prenom),
-                    users (nom, prenom)
-                `)
-                .order('date_consultation', { ascending: false });
-
-            if (consultationsError) throw consultationsError;
-            setConsultations(consultationsData || []);
+            const consultationsData = await listConsultationsForDropdown();
+            setConsultations(consultationsData);
 
             // Les types d'actes sont gérés par le hook useTypesActes
 
             // Récupérer les tarifs
-            const { data: tarifsData, error: tarifsError } = await supabase
-                .from('tarifs_actes')
-                .select('*')
-                .eq('actif', true);
-
-            if (tarifsError) throw tarifsError;
-            setTarifs(tarifsData || []);
+            const tarifsData = await listTarifsActifs();
+            setTarifs(tarifsData);
 
             // Récupérer les actes
             await fetchActes();
@@ -81,21 +74,8 @@ const ActesPage = () => {
 
     const fetchActes = async () => {
         try {
-            const { data, error } = await supabase
-                .from('actes_consultation')
-                .select(`
-                    *,
-                    consultations (
-                        date_consultation,
-                        patients (nom, prenom),
-                        users (nom, prenom)
-                    ),
-                    types_actes (nom, description)
-                `)
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            setActes(data || []);
+            const data = await listActesConsultation();
+            setActes(data);
         } catch (error) {
             console.error('Erreur lors du chargement des actes:', error);
         }
@@ -111,18 +91,9 @@ const ActesPage = () => {
             };
 
             if (editingActe) {
-                const { error } = await supabase
-                    .from('actes_consultation')
-                    .update(acteData)
-                    .eq('id', editingActe.id);
-
-                if (error) throw error;
+                await updateActeConsultation(editingActe.id, acteData);
             } else {
-                const { error } = await supabase
-                    .from('actes_consultation')
-                    .insert(acteData);
-
-                if (error) throw error;
+                await createActeConsultation(acteData);
             }
 
             setShowModal(false);
@@ -149,12 +120,7 @@ const ActesPage = () => {
     const handleDelete = async (id) => {
         if (window.confirm('Êtes-vous sûr de vouloir supprimer cet acte ?')) {
             try {
-                const { error } = await supabase
-                    .from('actes_consultation')
-                    .delete()
-                    .eq('id', id);
-
-                if (error) throw error;
+                await deleteActeConsultation(id);
                 fetchActes();
             } catch (error) {
                 console.error('Erreur lors de la suppression:', error);

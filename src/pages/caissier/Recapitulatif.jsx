@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BarChart3, FileText, Printer } from 'lucide-react';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import { formatMontant } from '../../utils/currency';
 import { getStatusColor, getStatusLabel } from '../../utils/factureStatus';
+import { listFactures } from '../../services/paiementService';
+import { listAssurances } from '../../services/assuranceService';
+import { patientService } from '../../lib/services';
+import { fetchParametres } from '../../services/parametrageService';
 
 const PERIODS = [
   { value: 'all', label: 'Toutes les dates' },
@@ -54,9 +57,9 @@ const Recapitulatif = () => {
   useEffect(() => {
     (async () => {
       const [p, a, cab] = await Promise.all([
-        supabase.from('patients').select('id, nom, prenom, assurance_id, assurances ( id, nom, taux_remboursement )').order('nom').then((r) => r.data || []),
-        supabase.from('assurances').select('id, nom, taux_remboursement').order('nom').then((r) => r.data || []),
-        supabase.from('parametres_cabinet').select('nom_cabinet, adresse, ville, code_postal, telephone, email, logo_url').maybeSingle().then((r) => r.data || null),
+        patientService.getAllWithAssurance().catch(() => []),
+        listAssurances().catch(() => []),
+        fetchParametres(userProfile?.tenant_id).catch(() => null),
       ]);
       setPatients(p);
       setAssurances(a);
@@ -70,27 +73,21 @@ const Recapitulatif = () => {
       const { debut, fin } = getDateRange(period, dateDebut, dateFin);
 
       // Charger la couverture depuis la facture OU depuis le patient (liste assurances = source de vérité)
-      let q = supabase
-        .from('factures')
-        .select(`
-          id, numero_facture, date_facture, montant_ttc, montant_paye, montant_restant, statut_paiement,
-          patient_id, assurance_id, consultation_id,
-          patients ( id, nom, prenom, assurance_id, assurances ( id, nom ) ),
-          assurances ( id, nom ),
-          consultations ( id, medecin_id, medecin:medecin_id ( id, nom, prenom ) )
-        `)
-        .is('facture_parent_id', null);
-
-      if (period !== 'all') {
-        q = q.gte('date_facture', debut.toISOString().slice(0, 10)).lte('date_facture', fin.toISOString().slice(0, 10));
-      }
-      if (filterPatient) q = q.eq('patient_id', filterPatient);
-      // Filtre couverture / médecin : on ne peut pas filtrer côté serveur (couverture peut être sur le
-      // patient, médecin est sur la consultation liée) → on récupère la période puis on filtre en JS.
-
-      const { data: rawData, error } = await q.order('date_facture', { ascending: false });
-
-      if (error) throw error;
+      // Filtre couverture : on ne peut pas filtrer côté serveur (couverture peut être sur le
+      // patient) → on récupère la période puis on filtre en JS. Filtre médecin délégué à
+      // listFactures (medecinId), qui applique le même filtrage client-side sur
+      // consultations.medecin_id que le code précédent.
+      // Pas de .limit() par défaut ici (l'ancien appel natif n'en avait pas) : on force une
+      // limite haute pour ne pas tronquer silencieusement le récapitulatif.
+      const rawData = await listFactures({
+        periode: period !== 'all'
+          ? { debut: debut.toISOString().slice(0, 10), fin: fin.toISOString().slice(0, 10) }
+          : undefined,
+        patientId: filterPatient || undefined,
+        medecinId: filterMedecin || undefined,
+        excludeCouverture: true,
+        limit: 100000,
+      });
 
       // Couverture effective = celle de la facture si renseignée, sinon celle du patient (liste des assurances)
       const effectiveCouverture = (f) => {
@@ -99,9 +96,9 @@ const Recapitulatif = () => {
         return { id: aid, nom: nom || 'Sans couverture' };
       };
 
-      // Médecin = celui de la consultation liée à la facture
+      // Médecin = celui de la consultation liée à la facture (listFactures joint consultations.users, pas .medecin)
       const getMedecinFacture = (f) => {
-        const medecin = f.consultations?.medecin;
+        const medecin = f.consultations?.users;
         if (!medecin) return { id: 'non_attribue', nom: 'Non attribué' };
         return { id: medecin.id, nom: `${medecin.prenom || ''} ${medecin.nom || ''}`.trim() || `Médecin #${medecin.id}` };
       };
@@ -109,9 +106,6 @@ const Recapitulatif = () => {
       let data = rawData || [];
       if (filterCouverture) {
         data = data.filter((f) => String(effectiveCouverture(f).id) === String(filterCouverture));
-      }
-      if (filterMedecin) {
-        data = data.filter((f) => String(f.consultations?.medecin_id ?? '') === String(filterMedecin));
       }
       setFactures(data);
 
@@ -141,7 +135,7 @@ const Recapitulatif = () => {
       // Extraire les médecins uniques des factures affichées pour le filtre
       const medecinsMap = new Map();
       data.forEach(f => {
-        const medecin = f.consultations?.medecin;
+        const medecin = f.consultations?.users;
         if (medecin && medecin.id) {
           medecinsMap.set(medecin.id, medecin);
         }
@@ -256,7 +250,7 @@ const Recapitulatif = () => {
     const rows = factures.map((f) => {
       const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0)));
       const patientNom = f.patients ? `${f.patients.prenom || ''} ${f.patients.nom || ''}`.trim() : '–';
-      const medecin = f.consultations?.medecin ? `${f.consultations.medecin.prenom || ''} ${f.consultations.medecin.nom || ''}`.trim() : '–';
+      const medecin = f.consultations?.users ? `${f.consultations.users.prenom || ''} ${f.consultations.users.nom || ''}`.trim() : '–';
       return `<tr>
         <td>${f.numero_facture || ''}</td>
         <td>${f.date_facture ? new Date(f.date_facture).toLocaleDateString('fr-FR') : ''}</td>
@@ -378,7 +372,7 @@ const Recapitulatif = () => {
       const formatNumberOnly = (val) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0, useGrouping: true }).format(val).replace(/\u00A0/g, ' ');
       tableRows = factures.map((f) => {
         const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0)));
-        const medecin = f.consultations?.medecin ? `${f.consultations.medecin.prenom || ''} ${f.consultations.medecin.nom || ''}`.trim() : '–';
+        const medecin = f.consultations?.users ? `${f.consultations.users.prenom || ''} ${f.consultations.users.nom || ''}`.trim() : '–';
         return `<tr>
           <td>${f.numero_facture || ''}</td>
           <td>${f.date_facture ? new Date(f.date_facture).toLocaleDateString('fr-FR') : ''}</td>
@@ -926,7 +920,7 @@ const Recapitulatif = () => {
                   ) : (
                     facturesToShow.map((f) => {
                       const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0)));
-                      const medecin = f.consultations?.medecin ? `${f.consultations.medecin.prenom || ''} ${f.consultations.medecin.nom || ''}`.trim() : '–';
+                      const medecin = f.consultations?.users ? `${f.consultations.users.prenom || ''} ${f.consultations.users.nom || ''}`.trim() : '–';
                       return (
                         <tr key={f.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3">{f.numero_facture}</td>

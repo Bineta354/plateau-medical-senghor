@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
 import { ArrowLeft, Save, X } from 'lucide-react';
+import { antecedentsRefService } from '../../services/referentielService';
+import { specialtyService } from '../../lib/services/specialtyService';
 
 const AntecedentsForm = () => {
   const navigate = useNavigate();
@@ -53,30 +54,24 @@ const AntecedentsForm = () => {
   }, [id, isEditing]);
 
   const fetchSpecialites = async () => {
-    const { data } = await supabase
-      .from('specialites')
-      .select('id, nom')
-      .eq('actif', true)
-      .order('nom');
-    setSpecialites(data || []);
+    try {
+      const data = await specialtyService.getAll();
+      setSpecialites(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des spécialités:', error);
+      setSpecialites([]);
+    }
   };
 
   const fetchAntecedent = async () => {
     try {
       setLoading(true);
-      const [{ data: antData, error: antError }, { data: lnkData }] = await Promise.all([
-        supabase.from('antecedents').select('*').eq('id', id).single(),
-        supabase.from('antecedents_specialites').select('specialite_id').eq('antecedent_id', id)
-      ]);
+      const { item, specialiteIds } = await antecedentsRefService.getById(id);
 
-      if (antError) throw antError;
-
-      if (antData) {
-        setFormData(antData);
+      if (item) {
+        setFormData(item);
       }
-      if (lnkData) {
-        setSelectedSpecialites(lnkData.map(r => r.specialite_id));
-      }
+      setSelectedSpecialites(specialiteIds);
     } catch (error) {
       console.error('Erreur lors du chargement de l\'antécédent:', error);
       setErrors({ general: 'Erreur lors du chargement des données' });
@@ -135,39 +130,13 @@ const AntecedentsForm = () => {
       let antecedentId = id;
 
       if (isEditing) {
-        const { error } = await supabase
-          .from('antecedents')
-          .update(dataToSave)
-          .eq('id', id);
-        if (error) throw error;
+        await antecedentsRefService.update(id, dataToSave);
       } else {
-        const { data, error } = await supabase
-          .from('antecedents')
-          .insert([dataToSave])
-          .select('id')
-          .single();
-        if (error) throw error;
-        antecedentId = data.id;
+        const created = await antecedentsRefService.create(dataToSave);
+        antecedentId = created.id;
       }
 
-      // Gestion des liaisons spécialités
-      // 1. Supprimer toutes les liaisons existantes
-      await supabase
-        .from('antecedents_specialites')
-        .delete()
-        .eq('antecedent_id', antecedentId);
-
-      // 2. Insérer les nouvelles liaisons sélectionnées
-      if (selectedSpecialites.length > 0) {
-        const liens = selectedSpecialites.map(specialite_id => ({
-          antecedent_id: antecedentId,
-          specialite_id
-        }));
-        const { error: lnkError } = await supabase
-          .from('antecedents_specialites')
-          .insert(liens);
-        if (lnkError) throw lnkError;
-      }
+      await antecedentsRefService.syncSpecialites(antecedentId, selectedSpecialites);
 
       navigate('/parametrage/antecedents', {
         state: {
