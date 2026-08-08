@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
 import { DocumentTextIcon, CalendarIcon, PrinterIcon } from '@heroicons/react/24/outline';
 import { formatMontant } from '../../utils/currency';
 import KpiCard from '../../components/common/KpiCard';
+import { getArreteComptableMensuel } from '../../services/sessionCaisseService';
 
 const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
@@ -26,11 +26,7 @@ const ArreteMensuel = () => {
     setLoading(true);
     setError(null);
     try {
-      const { data: res, error: err } = await supabase.rpc('get_arrete_comptable_mensuel', {
-        p_annee: annee,
-        p_mois: mois,
-      });
-      if (err) throw err;
+      const res = await getArreteComptableMensuel({ annee, mois });
       setData(res || []);
     } catch (e) {
       setError(e?.message || 'Erreur chargement arrêté');
