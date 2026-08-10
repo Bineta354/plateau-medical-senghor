@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchParametres, saveParametres } from '../services/parametrageService';
 import { useToast } from './useToast';
+import { useAuth } from '../contexts/AuthContext';
 import { PAGES_CONFIG as initialSettings } from '../data/pagesConfig.js';
 
 export const useParametrage = () => {
   const { showSuccess, showError } = useToast();
-  
+  const { tenantId } = useAuth();
+
   const [settings, setSettings] = useState(initialSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -15,7 +17,7 @@ export const useParametrage = () => {
     const loadSettings = async () => {
       try {
         setLoading(true);
-        const fetchedSettings = await fetchParametres();
+        const fetchedSettings = await fetchParametres(tenantId);
         setSettings(prev => ({ ...prev, ...fetchedSettings }));
       } catch (error) {
         showError('Erreur lors du chargement des paramètres.');
@@ -25,7 +27,10 @@ export const useParametrage = () => {
     };
 
     loadSettings();
-  }, [showError]);
+    // Se relance quand tenantId passe de null à sa vraie valeur (profil chargé
+    // de façon asynchrone après le login), pour ne pas rester sur les valeurs
+    // par défaut ni charger le cabinet d'un autre tenant.
+  }, [showError, tenantId]);
   
   const handleInputChange = useCallback((field, value) => {
     setSettings(prev => ({
@@ -76,7 +81,7 @@ export const useParametrage = () => {
   const handleSave = useCallback(async () => {
     try {
       setSaving(true);
-      await saveParametres(settings);
+      await saveParametres(settings, tenantId);
       applyCSSVariables(); // Appliquer les changements dynamiques
       setHasChanges(false);
       showSuccess('Paramètres enregistrés avec succès !');
@@ -85,7 +90,7 @@ export const useParametrage = () => {
     } finally {
       setSaving(false);
     }
-  }, [settings, applyCSSVariables, showSuccess, showError]);
+  }, [settings, applyCSSVariables, showSuccess, showError, tenantId]);
 
   return {
     settings,
