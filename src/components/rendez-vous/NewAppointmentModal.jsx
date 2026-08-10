@@ -250,6 +250,7 @@ export const NewAppointmentModal = ({
                       setSelectedSpecialiteStepper={form.setSelectedSpecialiteStepper}
                       specialites={specialites}
                       allPatients={allPatients}
+                      horairesOuverture={form.horairesOuverture}
                     />
                   )}
 
@@ -269,6 +270,7 @@ export const NewAppointmentModal = ({
                       setSelectedSpecialiteStepper={form.setSelectedSpecialiteStepper}
                       selectedDoctorStepper={form.selectedDoctorStepper}
                       setSelectedDoctorStepper={form.setSelectedDoctorStepper}
+                      horairesOuverture={form.horairesOuverture}
                     />
                   )}
 
@@ -280,6 +282,7 @@ export const NewAppointmentModal = ({
                       selectedPatientData={form.selectedPatientData}
                       selectedDoctorData={form.selectedDoctorData}
                       hasCurrentSelectionConflict={form.hasCurrentSelectionConflict}
+                      isEditing={!!editingAppointment}
                     />
                   )}
 

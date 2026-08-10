@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckCircle } from 'lucide-react';
+import { getHoraireDuJour, isJourOuvrable } from '../../utils/horairesOuverture';
 
 export const Step1DoctorAvailability = ({
   formData, setFormData,
@@ -10,8 +11,11 @@ export const Step1DoctorAvailability = ({
   generateDoctorTimeSlots,
   hasCurrentSelectionConflict,
   selectedSpecialiteStepper, setSelectedSpecialiteStepper,
-  selectedDoctorStepper, setSelectedDoctorStepper
+  selectedDoctorStepper, setSelectedDoctorStepper,
+  horairesOuverture
 }) => {
+  const horaireDuJour = getHoraireDuJour(horairesOuverture, manualDate);
+  const jourFerme = !isJourOuvrable(horairesOuverture, manualDate);
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -92,6 +96,12 @@ export const Step1DoctorAvailability = ({
                 </span>
               </div>
 
+              {jourFerme ? (
+                <div className="rounded-lg border border-dashed border-red-300 bg-red-50 p-4 text-sm text-red-700">
+                  Le cabinet est fermé ce jour-là. Veuillez choisir une autre date.
+                </div>
+              ) : (
+              <>
               <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
                 <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-1">
                 {generateDoctorTimeSlots(formData.medecin_id).map((slot) => {
@@ -146,6 +156,8 @@ export const Step1DoctorAvailability = ({
                     type="time"
                     step="300"
                     value={manualTime}
+                    min={horaireDuJour?.debut}
+                    max={horaireDuJour?.fin}
                     onChange={(e) => {
                       const t = e.target.value;
                       setManualTime(t);
@@ -186,6 +198,8 @@ export const Step1DoctorAvailability = ({
                   />
                 </div>
               </div>
+              </>
+              )}
 
               {hasCurrentSelectionConflict && (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-700">
