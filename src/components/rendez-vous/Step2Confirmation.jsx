@@ -7,7 +7,8 @@ export const Step2Confirmation = ({
   quickBooking,
   selectedPatientData,
   selectedDoctorData,
-  hasCurrentSelectionConflict
+  hasCurrentSelectionConflict,
+  isEditing
 }) => {
   return (
     <div className="space-y-6">
@@ -165,7 +166,7 @@ export const Step2Confirmation = ({
             options={[
               { value: 'confirme', label: 'Confirmé' },
               { value: 'en_attente', label: 'En attente' },
-              { value: 'annule', label: 'Annulé' }
+              ...(isEditing ? [{ value: 'annule', label: 'Annulé' }] : [])
             ]}
             size="md"
           />

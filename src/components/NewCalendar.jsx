@@ -9,9 +9,11 @@ import { useNewCalendar } from '../hooks/useNewCalendar'
 import { isPastAppointment as checkPastAppointment } from '../utils/appointmentDisplay'
 import CalendarHeader from './calendar/CalendarHeader'
 import StatsCards from './calendar/StatsCards'
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import PropTypes from 'prop-types'
 import { BarChart3, ChevronDown, ChevronUp } from 'lucide-react'
+import { usePersonnalisation } from '../contexts/PersonnalisationContext'
+import { DEFAULT_HORAIRES_OUVERTURE, JOURS_SEMAINE } from '../utils/horairesOuverture'
 
 const NewCalendar = ({
   selectedDoctorFilter,
@@ -88,6 +90,43 @@ const NewCalendar = ({
     selectedDoctorFilter,
     disableDoctorFilter,
   })
+
+  const { settings: personnalisationSettings } = usePersonnalisation()
+  const horairesOuverture = personnalisationSettings?.horaires_ouverture || DEFAULT_HORAIRES_OUVERTURE
+
+  const { businessHours, hiddenDays, slotMinTime, slotMaxTime } = useMemo(() => {
+    const openDays = []
+    JOURS_SEMAINE.forEach((jour, dayIndex) => {
+      const horaire = horairesOuverture?.[jour]
+      if (horaire?.ouvert && horaire.debut && horaire.fin) {
+        openDays.push({ dayIndex, ...horaire })
+      }
+    })
+
+    if (openDays.length === 0) {
+      return {
+        businessHours: false,
+        hiddenDays: [0, 1, 2, 3, 4, 5, 6],
+        slotMinTime: '08:00:00',
+        slotMaxTime: '18:00:00',
+      }
+    }
+
+    const closedDayIndexes = JOURS_SEMAINE
+      .map((_, dayIndex) => dayIndex)
+      .filter((dayIndex) => !openDays.some((d) => d.dayIndex === dayIndex))
+
+    return {
+      businessHours: openDays.map((d) => ({
+        daysOfWeek: [d.dayIndex],
+        startTime: d.debut,
+        endTime: d.fin,
+      })),
+      hiddenDays: closedDayIndexes,
+      slotMinTime: `${openDays.reduce((min, d) => (d.debut < min ? d.debut : min), openDays[0].debut)}:00`,
+      slotMaxTime: `${openDays.reduce((max, d) => (d.fin > max ? d.fin : max), openDays[0].fin)}:00`,
+    }
+  }, [horairesOuverture])
 
   const fullCalendarView = resolveFullCalendarView()
   const isMonthView = calendarView === 'dayGridMonth'
@@ -289,15 +328,7 @@ const NewCalendar = ({
                   selectable={isTimeGridView}
                   select={isTimeGridView ? handleDateSelect : undefined}
                   dateClick={isMonthView ? handleDateClick : undefined}
-                  selectConstraint={
-                    isTimeGridView
-                      ? {
-                          startTime: '08:00',
-                          endTime: '18:00',
-                          daysOfWeek: [1, 2, 3, 4, 5, 6],
-                        }
-                      : undefined
-                  }
+                  selectConstraint={isTimeGridView ? 'businessHours' : undefined}
                   dayCellClassNames={dayCellClassNames}
                   fixedWeekCount={false}
                   showNonCurrentDates
@@ -306,8 +337,8 @@ const NewCalendar = ({
                   eventMaxStack={isMonthView ? 2 : undefined}
                   height="100%"
                   locale="fr"
-                  slotMinTime="08:00:00"
-                  slotMaxTime="18:00:00"
+                  slotMinTime={slotMinTime}
+                  slotMaxTime={slotMaxTime}
                   allDaySlot={false}
                   slotDuration="00:30:00"
                   snapDuration="00:15:00"
@@ -331,14 +362,10 @@ const NewCalendar = ({
                   droppable={isTimeGridView}
                   selectMirror={isTimeGridView}
                   eventClassNames="google-calendar-event cursor-pointer"
-                  businessHours={{
-                    daysOfWeek: [1, 2, 3, 4, 5, 6],
-                    startTime: '08:00',
-                    endTime: '18:00',
-                  }}
-                  hiddenDays={[0]}
+                  businessHours={businessHours}
+                  hiddenDays={hiddenDays}
                   nowIndicator
-                  scrollTime="08:00:00"
+                  scrollTime={slotMinTime}
                   expandRows
                   stickyHeaderDates
                   weekNumbers={false}

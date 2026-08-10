@@ -3,6 +3,12 @@ import { patientService, appointmentService, waitingQueueService } from '../lib/
 import { useAlert } from '../contexts/AlertContext';
 import { useConfirmDialog } from '../hooks/useConfirmDialog';
 import { resolveAppointmentMotif } from '../components/common/AppointmentTypeMotifFields';
+import { usePersonnalisation } from '../contexts/PersonnalisationContext';
+import {
+  DEFAULT_HORAIRES_OUVERTURE,
+  generateDoctorTimeSlotsForDay,
+  isJourOuvrable,
+} from '../utils/horairesOuverture';
 
 export const useAppointmentForm = ({
   allPatients,
@@ -23,6 +29,8 @@ export const useAppointmentForm = ({
   // (patient/spécialité/créneau requis, conflit de planning) ne s'affichent
   // nulle part.
   const { dialogState, showError: showDialogError, showConfirm, closeDialog } = useConfirmDialog();
+  const { settings: personnalisationSettings } = usePersonnalisation();
+  const horairesOuverture = personnalisationSettings?.horaires_ouverture || DEFAULT_HORAIRES_OUVERTURE;
 
   const [editingAppointment, setEditingAppointment] = useState(initialEditingAppointment);
   const [showForm, setShowForm] = useState(false);
@@ -170,31 +178,14 @@ export const useAppointmentForm = ({
 
   const generateDoctorTimeSlots = useCallback((doctorId) => {
     if (!manualDate || !doctorId) return [];
-    const slots = [];
-    const baseDate = new Date(manualDate);
-    for (let hour = 8; hour < 21; hour++) {
-      for (let minute = 0; minute < 60; minute += 30) {
-        const slotDate = new Date(baseDate);
-        slotDate.setHours(hour, minute, 0, 0);
-        const slotEnd = new Date(slotDate.getTime() + (formData.duree || 30) * 60000);
-
-        const doctorAppointments = appointmentsByDoctor[doctorId] || [];
-        const isOccupied = doctorAppointments.some((apt) => {
-          if (apt.statut === 'annule') return false;
-          const aptStart = new Date(apt.date_heure);
-          const aptEnd = new Date(aptStart.getTime() + (apt.duree || 30) * 60000);
-          return aptStart < slotEnd && aptEnd > slotDate;
-        });
-
-        slots.push({
-          time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
-          iso: slotDate.toISOString(),
-          isOccupied
-        });
-      }
-    }
-    return slots;
-  }, [manualDate, formData.duree, appointmentsByDoctor]);
+    return generateDoctorTimeSlotsForDay({
+      date: manualDate,
+      horairesOuverture,
+      doctorAppointments: appointmentsByDoctor[doctorId] || [],
+      duree: formData.duree,
+      editingAppointmentId: editingAppointment?.id,
+    });
+  }, [manualDate, formData.duree, appointmentsByDoctor, horairesOuverture, editingAppointment]);
 
   const hasSlotConflict = useCallback((doctorId, isoDateTime) => {
     if (!doctorId || !isoDateTime) return false;
@@ -303,6 +294,11 @@ export const useAppointmentForm = ({
         return false;
       }
 
+      if (!isJourOuvrable(horairesOuverture, manualDate)) {
+        await showDialogError('Cabinet fermé', 'Le cabinet est fermé ce jour-là. Veuillez choisir une autre date.');
+        return false;
+      }
+
       if (availableDoctors.length === 0) {
         await showDialogError(
           'Aucun médecin disponible',
@@ -367,7 +363,7 @@ export const useAppointmentForm = ({
     }
 
     return false;
-  }, [currentStep, quickBooking, formData, selectedSpecialiteStepper, manualDate, availableDoctors, selectedDoctorStepper, hasCurrentSelectionConflict, showDialogError, isSameDay]);
+  }, [currentStep, quickBooking, formData, selectedSpecialiteStepper, manualDate, availableDoctors, selectedDoctorStepper, hasCurrentSelectionConflict, showDialogError, isSameDay, horairesOuverture]);
 
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
@@ -509,6 +505,7 @@ export const useAppointmentForm = ({
     generateDoctorTimeSlots,
     doctorLoadsById,
     appointmentsByDoctor, // Exposing this for potential debugging or future use in UI
-    isSameDay
+    isSameDay,
+    horairesOuverture
   };
 };

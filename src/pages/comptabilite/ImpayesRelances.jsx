@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { formatMontant } from '../../utils/currency';
 import KpiCard from '../../components/common/KpiCard';
+import { COUVERTURE_FETCH_LIMIT, isCouvertureListTruncated } from '../../config/creances';
 
 /**
  * Impayés & Relances — fusion de AlertesImpayes.jsx (comptabilité) et
@@ -183,6 +184,7 @@ const ImpayesRelances = () => {
   const [filterSeverite, setFilterSeverite] = useState('all');
   const [sending, setSending] = useState(null);
   const [toast, setToast] = useState(null);
+  const [assuranceTruncated, setAssuranceTruncated] = useState(false);
   // Cartes dépliées (clé préfixée par onglet pour éviter toute collision d'id patient/assureur)
   const [expandedKeys, setExpandedKeys] = useState(() => new Set());
 
@@ -226,11 +228,16 @@ const ImpayesRelances = () => {
           .eq('type', 'couverture')
           .neq('statut_paiement', 'paye')
           .order('date_facture', { ascending: false })
-          .limit(500),
+          .limit(COUVERTURE_FETCH_LIMIT),
       ]);
 
       if (e1) throw e1;
       if (e2) throw e2;
+
+      // Le plafond COUVERTURE_FETCH_LIMIT est une garde-fou, pas une pagination : s'il est
+      // atteint, les totaux ci-dessous sous-estiment la réalité (factures les plus anciennes
+      // exclues par l'order desc). On prévient plutôt que d'afficher un total silencieusement faux.
+      setAssuranceTruncated(isCouvertureListTruncated(couvertureFactures));
 
       // --- Créances patients : groupées par patient ---
       const byPatient = {};
@@ -291,6 +298,7 @@ const ImpayesRelances = () => {
       console.error('Erreur lors du chargement des créances:', e);
       setPatientsItems([]);
       setAssuranceItems([]);
+      setAssuranceTruncated(false);
     } finally {
       setLoading(false);
     }
@@ -475,6 +483,16 @@ const ImpayesRelances = () => {
         </>
       ) : (
         <>
+          {assuranceTruncated && (
+            <div className="flex items-start gap-2 p-3 rounded-lg border bg-amber-50 border-amber-200 text-amber-800 text-sm" role="alert">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>
+                Plus de {COUVERTURE_FETCH_LIMIT} factures de couverture en attente : les totaux ci-dessous peuvent
+                être sous-estimés (les plus anciennes ne sont pas comptées). Ouvrez le détail d'un assureur pour
+                un total fiable sur celui-ci.
+              </span>
+            </div>
+          )}
           {/* Statistiques assurance */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <KpiCard icon={ShieldCheck} label="Assureurs concernés" value={statsAssurance.total} tone="purple" />

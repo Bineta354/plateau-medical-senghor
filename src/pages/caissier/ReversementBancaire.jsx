@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { CreditCardIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { CreditCardIcon, PlusIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { formatMontant } from '../../utils/currency';
-import { listReversements, createReversement } from '../../services/reversementBancaireService';
+import {
+  listReversements,
+  createReversement,
+  getSessionsAvecEncaissements,
+} from '../../services/reversementBancaireService';
 
 const MODES = [
   { value: 'virement', label: 'Virement' },
@@ -11,23 +15,43 @@ const MODES = [
   { value: 'autre', label: 'Autre' },
 ];
 
+const MODES_PAIEMENT_LABELS = {
+  especes: 'Espèces',
+  wave: 'Wave',
+  carte: 'Carte',
+  cheque: 'Chèque',
+  assurance: 'Assurance',
+  monnaie_electronique: 'Monnaie électronique',
+};
+const labelModePaiement = (mode) => MODES_PAIEMENT_LABELS[mode] || (mode ? mode.charAt(0).toUpperCase() + mode.slice(1) : 'Autre');
+
+const formatDateFr = (d) => (d ? new Date(d).toLocaleDateString('fr-FR') : '—');
+
+// Fonction plutôt que constante figée : sinon la date par défaut resterait celle du chargement
+// initial de la page si elle reste ouverte après minuit.
+const getFormVide = () => ({
+  date_reversement: new Date().toISOString().slice(0, 10),
+  montant: '',
+  mode: 'virement',
+  reference_banque: '',
+  banque_nom: '',
+  compte_iban: '',
+  notes: '',
+  session_caisse_id: null,
+});
+
 const ReversementBancaire = () => {
   const { userProfile } = useAuth();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sessions, setSessions] = useState([]);
+  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [sessionsTruncated, setSessionsTruncated] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [filterPeriod, setFilterPeriod] = useState('month'); // 'month' | 'last_month' | 'range'
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin] = useState('');
-  const [form, setForm] = useState({
-    date_reversement: new Date().toISOString().slice(0, 10),
-    montant: '',
-    mode: 'virement',
-    reference_banque: '',
-    banque_nom: '',
-    compte_iban: '',
-    notes: '',
-  });
+  const [form, setForm] = useState(getFormVide);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -62,8 +86,27 @@ const ReversementBancaire = () => {
     }
   };
 
+  const fetchSessions = async () => {
+    setLoadingSessions(true);
+    try {
+      const { debut, fin } = getDateRange();
+      const { sessions: data, truncated } = await getSessionsAvecEncaissements(
+        filterPeriod !== 'all' ? { dateDebut: debut, dateFin: fin } : {}
+      );
+      setSessions(data || []);
+      setSessionsTruncated(truncated);
+    } catch (e) {
+      setError(e?.message || 'Erreur chargement des sessions de caisse');
+      setSessions([]);
+      setSessionsTruncated(false);
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
   useEffect(() => {
     fetchReversements();
+    fetchSessions();
   }, [filterPeriod, dateDebut, dateFin]);
 
   const handleSubmit = async (e) => {
@@ -85,23 +128,37 @@ const ReversementBancaire = () => {
         compteIban: form.compte_iban || null,
         notes: form.notes || null,
         caissierId: userProfile?.id || null,
+        sessionCaisseId: form.session_caisse_id || null,
       });
-      setForm({
-        date_reversement: new Date().toISOString().slice(0, 10),
-        montant: '',
-        mode: 'virement',
-        reference_banque: '',
-        banque_nom: '',
-        compte_iban: '',
-        notes: '',
-      });
+      setForm(getFormVide());
       setShowForm(false);
       fetchReversements();
+      fetchSessions();
     } catch (e) {
       setError(e?.message || 'Erreur enregistrement');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const ouvrirFormulaireVide = () => {
+    setForm(getFormVide());
+    setShowForm(true);
+    setError(null);
+  };
+
+  // Pré-remplit le formulaire avec le montant espèces restant à reverser pour cette session —
+  // le caissier n'a plus qu'à confirmer (ou ajuster) au lieu de ressaisir le montant à la main.
+  const ouvrirFormulairePourSession = (session) => {
+    setForm({
+      ...getFormVide(),
+      date_reversement: session.date_session,
+      montant: String(Math.max(session.reste_a_reverser, 0)),
+      mode: 'depot_especes',
+      session_caisse_id: session.id,
+    });
+    setShowForm(true);
+    setError(null);
   };
 
   const total = list.reduce((s, r) => s + parseFloat(r.montant || 0), 0);
@@ -111,7 +168,7 @@ const ReversementBancaire = () => {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 mb-6">
         <CreditCardIcon className="w-8 h-8 text-indigo-600" />
         Reversement bancaire
@@ -129,7 +186,7 @@ const ReversementBancaire = () => {
         </p>
         <button
           type="button"
-          onClick={() => { setShowForm(true); setError(null); }}
+          onClick={ouvrirFormulaireVide}
           className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
         >
           <PlusIcon className="w-5 h-5" /> Nouveau reversement
@@ -138,7 +195,15 @@ const ReversementBancaire = () => {
 
       {showForm && (
         <div className="bg-white rounded-xl shadow p-6 mb-6 border-2 border-indigo-200">
-          <h2 className="text-lg font-semibold mb-4">Nouveau reversement</h2>
+          <h2 className="text-lg font-semibold mb-1">Nouveau reversement</h2>
+          {form.session_caisse_id ? (
+            <p className="text-sm text-indigo-700 mb-4">
+              Lié à la session de caisse du {formatDateFr(form.date_reversement)} — montant pré-rempli avec le reste
+              à reverser en espèces pour cette session.
+            </p>
+          ) : (
+            <p className="text-sm text-gray-500 mb-4">Reversement libre, non lié à une session de caisse.</p>
+          )}
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
@@ -268,12 +333,91 @@ const ReversementBancaire = () => {
           )}
           <button
             type="button"
-            onClick={fetchReversements}
+            onClick={() => { fetchReversements(); fetchSessions(); }}
             className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm"
           >
             Actualiser
           </button>
         </div>
+      </div>
+
+      {sessionsTruncated && (
+        <div className="mb-4 p-3 rounded-lg border bg-amber-50 border-amber-200 text-amber-800 text-sm flex items-start gap-2">
+          <ExclamationTriangleIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>
+            Volume de paiements élevé sur cette période : la répartition par mode ci-dessous peut être incomplète.
+            Réduisez la période pour un calcul fiable.
+          </span>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl shadow overflow-hidden mb-6">
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+          <span className="font-medium text-gray-700">Sessions de caisse clôturées — traçabilité encaissement → reversement</span>
+        </div>
+        {loadingSessions ? (
+          <div className="flex justify-center py-8">
+            <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Date</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Caissier</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-700">Fond ouverture</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Répartition encaissée</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-700">Total encaissé</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-700">Déjà reversé</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-700">Reste (espèces)</th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {sessions.length === 0 ? (
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">Aucune session clôturée pour cette période.</td></tr>
+                ) : (
+                  sessions.map((s) => (
+                    <tr key={s.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">{formatDateFr(s.date_session)}</td>
+                      <td className="px-4 py-3">{s.caissier ? `${s.caissier.prenom || ''} ${s.caissier.nom || ''}`.trim() : 'Secrétariat'}</td>
+                      <td className="px-4 py-3 text-right">{formatMontant(s.fond_caisse)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1">
+                          {Object.keys(s.par_mode).length === 0 ? (
+                            <span className="text-gray-400">—</span>
+                          ) : (
+                            Object.entries(s.par_mode).map(([mode, montant]) => (
+                              <span key={mode} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700">
+                                {labelModePaiement(mode)} : {formatMontant(montant)}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium">{formatMontant(s.montant_journalier)}</td>
+                      <td className="px-4 py-3 text-right text-green-700">{formatMontant(s.deja_reverse)}</td>
+                      <td className={`px-4 py-3 text-right font-semibold ${s.reste_a_reverser > 0 ? 'text-amber-700' : 'text-gray-400'}`}>
+                        {formatMontant(s.reste_a_reverser)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => ouvrirFormulairePourSession(s)}
+                          disabled={s.reste_a_reverser <= 0}
+                          className="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-medium hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                        >
+                          Reverser
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -294,11 +438,12 @@ const ReversementBancaire = () => {
                 <th className="px-4 py-3 text-left font-medium text-gray-700">Mode</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-700">Référence / Banque</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-700">Caissier</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-700">Session liée</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {list.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">Aucun reversement pour cette période.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Aucun reversement pour cette période.</td></tr>
               ) : (
                 list.map((r) => (
                   <tr key={r.id} className="hover:bg-gray-50">
@@ -307,6 +452,9 @@ const ReversementBancaire = () => {
                     <td className="px-4 py-3">{MODES.find((m) => m.value === r.mode)?.label || r.mode}</td>
                     <td className="px-4 py-3">{r.reference_banque || r.banque_nom || '–'}</td>
                     <td className="px-4 py-3">{caissierName(r)}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {r.sessions_caisse?.date_session ? `Session du ${formatDateFr(r.sessions_caisse.date_session)}` : '—'}
+                    </td>
                   </tr>
                 ))
               )}

@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { Building2, MapPin, Phone, Mail, Globe, FileText, Save, Upload, Image as ImageIcon, X, ChevronDown, ChevronUp, Users, Clock } from 'lucide-react';
+import { Building2, MapPin, Phone, Mail, Globe, FileText, Save, Upload, Image as ImageIcon, X, ChevronDown, ChevronUp, Users, Clock, Percent } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { hasPermission } from '../../utils/permissions';
 import { useToast } from '../../hooks/useToast';
 import patientInactivityService from '../../services/patientInactivityService.js';
 
 const ParametresCabinet = () => {
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser, userProfile, tenantId } = useAuth();
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   const canManageSettings = hasPermission(currentUser?.role, 'canManageSettings');
@@ -38,6 +38,7 @@ const ParametresCabinet = () => {
     langue: 'fr',
     format_date: 'DD/MM/YYYY',
     jours_inactivite: 365,
+    taux_retrocession_medecin: null,
     horaires_ouverture: {
       lundi: { ouvert: true, debut: '08:00', fin: '22:00' },
       mardi: { ouvert: true, debut: '08:00', fin: '22:00' },
@@ -57,8 +58,13 @@ const ParametresCabinet = () => {
   const [showLegalInfo, setShowLegalInfo] = useState(false); // État pour le dropdown des informations légales
 
   useEffect(() => {
-    fetchSettings();
-  }, []);
+    // Plusieurs cabinets partagent la table parametres_cabinet : sans
+    // tenant_id on ne sait pas laquelle est la nôtre. On attend que le profil
+    // (chargé de façon asynchrone après le login) ait fourni tenantId.
+    if (tenantId) {
+      fetchSettings();
+    }
+  }, [tenantId]);
 
   // Récupérer téléphone et email depuis le profil utilisateur
   useEffect(() => {
@@ -76,6 +82,7 @@ const ParametresCabinet = () => {
       const { data, error } = await supabase
         .from('parametres_cabinet')
         .select('*')
+        .eq('tenant_id', tenantId)
         .single();
       
       // PGRST116 = aucun résultat trouvé (normal si première utilisation)
@@ -145,16 +152,29 @@ const ParametresCabinet = () => {
         }
       }
 
+      if (!tenantId) {
+        setMessage({
+          type: 'error',
+          text: 'Impossible d\'enregistrer : tenant introuvable pour l\'utilisateur connecté.'
+        });
+        return;
+      }
+
       // 2. Préparer les données avec l'URL du logo mise à jour
       const dataToSave = {
         ...settings,
+        tenant_id: tenantId,
         logo_url: logoUrl
       };
 
-      // 3. Vérifier si un enregistrement existe
+      // 3. Vérifier si un enregistrement existe pour CE cabinet (tenant_id) —
+      // plusieurs cabinets partagent cette table, il ne faut jamais mettre à
+      // jour/créer une ligne sans ce filtre (sous peine d'écraser les
+      // réglages d'un autre cabinet).
       const { data: existing, error: checkError } = await supabase
         .from('parametres_cabinet')
         .select('id')
+        .eq('tenant_id', tenantId)
         .single();
 
       // Gérer les différentes erreurs possibles
@@ -693,6 +713,47 @@ const ParametresCabinet = () => {
               <p className="text-xs text-gray-500 mt-2">
                 Les patients sans consultation ni rendez-vous depuis ce nombre de jours seront automatiquement marqués comme "Inactif". 
                 Un nouveau rendez-vous ou consultation réactivera automatiquement le patient.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Rémunération des médecins */}
+        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+            <Percent className="w-5 h-5 mr-2 text-blue-600" />
+            Rémunération des Médecins
+          </h2>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Taux de rétrocession médecin (%)
+              </label>
+              <div className="flex items-center space-x-4">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={settings.taux_retrocession_medecin ?? ''}
+                  onChange={(e) => setSettings({
+                    ...settings,
+                    taux_retrocession_medecin: e.target.value === '' ? null : parseFloat(e.target.value),
+                  })}
+                  className="w-32 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Ex: 60"
+                />
+                <span className="text-sm text-gray-600">
+                  {settings.taux_retrocession_medecin != null
+                    ? `Le médecin garde ${settings.taux_retrocession_medecin}% du chiffre d'affaires encaissé, le cabinet garde ${(100 - settings.taux_retrocession_medecin).toFixed(2)}%.`
+                    : 'Non configuré : le Récapitulatif n\'affichera pas de répartition tant que ce taux n\'est pas renseigné.'}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Pourcentage du chiffre d'affaires encaissé par chaque médecin qui lui revient — le reste va au
+                cabinet. S'applique à tous les médecins du cabinet et est utilisé dans le Récapitulatif pour
+                calculer la part cabinet / part médecin.
               </p>
             </div>
           </div>

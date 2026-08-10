@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, ShieldCheck, RefreshCw, Search, Inbox } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, RefreshCw, Search, Inbox, AlertTriangle, FileDown } from 'lucide-react';
 import { formatMontant } from '../../utils/currency';
+import { COUVERTURE_FETCH_LIMIT, isCouvertureListTruncated } from '../../config/creances';
+import { generateDossierAssurancePDF } from '../../services/impression/dossierAssurancePdf';
+import useToast from '../../hooks/useToast';
 
 /**
  * Détail des créances d'un assureur — accessible depuis Impayés & Relances
@@ -28,14 +31,22 @@ const AssuranceCreanceDetail = () => {
   // de factures en attente).
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [truncated, setTruncated] = useState(false);
+  const [generatingDossier, setGeneratingDossier] = useState(false);
+  const { showSuccess, showError } = useToast();
 
   useEffect(() => {
+    let active = true;
     setPage(1);
-    chargerDetail();
+    chargerDetail(() => active);
+    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assuranceId]);
 
-  const chargerDetail = async () => {
+  // isCurrent() est fourni par l'effet ci-dessus : si l'assureur affiché a changé pendant que
+  // cette requête était en vol (navigation rapide entre deux assureurs), les setState ci-dessous
+  // sont sautés pour ne pas écraser les données déjà à jour avec une réponse obsolète.
+  const chargerDetail = async (isCurrent = () => true) => {
     setLoading(true);
     try {
       const sansAssurance = assuranceId === 'sans_assurance';
@@ -44,25 +55,29 @@ const AssuranceCreanceDetail = () => {
         .from('factures')
         .select(`
           id, numero_facture, date_facture, montant_ttc, montant_paye, montant_restant,
-          statut_paiement, patient_id,
-          patients ( id, nom, prenom ),
+          statut_paiement, patient_id, facture_parent_id,
+          patients ( id, nom, prenom, numero_mutuelle, numero_ipm ),
           consultations ( date_consultation, medecin_id, users ( id, nom, prenom ) )
         `)
         .eq('type', 'couverture')
         .neq('statut_paiement', 'paye')
         .order('date_facture', { ascending: false })
-        .limit(1000);
+        .limit(COUVERTURE_FETCH_LIMIT);
 
       query = sansAssurance ? query.is('assurance_id', null) : query.eq('assurance_id', assuranceId);
 
       const { data, error } = await query;
       if (error) throw error;
+      if (!isCurrent()) return;
+
+      setTruncated(isCouvertureListTruncated(data));
 
       const lignes = (data || [])
         .map((f) => ({
           id: f.id,
           numero_facture: f.numero_facture,
           date_facture: f.date_facture,
+          facture_parent_id: f.facture_parent_id,
           patient: f.patients,
           medecin: f.consultations?.users,
           restant: parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0))),
@@ -80,14 +95,31 @@ const AssuranceCreanceDetail = () => {
           .select('id, nom, taux_remboursement')
           .eq('id', assuranceId)
           .maybeSingle();
+        if (!isCurrent()) return;
         setAssurance(assuranceData || { nom: 'Assureur' });
       }
     } catch (e) {
+      if (!isCurrent()) return;
       console.error('Erreur chargement détail créance assurance:', e);
       setFactures([]);
       setAssurance(null);
+      setTruncated(false);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
+    }
+  };
+
+  const handleGenererDossier = async () => {
+    setGeneratingDossier(true);
+    try {
+      const { success, error } = await generateDossierAssurancePDF(supabase, { assurance, factures });
+      if (success) {
+        showSuccess('Dossier assurance généré.');
+      } else {
+        showError(error || 'Erreur lors de la génération du dossier.');
+      }
+    } finally {
+      setGeneratingDossier(false);
     }
   };
 
@@ -144,11 +176,32 @@ const AssuranceCreanceDetail = () => {
             <p className="text-sm text-gray-500">{factures.length} facture{factures.length > 1 ? 's' : ''} de couverture en attente</p>
           </div>
         </div>
-        <div className="text-right flex-shrink-0">
-          <p className="text-xs text-gray-500">Reste dû</p>
-          <p className="text-2xl font-bold text-amber-700">{formatMontant(totalGeneral)}</p>
+        <div className="flex items-center gap-4 flex-shrink-0">
+          <div className="text-right">
+            <p className="text-xs text-gray-500">Reste dû</p>
+            <p className="text-2xl font-bold text-amber-700">{formatMontant(totalGeneral)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleGenererDossier}
+            disabled={generatingDossier || factures.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <FileDown className="w-4 h-4" />
+            {generatingDossier ? 'Génération…' : 'Générer le dossier'}
+          </button>
         </div>
       </div>
+
+      {truncated && (
+        <div className="flex items-start gap-2 p-3 rounded-lg border bg-amber-50 border-amber-200 text-amber-800 text-sm" role="alert">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>
+            Plus de {COUVERTURE_FETCH_LIMIT} factures en attente pour cet assureur : le total affiché peut être
+            sous-estimé (les plus anciennes ne sont pas comptées).
+          </span>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
         <div className="flex flex-wrap items-center gap-4">

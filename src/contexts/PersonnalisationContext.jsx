@@ -147,8 +147,8 @@ export const PersonnalisationProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const { currentUser } = useAuth();
-  
+  const { currentUser, tenantId } = useAuth();
+
   const [settings, setSettings] = useState(INITIAL_SETTINGS);
 
  useEffect(() => {
@@ -157,12 +157,15 @@ export const PersonnalisationProvider = ({ children }) => {
   } else {
     setLoading(false);
   }
-}, [currentUser]);
+  // Se relance aussi quand tenantId passe de null à sa vraie valeur (le profil
+  // se charge de façon asynchrone juste après le login) — sinon on resterait
+  // bloqué sur les valeurs par défaut faute de savoir quel cabinet charger.
+}, [currentUser, tenantId]);
 
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const data = await fetchParametres();
+      const data = await fetchParametres(tenantId);
       
       // Fusionner avec les valeurs par défaut pour garantir la structure complète
       let mergedSettings = {
@@ -188,9 +191,9 @@ export const PersonnalisationProvider = ({ children }) => {
   const handleSave = async () => {
     try {
       setSaving(true);
-      
-      await saveParametres(settings);
-      
+
+      await saveParametres(settings, tenantId);
+
       applyCSSVariables();
       setHasChanges(false);
       showSuccess('Paramètres enregistrés avec succès !');

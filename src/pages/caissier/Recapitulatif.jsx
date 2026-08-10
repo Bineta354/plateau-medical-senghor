@@ -5,7 +5,7 @@ import SearchableSelect from '../../components/common/SearchableSelect';
 import Dropdown from '../../components/common/Dropdown';
 import Pagination from '../../components/common/Pagination';
 import { formatMontant } from '../../utils/currency';
-import { getStatusColor, getStatusLabel } from '../../utils/factureStatus';
+import { getStatusColor, getStatusLabel, computeStatutPaiement } from '../../utils/factureStatus';
 import { listFactures } from '../../services/paiementService';
 import { listAssurances } from '../../services/assuranceService';
 import { patientService } from '../../lib/services';
@@ -53,9 +53,11 @@ const Recapitulatif = () => {
   const [assurances, setAssurances] = useState([]);
   const [cabinet, setCabinet] = useState(null);
   const [factures, setFactures] = useState([]);
+  const [facturesCouverture, setFacturesCouverture] = useState([]);
   const [loading, setLoading] = useState(false);
   const [resumePatient, setResumePatient] = useState([]);
   const [resumeCouverture, setResumeCouverture] = useState([]);
+  const [revenuParMedecin, setRevenuParMedecin] = useState([]);
   const [factureView, setFactureView] = useState('couverture'); // 'couverture' | 'liste'
   const [currentPage, setCurrentPage] = useState(1);
   const printRef = useRef(null);
@@ -79,20 +81,21 @@ const Recapitulatif = () => {
     try {
       const { debut, fin } = getDateRange(period, dateDebut, dateFin);
 
-      // Charger la couverture depuis la facture OU depuis le patient (liste assurances = source de vérité)
       // Filtre couverture : on ne peut pas filtrer côté serveur (couverture peut être sur le
       // patient) → on récupère la période puis on filtre en JS. Filtre médecin délégué à
       // listFactures (medecinId), qui applique le même filtrage client-side sur
       // consultations.medecin_id que le code précédent.
       // Pas de .limit() par défaut ici (l'ancien appel natif n'en avait pas) : on force une
       // limite haute pour ne pas tronquer silencieusement le récapitulatif.
+      // On ne passe plus excludeCouverture: true — on a besoin des factures -C (part assurance)
+      // pour calculer ce que chaque couverture doit réellement, pas juste le reste dû du patient
+      // réétiqueté avec le nom de son assureur.
       const rawData = await listFactures({
         periode: period !== 'all'
           ? { debut: debut.toISOString().slice(0, 10), fin: fin.toISOString().slice(0, 10) }
           : undefined,
         patientId: filterPatient || undefined,
         medecinId: filterMedecin || undefined,
-        excludeCouverture: true,
         limit: 100000,
       });
 
@@ -103,59 +106,89 @@ const Recapitulatif = () => {
         return { id: aid, nom: nom || 'Sans couverture' };
       };
 
-      // Médecin = celui de la consultation liée à la facture (listFactures joint consultations.users, pas .medecin)
-      const getMedecinFacture = (f) => {
-        const medecin = f.consultations?.users;
-        if (!medecin) return { id: 'non_attribue', nom: 'Non attribué' };
-        return { id: medecin.id, nom: `${medecin.prenom || ''} ${medecin.nom || ''}`.trim() || `Médecin #${medecin.id}` };
-      };
-
-      let data = rawData || [];
+      // Séparation factures patient (facture_parent_id null) / factures couverture (-C, type='couverture')
+      // — ces dernières portent le montant réellement dû par l'assureur, source autoritaire du split
+      // (voir CLAUDE.md : modèle facture/paiement).
+      let dataPatient = (rawData || []).filter((f) => f.type !== 'couverture');
+      let dataCouv = (rawData || []).filter((f) => f.type === 'couverture');
       if (filterCouverture) {
-        data = data.filter((f) => String(effectiveCouverture(f).id) === String(filterCouverture));
+        dataPatient = dataPatient.filter((f) => String(effectiveCouverture(f).id) === String(filterCouverture));
+        dataCouv = dataCouv.filter((f) => String(f.assurance_id) === String(filterCouverture));
       }
-      setFactures(data);
+      setFactures(dataPatient);
+      setFacturesCouverture(dataCouv);
 
+      // Reste à payer par patient (part patient) + part assurance restant due (depuis les -C liées),
+      // sur la même règle de compensation (on additionne tout, trop-perçus compris, plutôt que de
+      // faire disparaître silencieusement les factures en restant négatif).
       const byPatient = {};
-      const byCouverture = {};
-      data.forEach((f) => {
+      dataPatient.forEach((f) => {
         const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0)));
-        if (restant <= 0) return;
         const pid = f.patient_id || f.patients?.id;
-        const { nom: aNom, id: aid } = effectiveCouverture(f);
-
-        if (pid) {
-          if (!byPatient[pid]) byPatient[pid] = { patient: f.patients, totalRestant: 0, byCouverture: {} };
-          byPatient[pid].totalRestant += restant;
-          byPatient[pid].byCouverture[aNom] = (byPatient[pid].byCouverture[aNom] || 0) + restant;
-        }
-        if (aid !== null && aid !== undefined) {
-          byCouverture[aNom] = (byCouverture[aNom] || 0) + restant;
-        } else {
-          byCouverture['Sans couverture'] = (byCouverture['Sans couverture'] || 0) + restant;
-        }
+        if (!pid) return;
+        if (!byPatient[pid]) byPatient[pid] = { patient: f.patients, totalRestant: 0, partAssurance: 0 };
+        byPatient[pid].totalRestant += restant;
       });
+      dataCouv.forEach((f) => {
+        const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0)));
+        const pid = f.patient_id || f.patients?.id;
+        if (!pid) return;
+        if (!byPatient[pid]) byPatient[pid] = { patient: f.patients, totalRestant: 0, partAssurance: 0 };
+        byPatient[pid].partAssurance += restant;
+      });
+      // N'affiche que les patients ayant eux-mêmes un manquement sur LEUR part (positif = ils
+      // doivent encore, négatif = trop-perçu à afficher explicitement) — un patient qui a réglé
+      // sa part ne doit plus apparaître ici même si l'assurance n'a pas encore payé la sienne
+      // (ça, c'est le rôle du tableau "Reste à payer par couverture").
+      setResumePatient(Object.values(byPatient).filter((r) => r.totalRestant !== 0));
 
-      setResumePatient(Object.values(byPatient).filter((r) => r.totalRestant > 0));
-      setResumeCouverture(Object.entries(byCouverture).filter(([, t]) => t > 0).map(([nom, total]) => ({ nom, total })));
-      
+      // Reste dû par couverture = calculé uniquement depuis les factures -C (ce que l'assureur
+      // doit réellement), et non plus depuis le reste dû du patient réétiqueté. Même règle de
+      // compensation que ci-dessus, et le total peut désormais rester visible même négatif
+      // (trop-perçu de l'assureur) au lieu de disparaître silencieusement.
+      const byCouverture = {};
+      dataCouv.forEach((f) => {
+        const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0)));
+        const aid = f.assurance_id;
+        const nom = f.assurances?.nom || 'Sans couverture';
+        const key = aid ?? 'sans';
+        if (!byCouverture[key]) byCouverture[key] = { nom, total: 0 };
+        byCouverture[key].total += restant;
+      });
+      setResumeCouverture(Object.values(byCouverture).filter((r) => r.total !== 0));
+
+      // Revenus encaissés par médecin sur la période — somme des montant_paye des factures
+      // patient ET couverture rattachées à ses consultations (l'argent réellement en caisse,
+      // qu'il vienne du patient ou de l'assureur), base du calcul part médecin / part cabinet.
+      const byMedecinRevenu = {};
+      [...dataPatient, ...dataCouv].forEach((f) => {
+        const medecin = f.consultations?.users;
+        const paye = parseFloat(f.montant_paye || 0);
+        if (!medecin?.id || paye <= 0) return;
+        if (!byMedecinRevenu[medecin.id]) byMedecinRevenu[medecin.id] = { medecin, totalEncaisse: 0 };
+        byMedecinRevenu[medecin.id].totalEncaisse += paye;
+      });
+      setRevenuParMedecin(Object.values(byMedecinRevenu).sort((a, b) => b.totalEncaisse - a.totalEncaisse));
+
       // Extraire les médecins uniques des factures affichées pour le filtre
       const medecinsMap = new Map();
-      data.forEach(f => {
+      dataPatient.forEach(f => {
         const medecin = f.consultations?.users;
         if (medecin && medecin.id) {
           medecinsMap.set(medecin.id, medecin);
         }
       });
-      const medecinsList = Array.from(medecinsMap.values()).sort((a, b) => 
+      const medecinsList = Array.from(medecinsMap.values()).sort((a, b) =>
         (a.nom || '').localeCompare(b.nom || '')
       );
       setMedecins(medecinsList);
     } catch (e) {
       console.error('fetchRecap:', e);
       setFactures([]);
+      setFacturesCouverture([]);
       setResumePatient([]);
       setResumeCouverture([]);
+      setRevenuParMedecin([]);
     } finally {
       setLoading(false);
     }
@@ -171,6 +204,21 @@ const Recapitulatif = () => {
 
   const patientLabel = filterPatient ? patients.find((p) => String(p.id) === String(filterPatient)) : null;
   const couvertureLabel = filterCouverture ? assurances.find((a) => String(a.id) === String(filterCouverture)) : null;
+
+  // Statut affiché = recalculé depuis les montants plutôt que la colonne statut_paiement stockée
+  // (qui peut être restée figée sur "paye" alors que la facture est en réalité partielle — bug
+  // constaté sur des données réelles). On respecte toutefois "impaye", seul statut qui n'est pas
+  // dérivable des montants : c'est une marque manuelle (créance jugée irrécouvrable), pas un état
+  // calculable via computeStatutPaiement (qui ne le retourne jamais).
+  const getFactureStatut = (f) => (
+    f.statut_paiement === 'impaye' ? 'impaye' : computeStatutPaiement(f.montant_paye, f.montant_ttc)
+  );
+
+  // Un total "reste à payer" agrégé peut être négatif (trop-perçu net) depuis qu'on compense
+  // toutes les factures au lieu d'exclure silencieusement celles au reste négatif. On l'affiche
+  // alors comme une ligne explicite plutôt que de la faire disparaître.
+  const resteClass = (val) => (val < 0 ? 'text-blue-700' : 'text-orange-700');
+  const resteLabel = (val) => `${formatMontant(val)}${val < 0 ? ' (trop-perçu)' : ''}`;
 
   // Couverture effective : facture.assurance_id/assurances si renseignés, sinon patient.assurance_id/assurances (liste des couvertures = source de vérité)
   const getCouvertureFacture = (f) => {
@@ -188,11 +236,12 @@ const Recapitulatif = () => {
   const tauxCouverture = patientAssurance?.taux_remboursement != null ? parseFloat(patientAssurance.taux_remboursement) : 0;
   const montantChargeCouverture = tauxCouverture > 0 ? totalTTC * (tauxCouverture / 100) : 0;
 
-  // Pour le filtre couverture : liste des patients concernés avec leurs montants
+  // Pour le filtre couverture : liste des patients concernés, calculée depuis les factures -C
+  // (montant réellement dû par l'assureur), pas depuis le reste dû du patient réétiqueté.
   const facturesByPatientCouverture = (() => {
-    if (!filterCouverture || !factures.length) return [];
+    if (!filterCouverture || !facturesCouverture.length) return [];
     const byPatient = {};
-    factures.forEach((f) => {
+    facturesCouverture.forEach((f) => {
       const pid = f.patient_id || f.patients?.id;
       if (!pid) return;
       const paye = parseFloat(f.montant_paye || 0);
@@ -204,13 +253,15 @@ const Recapitulatif = () => {
     return Object.values(byPatient);
   })();
 
-  // Regroupement par couverture (pour section "Facture par couverture") — couverture = facture ou patient
+  // Regroupement par couverture (pour section "Facture par couverture") — calculé depuis les
+  // factures -C elles-mêmes (regroupées par assurance_id), donc un vrai "ce que chaque assureur
+  // doit encore" plutôt qu'un doublon du tableau "par patient" réagrégé sous une autre clé.
   const facturesParCouverture = (() => {
-    if (filterPatient || !factures.length) return [];
+    if (filterPatient || !facturesCouverture.length) return [];
     const byId = {};
-    factures.forEach((f) => {
-      const { id, nom } = getCouvertureFacture(f);
-      const key = id === 'sans' ? 'sans' : id;
+    facturesCouverture.forEach((f) => {
+      const key = f.assurance_id ?? 'sans';
+      const nom = f.assurances?.nom || 'Sans couverture';
       if (!byId[key]) byId[key] = { id: key, nom, factures: [], totalPaye: 0, totalRestant: 0 };
       const paye = parseFloat(f.montant_paye || 0);
       const restant = parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - paye));
@@ -518,10 +569,12 @@ const Recapitulatif = () => {
     const rows = resumePatient.map((r) => ({
       patient: `${r.patient?.prenom || ''} ${r.patient?.nom || ''}`.trim(),
       reste: Math.round(r.totalRestant),
+      partAssurance: Math.round(r.partAssurance || 0),
     }));
     ExportUtils.exportToCSV(rows, `reste_a_payer_par_patient_${todayStr()}`, [
       { key: 'patient', label: 'Patient' },
       { key: 'reste', label: 'Reste (FCFA)' },
+      { key: 'partAssurance', label: 'Part assurance restant due (FCFA)' },
     ]);
   };
 
@@ -533,6 +586,26 @@ const Recapitulatif = () => {
     ExportUtils.exportToCSV(rows, `reste_a_payer_par_couverture_${todayStr()}`, [
       { key: 'couverture', label: 'Couverture' },
       { key: 'reste', label: 'Reste (FCFA)' },
+    ]);
+  };
+
+  const tauxRetrocession = cabinet?.taux_retrocession_medecin != null ? parseFloat(cabinet.taux_retrocession_medecin) : null;
+  const partMedecin = (encaisse) => (tauxRetrocession != null ? encaisse * (tauxRetrocession / 100) : null);
+  const partCabinet = (encaisse) => (tauxRetrocession != null ? encaisse * ((100 - tauxRetrocession) / 100) : null);
+  const totalEncaisseMedecins = revenuParMedecin.reduce((s, r) => s + r.totalEncaisse, 0);
+
+  const handleExportRevenuMedecin = () => {
+    const rows = revenuParMedecin.map((r) => ({
+      medecin: `${r.medecin?.prenom || ''} ${r.medecin?.nom || ''}`.trim(),
+      encaisse: Math.round(r.totalEncaisse),
+      partMedecin: tauxRetrocession != null ? Math.round(partMedecin(r.totalEncaisse)) : '',
+      partCabinet: tauxRetrocession != null ? Math.round(partCabinet(r.totalEncaisse)) : '',
+    }));
+    ExportUtils.exportToCSV(rows, `revenus_par_medecin_${todayStr()}`, [
+      { key: 'medecin', label: 'Médecin' },
+      { key: 'encaisse', label: 'Total encaissé (FCFA)' },
+      { key: 'partMedecin', label: `Part médecin (FCFA)${tauxRetrocession != null ? ` — ${tauxRetrocession}%` : ''}` },
+      { key: 'partCabinet', label: `Part cabinet (FCFA)${tauxRetrocession != null ? ` — ${(100 - tauxRetrocession).toFixed(2)}%` : ''}` },
     ]);
   };
 
@@ -564,7 +637,7 @@ const Recapitulatif = () => {
         ttc: Math.round(parseFloat(f.montant_ttc || 0)),
         paye: Math.round(parseFloat(f.montant_paye || 0)),
         reste: Math.round(restant),
-        statut: getStatusLabel(f.statut_paiement),
+        statut: getStatusLabel(getFactureStatut(f)),
       };
     });
     // Exporte toutes les factures de la période (pas seulement les 200 premières affichées à l'écran).
@@ -758,16 +831,18 @@ const Recapitulatif = () => {
                     <tr>
                       <th className="px-5 py-2.5 text-left text-[11.5px] font-semibold text-gray-500">Patient</th>
                       <th className="px-5 py-2.5 text-right text-[11.5px] font-semibold text-gray-500">Reste (F CFA)</th>
+                      <th className="px-5 py-2.5 text-right text-[11.5px] font-semibold text-gray-500">Part assurance restant due</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {resumePatient.length === 0 ? (
-                      <tr><td colSpan={2} className="px-5 py-4 text-center text-gray-500">Aucun</td></tr>
+                      <tr><td colSpan={3} className="px-5 py-4 text-center text-gray-500">Aucun</td></tr>
                     ) : (
                       resumePatient.map((r, idx) => (
                         <tr key={r.patient?.id ?? `p-${idx}`} className="hover:bg-gray-50">
                           <td className="px-5 py-2.5 text-gray-900">{r.patient?.prenom} {r.patient?.nom}</td>
-                          <td className="px-5 py-2.5 text-right font-medium text-orange-700">{formatMontant(r.totalRestant)}</td>
+                          <td className={`px-5 py-2.5 text-right font-medium ${resteClass(r.totalRestant)}`}>{resteLabel(r.totalRestant)}</td>
+                          <td className="px-5 py-2.5 text-right text-gray-600">{r.partAssurance ? formatMontant(r.partAssurance) : '–'}</td>
                         </tr>
                       ))
                     )}
@@ -803,13 +878,82 @@ const Recapitulatif = () => {
                       resumeCouverture.map((r) => (
                         <tr key={r.nom} className="hover:bg-gray-50">
                           <td className="px-5 py-2.5 text-gray-900">{r.nom}</td>
-                          <td className="px-5 py-2.5 text-right font-medium text-orange-700">{formatMontant(r.total)}</td>
+                          <td className={`px-5 py-2.5 text-right font-medium ${resteClass(r.total)}`}>{resteLabel(r.total)}</td>
                         </tr>
                       ))
                     )}
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+
+          {/* Revenus par médecin — encaissé (patient + assurance) par médecin sur la période, et
+              répartition part médecin / part cabinet si le taux de rétrocession est configuré
+              (Paramètres du cabinet). */}
+          <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm overflow-hidden mb-5">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <p className="text-[13px] font-semibold text-gray-900">Revenus par médecin</p>
+                <p className="text-[12px] text-gray-500 mt-0.5">
+                  {tauxRetrocession != null
+                    ? `Répartition selon le taux configuré : ${tauxRetrocession}% médecin / ${(100 - tauxRetrocession).toFixed(2)}% cabinet.`
+                    : 'Taux de rétrocession non configuré — allez dans Paramètres du cabinet pour voir la répartition part médecin / part cabinet.'}
+                </p>
+              </div>
+              {revenuParMedecin.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleExportRevenuMedecin}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-[11.5px] font-medium hover:bg-gray-200 transition-colors"
+                >
+                  <Download className="w-3 h-3" /> CSV
+                </button>
+              )}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-[13px]">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-5 py-2.5 text-left text-[11.5px] font-semibold text-gray-500">Médecin</th>
+                    <th className="px-5 py-2.5 text-right text-[11.5px] font-semibold text-gray-500">Total encaissé</th>
+                    <th className="px-5 py-2.5 text-right text-[11.5px] font-semibold text-gray-500">Part médecin</th>
+                    <th className="px-5 py-2.5 text-right text-[11.5px] font-semibold text-gray-500">Part cabinet</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {revenuParMedecin.length === 0 ? (
+                    <tr><td colSpan={4} className="px-5 py-4 text-center text-gray-500">Aucun encaissement sur cette période.</td></tr>
+                  ) : (
+                    revenuParMedecin.map((r) => (
+                      <tr key={r.medecin.id} className="hover:bg-gray-50">
+                        <td className="px-5 py-2.5 text-gray-900">Dr. {r.medecin?.prenom} {r.medecin?.nom}</td>
+                        <td className="px-5 py-2.5 text-right font-medium text-gray-900">{formatMontant(r.totalEncaisse)}</td>
+                        <td className="px-5 py-2.5 text-right text-emerald-700">
+                          {tauxRetrocession != null ? formatMontant(partMedecin(r.totalEncaisse)) : '—'}
+                        </td>
+                        <td className="px-5 py-2.5 text-right text-blue-700">
+                          {tauxRetrocession != null ? formatMontant(partCabinet(r.totalEncaisse)) : '—'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {revenuParMedecin.length > 0 && (
+                  <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                    <tr>
+                      <td className="px-5 py-2.5 text-right font-medium text-gray-700">Total</td>
+                      <td className="px-5 py-2.5 text-right font-bold text-gray-900">{formatMontant(totalEncaisseMedecins)}</td>
+                      <td className="px-5 py-2.5 text-right font-bold text-emerald-700">
+                        {tauxRetrocession != null ? formatMontant(partMedecin(totalEncaisseMedecins)) : '—'}
+                      </td>
+                      <td className="px-5 py-2.5 text-right font-bold text-blue-700">
+                        {tauxRetrocession != null ? formatMontant(partCabinet(totalEncaisseMedecins)) : '—'}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
             </div>
           </div>
 
@@ -964,7 +1108,7 @@ const Recapitulatif = () => {
                           <td className="px-6 py-3 font-medium text-gray-900">{couv.nom}</td>
                           <td className="px-5 py-3 text-right text-gray-600">{couv.factures.length}</td>
                           <td className="px-5 py-3 text-right text-emerald-700">{formatMontant(couv.totalPaye)}</td>
-                          <td className="px-5 py-3 text-right text-orange-700 font-medium">{formatMontant(couv.totalRestant)}</td>
+                          <td className={`px-5 py-3 text-right font-medium ${resteClass(couv.totalRestant)}`}>{resteLabel(couv.totalRestant)}</td>
                           <td className="px-6 py-3">
                             <div className="flex justify-center gap-2">
                               <button
@@ -1025,8 +1169,8 @@ const Recapitulatif = () => {
                               <td className="px-4 py-3 text-right text-emerald-700">{formatMontant(parseFloat(f.montant_paye || 0))}</td>
                               <td className="px-4 py-3 text-right text-orange-700 font-medium">{formatMontant(restant)}</td>
                               <td className="px-4 py-3">
-                                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${getStatusColor(f.statut_paiement)}`}>
-                                  {getStatusLabel(f.statut_paiement)}
+                                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${getStatusColor(getFactureStatut(f))}`}>
+                                  {getStatusLabel(getFactureStatut(f))}
                                 </span>
                               </td>
                               <td className="px-5 py-3 print:hidden">
