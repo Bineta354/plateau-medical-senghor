@@ -5,7 +5,6 @@ import { supabase } from '../../lib/supabase';
 import { unifiedNotificationService } from '../../services/unifiedNotificationService';
 import { sendNotification, NOTIFICATION_TYPES } from '../../lib/notifications';
 import { NewAppointmentModal } from '../rendez-vous/NewAppointmentModal';
-import Dropdown from '../common/Dropdown';
 import {
   Clock,
   Calendar,
@@ -707,9 +706,9 @@ const DoctorDashboard = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Patient Actuel */}
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+          {/* Patient Actuel + RDV du jour */}
+          <div className="lg:col-span-2 flex flex-col gap-6">
             <div className="bg-white rounded-3xl shadow-sm border border-gray-200">
               <div className="px-6 py-4 border-b border-gray-100 rounded-t-3xl flex items-center justify-between gap-3 flex-wrap">
                 <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-gray-400">Patient actuel</p>
@@ -723,48 +722,6 @@ const DoctorDashboard = () => {
                         <Lock className="w-3 h-3" />
                       </span>
                     )}
-                    <Dropdown
-                      value={selectedCurrentPatientId || ''}
-                      onChange={handleSelectCurrentPatient}
-                      disabled={isLockedInConsultation}
-                      title={isLockedInConsultation ? "Verrouillé pendant la consultation en cours" : undefined}
-                      options={[
-                        { value: '', label: '🤖 Auto (par défaut)' },
-                        ...waitingQueue
-                          .filter(p => ['waiting', 'present', 'authorized', 'medecin_pret', 'en_route', 'in_consultation', 'arrive'].includes(p.status))
-                          .sort((a, b) => {
-                            // Trier par statut puis par nom
-                            const statusOrder = { 'in_consultation': 0, 'en_route': 1, 'medecin_pret': 2, 'authorized': 3, 'present': 4, 'arrive': 5 };
-                            const statusDiff = (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
-                            if (statusDiff !== 0) return statusDiff;
-                            return `${a.patient_prenom} ${a.patient_nom}`.localeCompare(`${b.patient_prenom} ${b.patient_nom}`);
-                          })
-                          .map((patient) => {
-                            const statusIcon = {
-                              'present': '🔔',
-                              'authorized': '✅',
-                              'medecin_pret': '👨‍⚕️',
-                              'en_route': '🚶',
-                              'in_consultation': '🩺',
-                              'arrive': '👤'
-                            }[patient.status] || '👤';
-
-                            const statusText = {
-                              'present': 'Arrivé',
-                              'authorized': 'Autorisé',
-                              'medecin_pret': 'Médecin prêt',
-                              'en_route': 'Patient appelé',
-                              'in_consultation': 'En consultation',
-                              'arrive': 'Arrivé'
-                            }[patient.status] || 'En attente';
-
-                            return {
-                              value: patient.id || patient.waiting_queue_id,
-                              label: `${statusIcon} ${patient.patient_prenom} ${patient.patient_nom} (${statusText})`,
-                            };
-                          }),
-                      ]}
-                    />
                     {selectedCurrentPatientId && !isLockedInConsultation && (
                       <button
                         onClick={() => handleSelectCurrentPatient(null)}
@@ -933,15 +890,71 @@ const DoctorDashboard = () => {
                 </div>
               )}
             </div>
+
+            {/* RDV du jour */}
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+                <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-gray-400">RDV du jour · {todayAppointments.length}</p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/my-calendar')}
+                  className="text-xs font-medium text-medical-primary hover:text-medical-primary-dark whitespace-nowrap"
+                >
+                  Voir mon calendrier
+                </button>
+              </div>
+              <div className={`p-3.5 flex flex-col gap-2 ${todayAppointments.length > 3 ? 'max-h-64 overflow-y-auto' : ''}`}>
+                {todayAppointments.length > 0 ? (
+                  todayAppointments.map((appointment) => {
+                    const badge = getAppointmentStatusBadge(appointment);
+                    const isUrgentAppt = appointment.priorite === 'urgente' || appointment.priorite === 'tres_urgente';
+                    return (
+                      <div key={appointment.id} className={`p-3 rounded-2xl border text-sm ${isUrgentAppt ? 'border-red-100 bg-red-50/50' : 'border-gray-100'}`}>
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="font-medium text-gray-900 truncate flex items-center gap-1.5">
+                            {appointment.patient?.prenom} {appointment.patient?.nom}
+                            {isUrgentAppt && (
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0 ${
+                                appointment.priorite === 'tres_urgente' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                              }`}>
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                {appointment.priorite === 'tres_urgente' ? 'Très urgent' : 'Urgent'}
+                              </span>
+                            )}
+                          </span>
+                          <span className="flex items-center gap-2 flex-shrink-0">
+                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${badge.color}`}>
+                              {badge.label}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {new Date(appointment.date_heure).toLocaleTimeString('fr-FR', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">{appointment.motif}</p>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-4">
+                    <Calendar className="w-6 h-6 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500 text-xs">Aucun RDV aujourd'hui</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Salle d'attente */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden h-full flex flex-col">
               <div className="px-5 py-4 border-b border-gray-100">
                 <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-gray-400">Salle d'attente · {waitingQueue.length}</p>
               </div>
-              <div className="p-3.5 flex flex-col gap-2 max-h-96 overflow-y-auto">
+              <div className="p-3.5 flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
                 {waitingQueue.length > 0 ? (
                   waitingQueue.map((patient, index) => {
                     const isUrgentPatient = patient.priority === 'urgente' || patient.priority === 'tres_urgente';
@@ -994,62 +1007,6 @@ const DoctorDashboard = () => {
                   <div className="text-center py-8">
                     <Clock className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                     <p className="text-gray-500 text-sm">File d'attente vide</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* RDV du jour */}
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden mt-5">
-              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
-                <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-gray-400">RDV du jour · {todayAppointments.length}</p>
-                <button
-                  type="button"
-                  onClick={() => navigate('/my-calendar')}
-                  className="text-xs font-medium text-medical-primary hover:text-medical-primary-dark whitespace-nowrap"
-                >
-                  Voir mon calendrier
-                </button>
-              </div>
-              <div className={`p-3.5 flex flex-col gap-2 ${todayAppointments.length > 3 ? 'max-h-64 overflow-y-auto' : ''}`}>
-                {todayAppointments.length > 0 ? (
-                  todayAppointments.map((appointment) => {
-                    const badge = getAppointmentStatusBadge(appointment);
-                    const isUrgentAppt = appointment.priorite === 'urgente' || appointment.priorite === 'tres_urgente';
-                    return (
-                      <div key={appointment.id} className={`p-3 rounded-2xl border text-sm ${isUrgentAppt ? 'border-red-100 bg-red-50/50' : 'border-gray-100'}`}>
-                        <div className="flex justify-between items-center gap-2">
-                          <span className="font-medium text-gray-900 truncate flex items-center gap-1.5">
-                            {appointment.patient?.prenom} {appointment.patient?.nom}
-                            {isUrgentAppt && (
-                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0 ${
-                                appointment.priorite === 'tres_urgente' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
-                              }`}>
-                                <AlertTriangle className="w-2.5 h-2.5" />
-                                {appointment.priorite === 'tres_urgente' ? 'Très urgent' : 'Urgent'}
-                              </span>
-                            )}
-                          </span>
-                          <span className="flex items-center gap-2 flex-shrink-0">
-                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${badge.color}`}>
-                              {badge.label}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              {new Date(appointment.date_heure).toLocaleTimeString('fr-FR', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">{appointment.motif}</p>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="text-center py-4">
-                    <Calendar className="w-6 h-6 text-gray-300 mx-auto mb-2" />
-                    <p className="text-gray-500 text-xs">Aucun RDV aujourd'hui</p>
                   </div>
                 )}
               </div>
