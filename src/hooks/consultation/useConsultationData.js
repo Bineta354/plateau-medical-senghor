@@ -123,12 +123,12 @@ export const useConsultationData = (id) => {
   const fetchSyntheseHistorique = useCallback(async (patientId) => {
     if (!patientId) return;
     try {
-      const data = await consultationService.getSyntheseHistorique(patientId);
+      const data = await consultationService.getSyntheseHistorique(patientId, id);
       setSyntheseHistorique(data);
     } catch (e) {
       console.error("Erreur fetchSyntheseHistorique", e);
     }
-  }, []);
+  }, [id]);
 
 
   const refetch = useCallback(() => {

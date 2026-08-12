@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import PropTypes from 'prop-types';
 import { Activity, AlertCircle, Award, Brain, Calendar, Edit, Eye, FileText, Heart, Pill, Plus, Trash2, User } from 'lucide-react';
 import { generateSynthesisPDF } from '../../services/impression/synthesePdf';
-import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { useAlert } from '../../contexts/AlertContext';
 import { useAuth } from '../../contexts/AuthContext';
 import SyntheseModal from './modals/SyntheseModal';
 export default function SyntheseTab(
@@ -28,36 +28,54 @@ export default function SyntheseTab(
   }
 ) {
   const { tenantId } = useAuth();
-  // Handlers détectés et injectés 
-    const { showError, showInfo, showSuccess, showWarning } = useConfirmDialog();
-  
+  const { showError, showInfo, showSuccess, showWarning } = useAlert();
 
-  // inline_handler : Inline (() => ...) défini directement dans JSX
   const [showSyntheseModal, setShowSyntheseModal] = useState(false)
+  const [editingSynthese, setEditingSynthese] = useState(null);
   const handleAddSynthese = () => {
+    setEditingSynthese(null);
     setShowSyntheseModal(true);
   };
-    // Fonction pour générer automatiquement une synthèse basée sur les données collectées
+  const handleEditSynthese = (synthese) => {
+    setEditingSynthese(synthese);
+    setShowSyntheseModal(true);
+  };
+  const handleDeleteSynthese = async (synthese) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cet élément de synthèse ?')) return;
+    try {
+      const { error } = await supabase
+        .from('syntheses_consultation')
+        .delete()
+        .eq('id', synthese.id);
+      if (error) throw error;
+      await fetchSyntheses();
+      showSuccess('Élément de synthèse supprimé avec succès !');
+    } catch (error) {
+      console.error('Erreur lors de la suppression de la synthèse:', error);
+      showError('Erreur lors de la suppression de la synthèse: ' + error.message);
+    }
+  };
+    // Fonction pour générer automatiquement une synthèse basée sur les données collectées.
+  // Répartit le texte par type_element (observation/prescription/recommandation) plutôt que
+  // de tout regrouper sous un seul élément — le type_element est une valeur fixe (contrainte
+  // CHECK en base), donc fiable même si le cabinet a renommé ses éléments de synthèse.
   const generateAutoSynthesis = async () => {
     try {
-      // Créer un résumé automatique basé sur les données existantes
-      let syntheseText = '';
-      
-      // Résumé des antécédents
+      const textsByType = { observation: '', prescription: '', recommandation: '' };
+
+      // Observations : antécédents, constantes, signes cliniques, examens d'appareils, diagnostics
       if (antecedents && antecedents.length > 0) {
         const antecedentsList = antecedents.map(ant => ant.antecedents?.nom || ant.antecedent).join(', ');
-        syntheseText += `Antécédents significatifs : ${antecedentsList}. `;
+        textsByType.observation += `Antécédents significatifs : ${antecedentsList}. `;
       }
-      
-      // Résumé des constantes
+
       if (constantes && constantes.length > 0) {
-        const constantesList = constantes.map(const_ => 
+        const constantesList = constantes.map(const_ =>
           `${const_.constantes?.nom}: ${const_.valeur_mesuree} ${const_.unite || const_.constantes?.unite || ''}`
         ).join(', ');
-        syntheseText += `Constantes vitales : ${constantesList}. `;
+        textsByType.observation += `Constantes vitales : ${constantesList}. `;
       }
-      
-      // Résumé des signes cliniques
+
       if (signesCliniques && signesCliniques.length > 0) {
         const signesList = signesCliniques.map(signe => {
           let desc = signe.signes_cliniques?.nom;
@@ -66,10 +84,9 @@ export default function SyntheseTab(
           }
           return desc;
         }).join(', ');
-        syntheseText += `Signes cliniques observés : ${signesList}. `;
+        textsByType.observation += `Signes cliniques observés : ${signesList}. `;
       }
-      
-      // Résumé des examens d'appareils
+
       if (examensAppareils && examensAppareils.length > 0) {
         const examensList = examensAppareils.map(examen => {
           let desc = `${examen.appareils?.nom}: ${examen.resultat_examen}`;
@@ -78,73 +95,70 @@ export default function SyntheseTab(
           }
           return desc;
         }).join('; ');
-        syntheseText += `Examens d'appareils : ${examensList}. `;
+        textsByType.observation += `Examens d'appareils : ${examensList}. `;
       }
-      
-      // Résumé des diagnostics
+
       if (diagnostics && diagnostics.length > 0) {
-        const diagnosticsList = diagnostics.map(diag => 
+        const diagnosticsList = diagnostics.map(diag =>
           `${diag.diagnostics?.nom} (${diag.certitude})`
         ).join(', ');
-        syntheseText += `Diagnostics posés : ${diagnosticsList}. `;
+        textsByType.observation += `Diagnostics posés : ${diagnosticsList}. `;
       }
-      
-      // Résumé des prescriptions
+
+      // Prescriptions : ordonnances
       if (ordonnances && ordonnances.length > 0) {
-        const totalMedicaments = ordonnances.reduce((total, ord) => 
+        const totalMedicaments = ordonnances.reduce((total, ord) =>
           total + (ord.lignes_ordonnance?.length || 0), 0
         );
-        syntheseText += `${ordonnances.length} ordonnance(s) prescrite(s) avec ${totalMedicaments} médicament(s). `;
+        textsByType.prescription += `${ordonnances.length} ordonnance(s) prescrite(s) avec ${totalMedicaments} médicament(s). `;
       }
-      
-      // Résumé des certificats
+
+      // Recommandations : certificats
       if (certificats && certificats.length > 0) {
-        const certificatsList = certificats.map(cert => 
+        const certificatsList = certificats.map(cert =>
           `${cert.types_certificats?.nom || 'Certificat médical'} (${cert.duree_jours} jour${cert.duree_jours > 1 ? 's' : ''})`
         ).join(', ');
-        syntheseText += `Certificats émis : ${certificatsList}. `;
+        textsByType.recommandation += `Certificats émis : ${certificatsList}. `;
       }
-      
-      if (syntheseText.trim() === '') {
+
+      const hasContent = Object.values(textsByType).some((text) => text.trim() !== '');
+      if (!hasContent) {
         showInfo('Aucune donnée disponible pour générer une synthèse automatique. Veuillez remplir les autres onglets d\'abord.');
         return;
       }
-      
-      // Chercher un élément de synthèse générique ou créer une entrée
-      let elementSyntheseId = null;
-      
-      // Essayer de trouver un élément "Résumé automatique" ou similaire
-      const elementAuto = elementsSyntheseRef.find(el => 
-        el.nom.toLowerCase().includes('résumé') || 
-        el.nom.toLowerCase().includes('synthèse') ||
-        el.nom.toLowerCase().includes('automatique')
-      );
-      
-      if (elementAuto) {
-        elementSyntheseId = elementAuto.id;
-      } else if (elementsSyntheseRef && elementsSyntheseRef.length > 0) {
-        // Utiliser le premier élément disponible
-        elementSyntheseId = elementsSyntheseRef[0].id;
-      } else {
+
+      if (!elementsSyntheseRef || elementsSyntheseRef.length === 0) {
         showWarning('Aucun élément de synthèse disponible dans la base de données. Veuillez contacter l\'administrateur.');
         return;
       }
-      
-      // Insérer la synthèse automatique
-      const { error } = await supabase
-        .from('syntheses_consultation')
-        .insert({
-          consultation_id: parseInt(id),
-          element_synthese_id: elementSyntheseId,
-          commentaires: `[Synthèse automatique générée le ${new Date().toLocaleString('fr-FR')}]\n\n${syntheseText.trim()}`
+
+      // Un élément par type, avec repli sur un élément "observation" (ou à défaut le premier
+      // disponible) si le cabinet n'a pas configuré d'élément de ce type précis.
+      const findElementByType = (type) => elementsSyntheseRef.find((el) => el.type_element === type);
+      const fallbackElement = findElementByType('observation') || elementsSyntheseRef[0];
+
+      const generatedAt = new Date().toLocaleString('fr-FR');
+      const rows = Object.entries(textsByType)
+        .filter(([, text]) => text.trim() !== '')
+        .map(([type, text]) => {
+          const element = findElementByType(type) || fallbackElement;
+          return {
+            consultation_id: parseInt(id),
+            element_synthese_id: element.id,
+            commentaires: `[Synthèse automatique générée le ${generatedAt}]\n\n${text.trim()}`
+          };
         });
 
+      const { error } = await supabase
+        .from('syntheses_consultation')
+        .insert(rows);
+
       if (error) throw error;
-      
+
       // Recharger les synthèses
       await fetchSyntheses();
       showSuccess('Synthèse automatique générée avec succès !');
-      
+
     } catch (error) {
       console.error('Erreur lors de la génération de la synthèse:', error);
       showError('Erreur lors de la génération de la synthèse: ' + error.message);
@@ -466,12 +480,24 @@ export default function SyntheseTab(
                           {synthese.elements_synthese?.nom}
                         </h4>
                         <div className="flex items-center space-x-2">
-                          <button className="text-blue-600 hover:text-blue-800">
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button className="text-red-600 hover:text-red-800">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {!isTerminated && (
+                            <>
+                              <button
+                                onClick={() => handleEditSynthese(synthese)}
+                                className="text-blue-600 hover:text-blue-800"
+                                title="Modifier"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSynthese(synthese)}
+                                className="text-red-600 hover:text-red-800"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                       {synthese.commentaires && (
@@ -602,6 +628,7 @@ export default function SyntheseTab(
         id={id}
         fetchSyntheses={fetchSyntheses}
         elementsSyntheseRef={elementsSyntheseRef}
+        editingSynthese={editingSynthese}
          />)}
   </>
     )}

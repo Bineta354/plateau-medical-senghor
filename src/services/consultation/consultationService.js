@@ -359,14 +359,23 @@ export const getCertificats = async (consultationId) => {
   return data || [];
 };
 
-export const getSyntheseHistorique = async (patientId) => {
+// Retourne l'historique des synthèses du patient, regroupées par consultation
+// (une entrée par consultation ayant au moins une synthèse, avec sa liste de
+// synthèses) — c'est la forme attendue par la vue "Historique complet" de
+// SyntheseTab.jsx (consultation.date_consultation / medecin_prenom / medecin_nom
+// / is_current / syntheses).
+export const getSyntheseHistorique = async (patientId, currentConsultationId = null) => {
   if (!patientId) return [];
-  const { data: consultations } = await supabase
+  const { data: consultations, error: consultationsError } = await supabase
     .from('consultations')
-    .select('id')
+    .select('id, date_consultation, users:medecin_id (prenom, nom)')
     .eq('patient_id', patientId)
     .order('date_consultation', { ascending: false })
     .limit(20);
+  if (consultationsError) {
+    console.error('Erreur getSyntheseHistorique (consultations):', consultationsError);
+    return [];
+  }
   const consultationIds = (consultations || []).map((c) => c.id);
   if (consultationIds.length === 0) return [];
   const { data, error } = await supabase
@@ -374,18 +383,41 @@ export const getSyntheseHistorique = async (patientId) => {
     .select(`
       id,
       consultation_id,
-      element_synthese_id,
       commentaires,
       created_at,
-      elements_synthese (id, nom, description)
+      elements_synthese (nom, description, categorie, type_element)
     `)
     .in('consultation_id', consultationIds)
     .order('created_at', { ascending: false });
   if (error) {
-    console.error('Erreur getSyntheseHistorique:', error);
+    console.error('Erreur getSyntheseHistorique (syntheses):', error);
     return [];
   }
-  return data || [];
+
+  const syntheseParConsultation = {};
+  (data || []).forEach((s) => {
+    if (!syntheseParConsultation[s.consultation_id]) syntheseParConsultation[s.consultation_id] = [];
+    syntheseParConsultation[s.consultation_id].push({
+      id: s.id,
+      element_nom: s.elements_synthese?.nom,
+      element_description: s.elements_synthese?.description,
+      element_categorie: s.elements_synthese?.categorie,
+      element_type: s.elements_synthese?.type_element,
+      commentaires: s.commentaires,
+      created_at: s.created_at,
+    });
+  });
+
+  return consultations
+    .filter((c) => syntheseParConsultation[c.id]?.length)
+    .map((c) => ({
+      consultation_id: c.id,
+      date_consultation: c.date_consultation,
+      medecin_prenom: c.users?.prenom,
+      medecin_nom: c.users?.nom,
+      is_current: currentConsultationId != null && String(c.id) === String(currentConsultationId),
+      syntheses: syntheseParConsultation[c.id],
+    }));
 };
 
 export const toggleAntecedentStatus = async (antecedentPatientId, currentActif) => {
