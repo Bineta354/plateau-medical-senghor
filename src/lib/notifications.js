@@ -96,8 +96,11 @@ export const sendNotification = async (type, senderId, receiverId, consultationI
     const message = generateNotificationMessage(type, patientName, additionalData.medecinName);
     const titre = generateNotificationTitle(type);
     
-    // Pour CONSULTATION_ENDED et FACTURATION_COMPLETE, envoyer à TOUTES les secrétaires actives du MÊME cabinet
-    if (type === NOTIFICATION_TYPES.CONSULTATION_ENDED || type === NOTIFICATION_TYPES.FACTURATION_COMPLETE) {
+    // Pour CONSULTATION_ENDED, FACTURATION_COMPLETE et PATIENT_CALLED, envoyer à TOUTES les secrétaires actives du MÊME cabinet
+    // (PATIENT_CALLED est appelé avec receiverId=null depuis DoctorDashboard_Fixed.jsx dans cette
+    // intention ; sans cette branche, secretaire_id finissait à null dans l'insert "normal" ci-dessous
+    // et la notification n'apparaissait donc jamais pour aucune secrétaire).
+    if (type === NOTIFICATION_TYPES.CONSULTATION_ENDED || type === NOTIFICATION_TYPES.FACTURATION_COMPLETE || type === NOTIFICATION_TYPES.PATIENT_CALLED) {
       console.log('🔵 [Notifications] Notification', type, '- Envoi aux secrétaires actives du cabinet');
       
       let query = supabase

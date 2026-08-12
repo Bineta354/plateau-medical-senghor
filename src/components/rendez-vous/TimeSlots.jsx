@@ -1,7 +1,15 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-const TimeSlots = ({ slots, onSelectSlot, manualTime, onManualTimeChange, duree, onDureeChange, hasConflict, selectedDateTime }) => {
+const TimeSlots = ({ slots, onSelectSlot, manualTime, onManualTimeChange, duree, onDureeChange, hasConflict, selectedDateTime, minTime, maxTime, closed }) => {
+  if (closed) {
+    return (
+      <div className="rounded-lg border border-dashed border-red-300 bg-red-50 p-4 text-sm text-red-700">
+        Le cabinet est fermé ce jour-là. Veuillez choisir une autre date.
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
@@ -50,6 +58,8 @@ const TimeSlots = ({ slots, onSelectSlot, manualTime, onManualTimeChange, duree,
             step="300"
             value={manualTime}
             onChange={(e) => onManualTimeChange(e.target.value)}
+            min={minTime}
+            max={maxTime}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
           />
         </div>
@@ -83,7 +93,10 @@ TimeSlots.propTypes = {
   duree: PropTypes.number.isRequired,
   onDureeChange: PropTypes.func.isRequired,
   hasConflict: PropTypes.bool,
-  selectedDateTime: PropTypes.string
+  selectedDateTime: PropTypes.string,
+  minTime: PropTypes.string,
+  maxTime: PropTypes.string,
+  closed: PropTypes.bool
 };
 
 export default TimeSlots;

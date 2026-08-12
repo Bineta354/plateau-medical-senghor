@@ -21,6 +21,10 @@ npx jest -t "test name substring"          # single test by name
 
 Tests live centrally under `src/tests/` (components/, services/, integration/, performance/), not colocated next to source files. Only a handful exist today.
 
+## Before writing new code
+
+Before adding a new component, modal, or data-fetching function, check whether one already exists and reuse/wire it in rather than writing a parallel one-off. This codebase has repeatedly grown duplicate inline versions of things that already exist as shared components/services (e.g. `src/components/rendez-vous/NewAppointmentModal.jsx` is the one "Nouveau rendez-vous" modal — several pages used to each carry their own inline copy). Grep for the feature name/domain term first (component name, service name, table name) before implementing.
+
 ## Architecture
 
 **Stack**: React 19 + Vite, Tailwind, Supabase (Postgres + Auth + Realtime), react-router-dom v7 with **`HashRouter`** — every in-app route is `#/...`. Entry point is `src/main.tsx` → `src/App.jsx` (there is also an `App.optimized.jsx` in `src/` — it is *not* wired up anywhere and can be ignored/removed; the live one is `App.jsx`).

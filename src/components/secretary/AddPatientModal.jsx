@@ -4,6 +4,7 @@ import { useAlert } from '../../contexts/AlertContext';
 import { generateNumeroDossier, validateBirthDate } from '../../services/patientService';
 import { validatePatientForm, getDateNaissanceError, normalizePatientPayload } from '../../schemas/patientSchema';
 import SearchableSelect from '../common/SearchableSelect';
+import Dropdown from '../common/Dropdown';
 import CreateRdvModal from '../doctor/CreateRdvModal';
 import PatientAntecedentsModal from './PatientAntecedentsModal';
 import {
@@ -566,14 +567,16 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Sexe
                           </label>
-                          <select
+                          <Dropdown
                             value={newPatient.sexe}
-                            onChange={(e) => setNewPatient({...newPatient, sexe: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                          >
-                            <option value="M">Masculin</option>
-                            <option value="F">Féminin</option>
-                          </select>
+                            onChange={(value) => setNewPatient({...newPatient, sexe: value})}
+                            options={[
+                              { value: 'M', label: 'Masculin' },
+                              { value: 'F', label: 'Féminin' },
+                            ]}
+                            size="md"
+                            className="w-full"
+                          />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -688,16 +691,18 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
                                     <label className="block text-xs font-medium text-gray-700 mb-1">
                                       Type d'assurance
                                     </label>
-                                    <select
+                                    <Dropdown
                                       value={newAssurance.type_assurance}
-                                      onChange={(e) => setNewAssurance({...newAssurance, type_assurance: e.target.value})}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent text-sm"
-                                    >
-                                      <option value="mutuelle">Mutuelle</option>
-                                      <option value="securite_sociale">Sécurité sociale</option>
-                                      <option value="privee">Privée</option>
-                                      <option value="autre">Autre</option>
-                                    </select>
+                                      onChange={(value) => setNewAssurance({...newAssurance, type_assurance: value})}
+                                      options={[
+                                        { value: 'mutuelle', label: 'Mutuelle' },
+                                        { value: 'securite_sociale', label: 'Sécurité sociale' },
+                                        { value: 'privee', label: 'Privée' },
+                                        { value: 'autre', label: 'Autre' },
+                                      ]}
+                                      size="sm"
+                                      className="w-full"
+                                    />
                                   </div>
                                   <div>
                                     <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -769,18 +774,19 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Médecin *
                   </label>
-                  <select
+                  <Dropdown
                     value={selectedDoctor}
-                    onChange={(e) => setSelectedDoctor(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  >
-                    <option value="">Sélectionner un médecin</option>
-                    {doctors.map((doctor) => (
-                      <option key={doctor.id} value={doctor.id}>
-                        Dr. {doctor.prenom} {doctor.nom} - {doctor.specialite}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setSelectedDoctor(value)}
+                    options={[
+                      { value: '', label: 'Sélectionner un médecin' },
+                      ...doctors.map((doctor) => ({
+                        value: doctor.id,
+                        label: `Dr. ${doctor.prenom} ${doctor.nom} - ${doctor.specialite}`,
+                      })),
+                    ]}
+                    size="md"
+                    className="w-full"
+                  />
                 </div>
 
                 {/* Priorité */}
@@ -788,15 +794,17 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Priorité
                   </label>
-                  <select
+                  <Dropdown
                     value={priority}
-                    onChange={(e) => setPriority(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  >
-                    <option value="normale">Normale</option>
-                    <option value="urgente">Urgente</option>
-                    <option value="tres_urgente">Très urgente</option>
-                  </select>
+                    onChange={(value) => setPriority(value)}
+                    options={[
+                      { value: 'normale', label: 'Normale' },
+                      { value: 'urgente', label: 'Urgente' },
+                      { value: 'tres_urgente', label: 'Très urgente' },
+                    ]}
+                    size="md"
+                    className="w-full"
+                  />
                 </div>
 
                 {/* Notes */}

@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { 
-  Users, 
-  Search, 
-  Plus, 
+import {
+  Users,
+  Search,
+  Plus,
   Eye,
   Phone,
   Mail,
@@ -13,10 +13,9 @@ import {
   AlertCircle,
   RefreshCw,
   Edit,
-  Trash2,
-  ChevronLeft,
-  ChevronRight
+  Trash2
 } from 'lucide-react';
+import Pagination, { ItemsPerPageSelector } from '../components/common/Pagination';
 
 const MesPatientsPage = () => {
   console.log('🔄 [MesPatientsPage] DÉBUT - Chargement de la page Mes Patients');
@@ -29,12 +28,16 @@ const MesPatientsPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [userProfile, setUserProfile] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage] = useState(15);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
     const [recentFilter, setRecentFilter] = useState(true); // Par défaut, afficher seulement les patients récents
 
     useEffect(() => {
       initializeData();
     }, []);
+
+    useEffect(() => {
+      setCurrentPage(1);
+    }, [searchTerm]);
 
     const initializeData = async () => {
       try {
@@ -164,22 +167,6 @@ const MesPatientsPage = () => {
     const endIndex = startIndex + itemsPerPage;
     const paginatedPatients = filteredPatients.slice(startIndex, endIndex);
 
-    const handlePageChange = (page) => {
-      setCurrentPage(page);
-    };
-
-    const handlePreviousPage = () => {
-      if (currentPage > 1) {
-        setCurrentPage(currentPage - 1);
-      }
-    };
-
-    const handleNextPage = () => {
-      if (currentPage < totalPages) {
-        setCurrentPage(currentPage + 1);
-      }
-    };
-
     if (loading) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -232,9 +219,22 @@ const MesPatientsPage = () => {
             </button>
           </div>
 
-          <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-600">
+              {filteredPatients.length} patient(s) trouvé(s)
+            </p>
+            <ItemsPerPageSelector
+              value={itemsPerPage}
+              onChange={(size) => {
+                setItemsPerPage(size);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+
+          <div className="overflow-x-auto overflow-y-auto max-h-[400px]">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0">
+              <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Patient
@@ -327,42 +327,15 @@ const MesPatientsPage = () => {
             </div>
           )}
 
-          {filteredPatients.length > 0 && totalPages > 1 && (
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
-              <div className="text-sm text-gray-600">
-                Affichage de {startIndex + 1} à {Math.min(endIndex, filteredPatients.length)} sur {filteredPatients.length} patients
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePreviousPage}
-                  disabled={currentPage === 1}
-                  className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => handlePageChange(page)}
-                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                        currentPage === page
-                          ? 'bg-medical-primary text-white'
-                          : 'border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={handleNextPage}
-                  disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
+          {filteredPatients.length > 0 && (
+            <div className="border-t border-gray-200">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                itemsPerPage={itemsPerPage}
+                totalItems={filteredPatients.length}
+              />
             </div>
           )}
         </div>

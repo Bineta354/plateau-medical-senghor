@@ -5,7 +5,6 @@ import { supabase } from '../../lib/supabase';
 import {
   Users,
   Search,
-  Filter,
   RefreshCw,
   Bell,
   Eye,
@@ -280,23 +279,6 @@ const SecretaryDashboard = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
                 />
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <Filter className="w-4 h-4 text-gray-400" />
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                >
-                  <option value="all">Tous les statuts</option>
-                  <option value="waiting">En attente</option>
-                  <option value="appele">Appelé</option>
-                  <option value="entre">Entré</option>
-                  <option value="in_consultation">En consultation</option>
-                  <option value="urgent">Urgences</option>
-                  <option value="finished">Terminé</option>
-                </select>
               </div>
             </div>
 

@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import AppointmentTypeMotifFields from '../common/AppointmentTypeMotifFields';
 
-const ConfirmationDetails = ({ formData, onChange }) => {
+const ConfirmationDetails = ({ formData, onChange, isEditing }) => {
   return (
     <>
       <AppointmentTypeMotifFields
@@ -23,7 +23,7 @@ const ConfirmationDetails = ({ formData, onChange }) => {
         >
           <option value="confirme">Confirmé</option>
           <option value="en_attente">En attente</option>
-          <option value="annule">Annulé</option>
+          {isEditing && <option value="annule">Annulé</option>}
         </select>
       </div>
 
@@ -44,6 +44,7 @@ const ConfirmationDetails = ({ formData, onChange }) => {
 ConfirmationDetails.propTypes = {
   formData: PropTypes.object.isRequired,
   onChange: PropTypes.func.isRequired,
+  isEditing: PropTypes.bool,
 };
 
 export default ConfirmationDetails;

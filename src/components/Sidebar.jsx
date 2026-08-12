@@ -1,18 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, 
   Users, 
   Calendar, 
   Clock, 
-  FileText, 
-  Pill, 
-  Coins, 
-  BarChart3, 
-  Settings, 
-  UserCheck, 
-  Building2, 
+  FileText,
+  Coins,
+  BarChart3,
+  Settings,
   Shield,
   ChevronLeft,
   ChevronRight,
@@ -27,14 +24,16 @@ import {
   CalendarDays,
   Clock3,
   Cog,
-  Award,
   CalendarPlus,
   MessageSquare,
   ChevronDown,
   ChevronUp,
   Sparkles,
   Database,
-  CheckCircle
+  CheckCircle,
+  Briefcase,
+  Pill,
+  Award
 } from 'lucide-react';
 import { usePersonnalisation } from '../contexts/PersonnalisationContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -49,6 +48,14 @@ const financeSection = (roleKey, section, sectionLabel, sectionIcon) => {
   return items.length ? [{ name: sectionLabel, icon: sectionIcon, items }] : [];
 };
 
+/** Étiquette une liste de modules avec le groupe de vue admin auquel ils appartiennent. */
+const withGroup = (modules, group) => modules.map((m) => ({ ...m, group }));
+
+const ADMIN_VIEWS = [
+  { key: 'administration', label: 'Administration', icon: Shield },
+  { key: 'metier', label: 'Modules métier', icon: Briefcase },
+];
+
 const Sidebar = ({
   width = 256,
   isCollapsed: isCollapsedProp,
@@ -61,7 +68,9 @@ const Sidebar = ({
     onToggleCollapsed ||
     (() => setIsCollapsedInternal((prev) => !prev));
   const [expandedModules, setExpandedModules] = useState({});
+  const [adminView, setAdminView] = useState('administration');
   const location = useLocation();
+  const navigate = useNavigate();
   const { currentUser, userProfile, logout, hasRole } = useAuth();
   const { settings } = usePersonnalisation();
 
@@ -86,7 +95,6 @@ const Sidebar = ({
         name: 'PATIENTS',
         icon: Users,
         items: [
-          { name: 'Fiche Identification', icon: UserCheck, path: '/fiche-identification' },
           { name: 'Liste des Patients', icon: Users, path: '/patients' },
         ]
       },
@@ -96,10 +104,8 @@ const Sidebar = ({
         items: [
           { name: 'Prise de Rendez-vous', icon: CalendarPlus, path: '/rendez-vous/prise-rendez-vous' },
           { name: 'Salle d\'attente', icon: Clock3, path: '/salle-attente' },
-          { name: 'Fiche Patient', icon: UserCheck, path: '/rendez-vous/fiche-patient' },
           { name: 'Recherche Rendez-vous', icon: Search, path: '/appointments/recherche' },
           { name: 'Rappels SMS', icon: MessageSquare, path: '/rendez-vous/rappels-sms' },
-          { name: 'Détails des rendez-vous', icon: FileText, path: '/rendez-vous/details' },
         ]
       },
       {
@@ -128,14 +134,12 @@ const Sidebar = ({
         items: [
           { name: 'Tableau de bord', icon: LayoutDashboard, path: '/dashboard' },
           { name: 'Mes Rendez-vous', icon: Calendar, path: '/my-calendar' },
-          { name: 'Salle d\'attente', icon: Users, path: '/my-waiting-queue' },
         ]
       },
       {
         name: 'PATIENTS',
         icon: Users,
         items: [
-          { name: 'Mes Patients', icon: UserCheck, path: '/my-patients' },
           { name: 'Patients', icon: Users, path: '/patients' },
         ]
       },
@@ -144,10 +148,6 @@ const Sidebar = ({
         icon: Stethoscope,
         items: [
           { name: 'Consultations', icon: Stethoscope, path: '/consultations' },
-          { name: 'Dossiers Médicaux', icon: FileText, path: '/medical-records' },
-          { name: 'Examen Médical', icon: Stethoscope, path: '/examen-medical' },
-          { name: 'Ordonnances', icon: Pill, path: '/ordonnances' },
-          { name: 'Prescription', icon: Pill, path: '/prescription' },
           { name: 'Actes', icon: ClipboardList, path: '/actes' },
           { name: 'BCDS', icon: FileText, path: '/bcds' },
         ]
@@ -162,58 +162,65 @@ const Sidebar = ({
       }
     ],
     admin: [
-      {
-        name: 'PRINCIPAL',
-        icon: LayoutDashboard,
-        items: [
-          { name: 'Tableau de bord', icon: LayoutDashboard, path: '/dashboard' },
-          { name: 'Calendrier', icon: Calendar, path: '/appointments' },
-          { name: 'Recherche Rendez-vous', icon: Search, path: '/appointments/recherche' },
-        ]
-      },
-      ...financeSection(ROLES.ADMIN, 'guichet', 'CAISSE & CORRECTIONS', Coins),
-      ...financeSection(ROLES.ADMIN, 'suivi', 'SUIVI & IMPAYÉS', BarChart3),
-      ...financeSection(ROLES.ADMIN, 'pilotage', 'COMPTABILITÉ', Calculator),
-      ...financeSection(ROLES.ADMIN, 'facturation', 'FACTURATION', FileText),
-      {
-        name: 'GESTION',
-        icon: Users,
-        items: [
-          { name: 'Utilisateurs', icon: Users, path: '/administration/gestion-utilisateurs' },
-          { name: 'Médecins', icon: Stethoscope, path: '/administration/gestion-medecins' },
-          { name: 'Secrétaires', icon: UserCheck, path: '/administration/gestion-secretaires' },
-          { name: 'Comptables', icon: Calculator, path: '/administration/gestion-comptables' },
-          { name: 'Caissiers', icon: Calculator, path: '/administration/gestion-caissiers' },
-          { name: 'Administrateurs', icon: Shield, path: '/administration/gestion-admins' },
-          { name: 'Patients', icon: Users, path: '/patients' },
-        ]
-      },
-      {
-        name: 'PARAMÉTRAGE',
-        icon: Cog,
-        items: [
-          { name: 'Paramétrage', icon: Settings, path: '/parametrage' },
-          { name: 'Spécialités', icon: Award, path: '/parametrage/specialites' },
-          { name: 'Médicaments', icon: Pill, path: '/parametrage/medicaments' },
-          { name: 'Personnalisation', icon: Sparkles, path: '/administration/personnalisation' },
-          { name: 'États Dentaires', icon: Activity, path: '/parametrage/etats-dentaires' },
-        ]
-      },
-      {
-        name: 'SÉCURITÉ',
-        icon: Shield,
-        items: [
-          { name: 'Sécurité', icon: Shield, path: '/security' },
-        ]
-      },
-      {
-        name: 'REPORTING',
-        icon: BarChart3,
-        items: [
-          { name: 'Statistiques', icon: BarChart3, path: '/statistics' },
-          { name: 'Historiques & Archives', icon: Archive, path: '/historiques-archives' },
-        ]
-      }
+      ...withGroup([
+        {
+          name: 'PRINCIPAL',
+          icon: LayoutDashboard,
+          items: [
+            { name: 'Tableau de bord', icon: LayoutDashboard, path: '/dashboard' },
+            { name: 'Calendrier', icon: Calendar, path: '/appointments' },
+            { name: 'Recherche Rendez-vous', icon: Search, path: '/appointments/recherche' },
+            { name: 'Patients', icon: Users, path: '/patients' },
+          ]
+        },
+      ], 'metier'),
+      ...withGroup(financeSection(ROLES.ADMIN, 'guichet', 'CAISSE & CORRECTIONS', Coins), 'metier'),
+      ...withGroup(financeSection(ROLES.ADMIN, 'suivi', 'SUIVI & IMPAYÉS', BarChart3), 'metier'),
+      ...withGroup(financeSection(ROLES.ADMIN, 'pilotage', 'COMPTABILITÉ', Calculator), 'metier'),
+      ...withGroup(financeSection(ROLES.ADMIN, 'facturation', 'FACTURATION', FileText), 'metier'),
+      ...withGroup([
+        {
+          name: 'PRINCIPAL',
+          icon: LayoutDashboard,
+          items: [
+            { name: 'Tableau de bord', icon: LayoutDashboard, path: '/administration/tableau-de-bord' },
+          ]
+        },
+        {
+          name: 'GESTION',
+          icon: Users,
+          items: [
+            { name: 'Utilisateurs', icon: Users, path: '/administration/gestion-utilisateurs' },
+            { name: 'Médecins', icon: Stethoscope, path: '/administration/gestion-medecins' },
+          ]
+        },
+        {
+          name: 'PARAMÉTRAGE',
+          icon: Cog,
+          items: [
+            { name: 'Paramétrage', icon: Settings, path: '/parametrage' },
+            { name: 'Spécialités', icon: Award, path: '/parametrage/specialites' },
+            { name: 'Médicaments', icon: Pill, path: '/parametrage/medicaments' },
+            { name: 'Personnalisation', icon: Sparkles, path: '/administration/personnalisation' },
+            { name: 'États Dentaires', icon: Activity, path: '/parametrage/etats-dentaires' },
+          ]
+        },
+        {
+          name: 'SÉCURITÉ',
+          icon: Shield,
+          items: [
+            { name: 'Sécurité', icon: Shield, path: '/security' },
+          ]
+        },
+        {
+          name: 'REPORTING',
+          icon: BarChart3,
+          items: [
+            { name: 'Statistiques', icon: BarChart3, path: '/statistics' },
+            { name: 'Historiques & Archives', icon: Archive, path: '/historiques-archives' },
+          ]
+        }
+      ], 'administration')
     ]
   };
 
@@ -234,7 +241,10 @@ const Sidebar = ({
     return null;
   }
   
-  const modules = navigationItems[currentRole] || [];
+  const allModules = navigationItems[currentRole] || [];
+  const modules = currentRole === 'admin'
+    ? allModules.filter((m) => m.group === adminView)
+    : allModules;
   
   // Log pour debug des permissions (seulement une fois par changement de rôle ou de modules)
   const userRole = currentUser?.profile?.role || userProfile?.role || currentUser?.user_metadata?.role || currentUser?.app_metadata?.role;
@@ -256,9 +266,22 @@ const Sidebar = ({
     return location.pathname === path;
   };
 
+  // Même logique que le menu Profil (Header.jsx) : naviguer d'abord, puis
+  // déconnecter avec un léger délai pour laisser la navigation se faire.
   const handleLogout = async () => {
     try {
-      await logout();
+      const tenantId = userProfile?.tenant_id;
+      const isAdmin = userProfile?.role === 'admin';
+
+      if (isAdmin || !tenantId) {
+        navigate('/login');
+      } else {
+        navigate('/cabinet-welcome-public/' + tenantId);
+      }
+
+      setTimeout(async () => {
+        await logout();
+      }, 100);
     } catch (error) {
       console.error('Erreur lors de la déconnexion:', error);
     }
@@ -298,6 +321,30 @@ const Sidebar = ({
           {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
         </button>
       </div>
+
+      {/* Switcher de vue (admin uniquement) */}
+      {currentRole === 'admin' && (
+        <div className={`p-2 border-b border-white/10 ${isCollapsed ? '' : 'flex gap-1'}`}>
+          {ADMIN_VIEWS.map((view) => (
+            <button
+              key={view.key}
+              type="button"
+              onClick={() => setAdminView(view.key)}
+              title={view.label}
+              className={`flex items-center justify-center gap-2 rounded-lg p-2 text-xs font-medium transition-all duration-200 ${
+                isCollapsed ? 'w-full mb-1 last:mb-0' : 'flex-1'
+              } ${
+                adminView === view.key
+                  ? 'bg-gradient-to-r from-medical-primary to-medical-secondary text-white shadow-medical'
+                  : 'hover:bg-white/10 text-white/70'
+              }`}
+            >
+              <view.icon size={16} />
+              {!isCollapsed && <span>{view.label}</span>}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-2">

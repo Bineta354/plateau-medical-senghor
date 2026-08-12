@@ -9,6 +9,13 @@ import { appointmentService, userService } from '../../lib/services';
 //import { supabaseQuery as supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAlert } from '../../contexts/AlertContext';
+import { usePersonnalisation } from '../../contexts/PersonnalisationContext';
+import {
+  DEFAULT_HORAIRES_OUVERTURE,
+  generateDoctorTimeSlotsForDay,
+  getHoraireDuJour,
+  isJourOuvrable,
+} from '../../utils/horairesOuverture';
 import SearchableSelect from '../common/SearchableSelect';
 import RdvStepper from './RdvStepper';
 import PatientSelector from './PatientSelector';
@@ -74,6 +81,8 @@ const RdvCreationModal = ({
 }) => {
   const { currentUser, userProfile } = useAuth();
   const { showError, showWarning } = useAlert();
+  const { settings: personnalisationSettings } = usePersonnalisation();
+  const horairesOuverture = personnalisationSettings?.horaires_ouverture || DEFAULT_HORAIRES_OUVERTURE;
 
   const [patients, setPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
@@ -465,33 +474,13 @@ const RdvCreationModal = ({
 
   const generateDoctorTimeSlots = (doctorId) => {
     if (!manualDate || !doctorId) return [];
-    const slots = [];
-    const baseDate = new Date(manualDate);
-    for (let hour = 8; hour < 21; hour++) {
-      for (let minute = 0; minute < 60; minute += 30) {
-        const slotDate = new Date(baseDate);
-        slotDate.setHours(hour, minute, 0, 0);
-        const slotEnd = new Date(slotDate.getTime() + (formData.duree || 30) * 60000);
-
-        const doctorAppointments = appointmentsByDoctor[doctorId] || [];
-        const isOccupied = doctorAppointments.some((apt) => {
-          if (editingAppointment && apt.id === editingAppointment.id) return false;
-          if (apt.statut === 'annule') return false;
-          const aptStart = new Date(apt.date_heure);
-          const aptEnd = new Date(aptStart.getTime() + (apt.duree || 30) * 60000);
-          return aptStart < slotEnd && aptEnd > slotDate;
-        });
-
-        slots.push({
-          time: `${hour.toString().padStart(2, '0')}:${minute
-            .toString()
-            .padStart(2, '0')}`,
-          iso: slotDate.toISOString(),
-          isOccupied
-        });
-      }
-    }
-    return slots;
+    return generateDoctorTimeSlotsForDay({
+      date: manualDate,
+      horairesOuverture,
+      doctorAppointments: appointmentsByDoctor[doctorId] || [],
+      duree: formData.duree,
+      editingAppointmentId: editingAppointment?.id,
+    });
   };
 
   const hasSlotConflict = (doctorId, isoDateTime) => {
@@ -570,6 +559,11 @@ const RdvCreationModal = ({
 
       if (!manualDate) {
         showWarning('Veuillez sélectionner la date du rendez-vous.');
+        return false;
+      }
+
+      if (!isJourOuvrable(horairesOuverture, manualDate)) {
+        showWarning('Le cabinet est fermé ce jour-là. Veuillez choisir une autre date.');
         return false;
       }
 
@@ -821,6 +815,7 @@ const RdvCreationModal = ({
                   }}
                   minDate={new Date()}
                   locale="fr"
+                  filterDate={(date) => isJourOuvrable(horairesOuverture, date)}
                 />
               </div>
             </div>
@@ -895,6 +890,9 @@ const RdvCreationModal = ({
                         onDureeChange={(val) => setFormData((prev) => ({ ...prev, duree: val }))}
                         hasConflict={hasCurrentSelectionConflict}
                         selectedDateTime={formData.date_heure}
+                        minTime={getHoraireDuJour(horairesOuverture, manualDate)?.debut}
+                        maxTime={getHoraireDuJour(horairesOuverture, manualDate)?.fin}
+                        closed={!isJourOuvrable(horairesOuverture, manualDate)}
                       />
                     </>
                   ) : (
@@ -986,6 +984,7 @@ const RdvCreationModal = ({
               <ConfirmationDetails
                 formData={formData}
                 onChange={(next) => setFormData(next)}
+                isEditing={!!editingAppointment}
               />
             </div>
           )}

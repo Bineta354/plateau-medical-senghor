@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { formatMontant } from '../utils/currency';
-import { 
-  Users, 
-  Clock, 
-  Coins, 
+import {
+  Clock,
+  Calendar,
   AlertTriangle,
   CheckCircle,
   UserCheck,
@@ -20,6 +18,11 @@ import { supabase } from '../lib/supabase';
 import TestNotifications from '../components/TestNotifications';
 import { useDashboardData } from '../hooks/useDashboardData'; // Import the new hook
 import KpiCard from '../components/common/KpiCard';
+import {
+  computeQueueStats,
+  isOnWaitingBench,
+  isUrgentQueuePriority,
+} from '../utils/waitingQueueStatus';
 
 const Dashboard = () => {
   const { currentUser, hasAnyRole } = useAuth();
@@ -35,11 +38,10 @@ const Dashboard = () => {
   } = useDashboardData();
 
   const [stats, setStats] = useState({
-    totalPatients: 0,
-    patientsWaiting: 0,
-    consultationsCompleted: 0,
-    totalRevenue: 0,
-    totalUsers: 0
+    totalRDV: 0,
+    salleAttente: 0,
+    urgenceEnAttente: 0,
+    termine: 0
   });
   const [waitingQueue, setWaitingQueue] = useState([]); // Keep local for now, as it's simulated
   const [notifications, setNotifications] = useState([]); // Keep local for now
@@ -78,24 +80,32 @@ const Dashboard = () => {
         const queue = Array.isArray(queueData) ? queueData : [];
         setWaitingQueue(queue);
 
-        // Calculate real statistics
-        const stats = {
-          totalPatients: patients.length,
-          patientsWaiting: queue.filter(q => 
-            q.status === 'waiting' || 
-            q.status === 'en_attente' || 
-            q.status === 'present' || 
-            q.status === 'arrive'
-          ).length,
-          consultationsCompleted: queue.filter(q => 
-            q.status === 'in_consultation' || 
-            q.status === 'en_consultation'
-          ).length,
-          totalRevenue: 0, // Would need to fetch from actual revenue data
-          totalUsers: fetchedMedecins.length
-        };
+        // Consultations terminées aujourd'hui (toutes équipes confondues)
+        const { count: finishedCount, error: finishedError } = await supabase
+          .from('consultations')
+          .select('id', { count: 'exact', head: true })
+          .gte('date_consultation', todayStart)
+          .lt('date_consultation', tomorrowStart)
+          .in('statut', ['terminee', 'termine', 'finished', 'completed']);
 
-        setStats(stats);
+        if (finishedError) throw finishedError;
+
+        const queueStats = computeQueueStats(queue);
+        const urgenceEnAttente = queue.filter(
+          (q) => isOnWaitingBench(q.status) && isUrgentQueuePriority(q.priority)
+        ).length;
+        const termine = finishedCount ?? 0;
+
+        // Même formule que DoctorSpecificQueue : total cohérent avec les 3
+        // autres KPI (mêmes patients, mêmes bornes du jour) plutôt que le
+        // nombre brut de rendez-vous, qui ne recoupe pas forcément 1 pour 1
+        // les passages en file/consultation.
+        setStats({
+          totalRDV: queueStats.onBench + queueStats.inConsultation + termine,
+          salleAttente: queueStats.onBench,
+          urgenceEnAttente,
+          termine,
+        });
       } catch (error) {
         console.error('Erreur lors du chargement de la file d\'attente:', error);
       }
@@ -160,10 +170,6 @@ const Dashboard = () => {
     );
   }
 
-  // TODO: Implement logic to populate stats from the fetched data (patients, appointments, etc.)
-  // For now, stats remain 0 as they are not explicitly calculated from the fetched data in this refactoring.
-  // This will be a future task to calculate these metrics from `patients`, `appointments`, `waitingQueue`, etc.
-
   return (
     <div className="space-y-6 p-6">
       {/* Audio pour les notifications */}
@@ -180,9 +186,9 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          {hasAnyRole(['admin', 'doctor']) && (
+          {hasAnyRole(['admin']) && (
             <button
-              onClick={() => navigate('/personnalisation')}
+              onClick={() => navigate('/administration/personnalisation/general')}
               className="flex items-center px-4 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary/90 transition-colors shadow-md"
             >
               <FileText className="w-4 h-4 mr-2" />
@@ -204,41 +210,21 @@ const Dashboard = () => {
       </div>
 
       {/* Cartes de statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <KpiCard icon={Users} tone="blue" label="Total Patients" value={patients.length} />
+          <KpiCard icon={Calendar} tone="blue" label="Total RDV" value={stats.totalRDV} />
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <KpiCard icon={Clock} tone="yellow" label="En Attente" value={stats.patientsWaiting} />
+          <KpiCard icon={Clock} tone="yellow" label="Salle d'attente" value={stats.salleAttente} />
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <KpiCard icon={UserCheck} tone="purple" label="Consultations" value={stats.consultationsCompleted} />
+          <KpiCard icon={AlertTriangle} tone="red" label="Urgence en attente" value={stats.urgenceEnAttente} />
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <KpiCard
-            icon={Coins}
-            label="Revenus (FCFA)"
-            value={formatMontant(stats.totalRevenue)}
-            className="rounded-lg p-4 bg-emerald-50 hover:shadow-md"
-            iconClassName="text-emerald-600"
-            valueClassName="text-emerald-600"
-            labelClassName="text-emerald-700"
-          />
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-          <KpiCard
-            icon={Users}
-            label="Utilisateurs"
-            value={fetchedMedecins.length}
-            className="rounded-lg p-4 bg-indigo-50 hover:shadow-md"
-            iconClassName="text-indigo-600"
-            valueClassName="text-indigo-600"
-            labelClassName="text-indigo-700"
-          />
+          <KpiCard icon={CheckCircle} tone="green" label="Terminé" value={stats.termine} />
         </motion.div>
       </div>
 

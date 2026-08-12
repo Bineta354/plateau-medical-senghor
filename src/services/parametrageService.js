@@ -8,36 +8,47 @@ import { supabase } from '../lib/supabase';
  */
 export const fetchParametres = async (tenantId = null) => {
   try {
-    // Récupérer les paramètres du cabinet filtrés par tenant_id
-    let cabinetQuery = supabase
-      .from('parametres_cabinet')
-      .select('*')
-      .order('id', { ascending: true })
-      .limit(1);
+    // Les paramètres du cabinet (horaires, coordonnées, logo...) sont propres à
+    // chaque tenant (plusieurs cabinets partagent cette même base). Sans
+    // tenantId on ne peut pas savoir à quel cabinet ils appartiennent — on ne
+    // doit surtout pas retomber sur "n'importe quelle ligne" (ex. la plus
+    // ancienne), sous peine d'afficher/mélanger les réglages d'un autre cabinet.
+    let cabinetData = null;
 
-    // Si tenantId est fourni, filtrer par tenant_id
     if (tenantId) {
-      cabinetQuery = cabinetQuery.eq('tenant_id', tenantId);
+      const { data, error: cabinetError } = await supabase
+        .from('parametres_cabinet')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+      if (cabinetError) {
+        console.warn('Paramètres cabinet non disponibles, utilisation des valeurs par défaut.', cabinetError);
+        // Ne pas bloquer le processus, continuer avec les valeurs par défaut
+      } else {
+        cabinetData = data || null;
+      }
+    } else {
+      console.warn('[fetchParametres] Aucun tenantId fourni : les paramètres du cabinet (horaires, coordonnées...) ne seront pas chargés pour éviter de mélanger ceux d\'un autre cabinet.');
     }
 
-    const { data: cabinetDataArray, error: cabinetError } = await cabinetQuery;
+    // Les paramètres de plateforme (apparence, modèles de documents...) sont
+    // eux aussi propres à chaque tenant — même mise en garde que pour
+    // parametres_cabinet ci-dessus, ne pas les charger sans tenantId.
+    let platformData = null;
 
-    // Prendre le premier élément du tableau ou null
-    const cabinetData = cabinetDataArray && cabinetDataArray.length > 0 ? cabinetDataArray[0] : null;
+    if (tenantId) {
+      const { data, error: platformError } = await supabase
+        .from('parametres_plateforme')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
 
-if (cabinetError) {
-  console.warn('Paramètres cabinet non disponibles, utilisation des valeurs par défaut.', cabinetError);
-  // Ne pas bloquer le processus, continuer avec les valeurs par défaut
-}
-
-    // Récupérer les paramètres de la plateforme
-    const { data: platformData, error: platformError } = await supabase
-      .from('parametres_plateforme')
-      .select('*')
-      .maybeSingle();
-
-    if (platformError && platformError.code !== 'PGRST116') {
-      console.log('Table parametres_plateforme non trouvée, utilisation des valeurs par défaut');
+      if (platformError && platformError.code !== 'PGRST116') {
+        console.log('Table parametres_plateforme non trouvée, utilisation des valeurs par défaut');
+      } else {
+        platformData = data || null;
+      }
     }
 
     // Fusionner les données - platformData d'abord, puis cabinetData pour écraser
@@ -64,11 +75,21 @@ if (cabinetError) {
 /**
  * Sauvegarde les paramètres dans les tables appropriées.
  * @param {Object} settings - L'objet complet des paramètres à sauvegarder.
+ * @param {string} tenantId - Le tenant_id du cabinet connecté. Requis pour
+ *   `parametres_cabinet` ET `parametres_plateforme` : plusieurs cabinets
+ *   partagent ces tables, il ne faut jamais mettre à jour/créer une ligne
+ *   sans savoir à quel tenant elle appartient (sous peine d'écraser les
+ *   réglages d'un autre cabinet).
  */
-export const saveParametres = async (settings) => {
+export const saveParametres = async (settings, tenantId = null) => {
   try {
     // 1. Préparer et sauvegarder les données pour `parametres_cabinet`
+    if (!tenantId) {
+      throw new Error('Impossible d\'enregistrer les paramètres du cabinet : tenant introuvable pour l\'utilisateur connecté.');
+    }
+
     const cabinetData = {
+      tenant_id: tenantId,
       nom_cabinet: settings.nom_cabinet,
       adresse: settings.adresse,
       ville: settings.ville,
@@ -80,18 +101,23 @@ export const saveParametres = async (settings) => {
       numero_agrement: settings.numero_agrement,
       ninea: settings.ninea,
       registre_commerce: settings.registre_commerce,
+      tva: settings.tva,
       logo_url: settings.logo_url,
       devise: settings.devise,
       fuseau_horaire: settings.fuseau_horaire,
       langue: settings.langue,
       format_date: settings.format_date,
-      horaires_ouverture: settings.horaires_ouverture
+      horaires_ouverture: settings.horaires_ouverture,
+      jours_inactivite: settings.jours_inactivite,
+      taux_retrocession_medecin: settings.taux_retrocession_medecin,
     };
 
-    const { data: existingCabinet } = await supabase
+    const { data: existingCabinet, error: findError } = await supabase
       .from('parametres_cabinet')
       .select('id')
-      .single();
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+    if (findError) throw findError;
 
     if (existingCabinet) {
       const { error } = await supabase
@@ -173,6 +199,7 @@ export const saveParametres = async (settings) => {
     };
     
     const platformData = {
+        tenant_id: tenantId,
         configuration: platformConfiguration,
         updated_at: new Date().toISOString()
     };
@@ -186,6 +213,7 @@ export const saveParametres = async (settings) => {
     const { data: existingPlatform } = await supabase
       .from('parametres_plateforme')
       .select('id')
+      .eq('tenant_id', tenantId)
       .maybeSingle();
 
     if (existingPlatform) {

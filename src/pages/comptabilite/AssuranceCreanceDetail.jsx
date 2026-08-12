@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, ShieldCheck, RefreshCw, Search, Inbox } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, RefreshCw, Search, Inbox, AlertTriangle, FileDown } from 'lucide-react';
 import { formatMontant } from '../../utils/currency';
+import { COUVERTURE_FETCH_LIMIT, isCouvertureListTruncated } from '../../config/creances';
+import { generateDossierAssurancePDF } from '../../services/impression/dossierAssurancePdf';
+import useToast from '../../hooks/useToast';
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 
 /**
  * Détail des créances d'un assureur — accessible depuis Impayés & Relances
@@ -13,8 +17,6 @@ import { formatMontant } from '../../utils/currency';
  */
 
 const formatDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR') : '—');
-
-const PAGE_SIZES = [10, 25, 50, 100];
 
 const AssuranceCreanceDetail = () => {
   const { assuranceId } = useParams();
@@ -28,14 +30,22 @@ const AssuranceCreanceDetail = () => {
   // de factures en attente).
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [truncated, setTruncated] = useState(false);
+  const [generatingDossier, setGeneratingDossier] = useState(false);
+  const { showSuccess, showError } = useToast();
 
   useEffect(() => {
+    let active = true;
     setPage(1);
-    chargerDetail();
+    chargerDetail(() => active);
+    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assuranceId]);
 
-  const chargerDetail = async () => {
+  // isCurrent() est fourni par l'effet ci-dessus : si l'assureur affiché a changé pendant que
+  // cette requête était en vol (navigation rapide entre deux assureurs), les setState ci-dessous
+  // sont sautés pour ne pas écraser les données déjà à jour avec une réponse obsolète.
+  const chargerDetail = async (isCurrent = () => true) => {
     setLoading(true);
     try {
       const sansAssurance = assuranceId === 'sans_assurance';
@@ -44,25 +54,29 @@ const AssuranceCreanceDetail = () => {
         .from('factures')
         .select(`
           id, numero_facture, date_facture, montant_ttc, montant_paye, montant_restant,
-          statut_paiement, patient_id,
-          patients ( id, nom, prenom ),
+          statut_paiement, patient_id, facture_parent_id,
+          patients ( id, nom, prenom, numero_mutuelle, numero_ipm ),
           consultations ( date_consultation, medecin_id, users ( id, nom, prenom ) )
         `)
         .eq('type', 'couverture')
         .neq('statut_paiement', 'paye')
         .order('date_facture', { ascending: false })
-        .limit(1000);
+        .limit(COUVERTURE_FETCH_LIMIT);
 
       query = sansAssurance ? query.is('assurance_id', null) : query.eq('assurance_id', assuranceId);
 
       const { data, error } = await query;
       if (error) throw error;
+      if (!isCurrent()) return;
+
+      setTruncated(isCouvertureListTruncated(data));
 
       const lignes = (data || [])
         .map((f) => ({
           id: f.id,
           numero_facture: f.numero_facture,
           date_facture: f.date_facture,
+          facture_parent_id: f.facture_parent_id,
           patient: f.patients,
           medecin: f.consultations?.users,
           restant: parseFloat(f.montant_restant ?? (parseFloat(f.montant_ttc || 0) - parseFloat(f.montant_paye || 0))),
@@ -80,14 +94,31 @@ const AssuranceCreanceDetail = () => {
           .select('id, nom, taux_remboursement')
           .eq('id', assuranceId)
           .maybeSingle();
+        if (!isCurrent()) return;
         setAssurance(assuranceData || { nom: 'Assureur' });
       }
     } catch (e) {
+      if (!isCurrent()) return;
       console.error('Erreur chargement détail créance assurance:', e);
       setFactures([]);
       setAssurance(null);
+      setTruncated(false);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
+    }
+  };
+
+  const handleGenererDossier = async () => {
+    setGeneratingDossier(true);
+    try {
+      const { success, error } = await generateDossierAssurancePDF(supabase, { assurance, factures });
+      if (success) {
+        showSuccess('Dossier assurance généré.');
+      } else {
+        showError(error || 'Erreur lors de la génération du dossier.');
+      }
+    } finally {
+      setGeneratingDossier(false);
     }
   };
 
@@ -144,11 +175,32 @@ const AssuranceCreanceDetail = () => {
             <p className="text-sm text-gray-500">{factures.length} facture{factures.length > 1 ? 's' : ''} de couverture en attente</p>
           </div>
         </div>
-        <div className="text-right flex-shrink-0">
-          <p className="text-xs text-gray-500">Reste dû</p>
-          <p className="text-2xl font-bold text-amber-700">{formatMontant(totalGeneral)}</p>
+        <div className="flex items-center gap-4 flex-shrink-0">
+          <div className="text-right">
+            <p className="text-xs text-gray-500">Reste dû</p>
+            <p className="text-2xl font-bold text-amber-700">{formatMontant(totalGeneral)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleGenererDossier}
+            disabled={generatingDossier || factures.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <FileDown className="w-4 h-4" />
+            {generatingDossier ? 'Génération…' : 'Générer le dossier'}
+          </button>
         </div>
       </div>
+
+      {truncated && (
+        <div className="flex items-start gap-2 p-3 rounded-lg border bg-amber-50 border-amber-200 text-amber-800 text-sm" role="alert">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>
+            Plus de {COUVERTURE_FETCH_LIMIT} factures en attente pour cet assureur : le total affiché peut être
+            sous-estimé (les plus anciennes ne sont pas comptées).
+          </span>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
         <div className="flex flex-wrap items-center gap-4">
@@ -162,17 +214,13 @@ const AssuranceCreanceDetail = () => {
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
             />
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-sm text-gray-600">Afficher</span>
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-            >
-              {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-            <span className="text-sm text-gray-600">entrées</span>
-          </div>
+          <ItemsPerPageSelector
+            value={pageSize}
+            onChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
         </div>
       </div>
 
@@ -185,9 +233,9 @@ const AssuranceCreanceDetail = () => {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[280px]">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium text-gray-700">N° Facture</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-700">Date</th>
@@ -218,32 +266,14 @@ const AssuranceCreanceDetail = () => {
             </table>
           </div>
 
-          {/* Pagination: Affichage X à Y sur Z + Précédent / Suivant */}
-          <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 border-t border-gray-200">
-            <p className="text-sm text-gray-600">
-              Affichage de {totalRows === 0 ? 0 : start + 1} à {Math.min(start + pageSize, totalRows)} sur {totalRows} entrées
-            </p>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={effectivePage <= 1}
-                className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Précédent
-              </button>
-              <span className="px-3 py-1.5 text-sm text-gray-600">
-                Page {effectivePage} / {totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={effectivePage >= totalPages}
-                className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Suivant
-              </button>
-            </div>
+          <div className="border-t border-gray-200">
+            <Pagination
+              currentPage={effectivePage}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              itemsPerPage={pageSize}
+              totalItems={totalRows}
+            />
           </div>
         </div>
       )}

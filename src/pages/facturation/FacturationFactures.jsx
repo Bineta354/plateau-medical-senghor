@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { formatMontant } from '../../utils/currency';
+import Dropdown from '../../components/common/Dropdown';
 import {
   Receipt,
   Search,
@@ -28,10 +28,9 @@ import SearchableSelect from '../../components/common/SearchableSelect';
 import KpiCard from '../../components/common/KpiCard';
 import { useAlert } from '../../contexts/AlertContext';
 import { generateFacturePDF } from '../../services/impression/facturePdf.js';
-import Pagination from '../../components/common/Pagination';
+import { formatMontant } from '../../utils/currency';
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 import { getStatusColor, getStatusLabel, isOutstanding } from '../../utils/factureStatus';
-
-const ITEMS_PER_PAGE = 20;
 
 const FacturationFactures = () => {
   const location = useLocation();
@@ -44,6 +43,7 @@ const FacturationFactures = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingFacture, setEditingFacture] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [factureData, setFactureData] = useState({
     patientId: '',
     type: '',
@@ -367,10 +367,10 @@ const FacturationFactures = () => {
     setCurrentPage(1);
   }, [searchTerm, selectedStatus, selectedType, selectedPeriod]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredFactures.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredFactures.length / itemsPerPage));
   const paginatedFactures = filteredFactures.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   const getTypeColor = (type) => {
@@ -671,62 +671,74 @@ const FacturationFactures = () => {
           
           <div className="ml-16">
             <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
-            <select
+            <Dropdown
               value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-            >
-              <option value="all">Tous les types</option>
-              {types.map(type => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
+              onChange={(value) => setSelectedType(value)}
+              options={[
+                { value: 'all', label: 'Tous les types' },
+                ...types.map(type => ({ value: type, label: type })),
+              ]}
+              size="md"
+              className="w-48"
+            />
           </div>
           
           <div className="ml-8">
             <label className="block text-sm font-medium text-gray-700 mb-2">Statut</label>
-            <select
+            <Dropdown
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-60 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-            >
-              <option value="all">Tous les statuts</option>
-              <option value="outstanding">À encaisser (non payées)</option>
-              <option value="paye">Payées</option>
-              <option value="partiel">Partiellement payées</option>
-              <option value="en_attente">En attente</option>
-              <option value="impaye">Impayées</option>
-            </select>
+              onChange={(value) => setSelectedStatus(value)}
+              options={[
+                { value: 'all', label: 'Tous les statuts' },
+                { value: 'outstanding', label: 'À encaisser (non payées)' },
+                { value: 'paye', label: 'Payées' },
+                { value: 'partiel', label: 'Partiellement payées' },
+                { value: 'en_attente', label: 'En attente' },
+                { value: 'impaye', label: 'Impayées' },
+              ]}
+              size="md"
+              className="w-60"
+            />
           </div>
           
           <div className="ml-auto">
             <label className="block text-sm font-medium text-gray-700 mb-2">Période</label>
-            <select
+            <Dropdown
               value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-              style={{ width: '168px' }}
-            >
-              <option value="today">Aujourd'hui</option>
-              <option value="week">Cette semaine</option>
-              <option value="month">Ce mois</option>
-              <option value="quarter">Ce trimestre</option>
-              <option value="year">Cette année</option>
-            </select>
+              onChange={(value) => setSelectedPeriod(value)}
+              options={[
+                { value: 'today', label: "Aujourd'hui" },
+                { value: 'week', label: 'Cette semaine' },
+                { value: 'month', label: 'Ce mois' },
+                { value: 'quarter', label: 'Ce trimestre' },
+                { value: 'year', label: 'Cette année' },
+              ]}
+              size="md"
+              wrapperClassName="w-[168px]"
+            />
           </div>
         </div>
       </div>
 
       {/* Liste des factures */}
       <div className="bg-white rounded-lg shadow-md border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Toutes les factures</h2>
-          <p className="text-sm text-gray-600">{filteredFactures.length} facture(s) trouvée(s)</p>
+        <div className="p-6 border-b border-gray-200 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Toutes les factures</h2>
+            <p className="text-sm text-gray-600">{filteredFactures.length} facture(s) trouvée(s)</p>
+          </div>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
         </div>
-        
-        <div className="overflow-x-auto">
+
+        <div className="overflow-x-auto overflow-y-auto max-h-[380px]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Facture
@@ -856,6 +868,8 @@ const FacturationFactures = () => {
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredFactures.length}
             />
           </div>
         )}
@@ -1019,17 +1033,16 @@ const FacturationFactures = () => {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Type de facturation *</label>
-                  <select
+                  <Dropdown
                     value={factureData.type}
-                    onChange={(e) => setFactureData({...factureData, type: e.target.value})}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  >
-                    <option value="">Sélectionner un type</option>
-                    {types.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFactureData({...factureData, type: value})}
+                    options={[
+                      { value: '', label: 'Sélectionner un type' },
+                      ...types.map(type => ({ value: type, label: type })),
+                    ]}
+                    size="md"
+                    className="w-full"
+                  />
                 </div>
               </div>
               

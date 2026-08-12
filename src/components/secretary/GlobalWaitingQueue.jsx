@@ -29,7 +29,15 @@ const GlobalWaitingQueue = ({
   onFilterStatus,
 }) => {
   const [waitingQueues, setWaitingQueues] = useState({});
-  const [appointmentsByDoctor, setAppointmentsByDoctor] = useState({});
+  // Copie non filtrée (tous statuts) de la file du jour par médecin, utilisée
+  // uniquement pour distinguer les vrais walk-in (sans RDV) des consultations
+  // "orphelines" rattachées à un RDV d'un autre jour — voir doctorStats plus
+  // bas (même problème/fix que DoctorSpecificQueue.jsx).
+  const [rawWaitingQueuesToday, setRawWaitingQueuesToday] = useState({});
+  // RDV du jour par médecin (id, patient_id, priorite) — indépendant de la
+  // file d'attente, sert à la fois à réconcilier "Consultations terminées"
+  // et à répartir "Dont (urgence)" pour les RDV pas encore arrivés.
+  const [appointmentsByDoctorToday, setAppointmentsByDoctorToday] = useState({});
   const [consultationsByDoctor, setConsultationsByDoctor] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -73,11 +81,9 @@ const GlobalWaitingQueue = ({
   const fetchAllData = async () => {
     try {
       const queues = {};
-      const apptsByDoc = {};
 
       if (!doctors || doctors.length === 0) {
         setWaitingQueues({});
-        setAppointmentsByDoctor({});
         setLoading(false);
         return;
       }
@@ -92,7 +98,13 @@ const GlobalWaitingQueue = ({
       queueTomorrow.setDate(queueTomorrow.getDate() + 1);
       const queueTomorrowStart = queueTomorrow.toISOString();
 
-      // 1) Récupérer les files d'attente avec jointure sur appointments (tous les rendez-vous du jour)
+      // 1) Récupérer les files d'attente avec jointure sur appointments
+      // Scope sur `waiting_queue.created_at` du jour (même logique que
+      // DoctorSpecificQueue.jsx / SalleAttentePage.jsx) : sans ça, une ligne
+      // jamais clôturée la veille (statut resté "waiting") continue
+      // d'apparaître dans la file du jour. Filtrer sur `appointments.date_heure`
+      // (ressource embarquée) transforme en plus la jointure en INNER JOIN côté
+      // PostgREST, ce qui exclurait à tort toute ligne sans rendez-vous associé.
       const { data: waitingData, error: waitingError } = await supabase
         .from('waiting_queue')
         .select(`
@@ -100,8 +112,8 @@ const GlobalWaitingQueue = ({
           appointments(date_heure, statut_arrivee, heure_arrivee)
         `)
         .in('medecin_id', medecinIds)
-        .gte('appointments.date_heure', queueTodayStart)
-        .lt('appointments.date_heure', queueTomorrowStart)
+        .gte('created_at', queueTodayStart)
+        .lt('created_at', queueTomorrowStart)
         .order('order_position', { ascending: true });
 
       if (waitingError) {
@@ -198,6 +210,10 @@ const GlobalWaitingQueue = ({
         }
       }
 
+      // Conserver une copie non filtrée (tous statuts) avant le filtrage actif
+      // ci-dessous, pour identifier plus tard les vrais walk-in du jour.
+      const rawQueues = { ...queues };
+
       // 6) Filtrer les patients actifs et exclure ceux avec rendez-vous passés et consultations bloquées
       Object.keys(queues).forEach(doctorId => {
         const activeItems = filterActiveQueueItems(queues[doctorId]);
@@ -206,60 +222,15 @@ const GlobalWaitingQueue = ({
         queues[doctorId] = finalFilteredItems;
       });
 
-      // 7) Récupérer tous les rendez-vous du jour pour ces médecins
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      const { data: apptsData, error: apptsError } = await supabase
-        .from('appointments')
-        .select('*')
-        .in('medecin_id', medecinIds)
-        .gte('date_heure', today.toISOString())
-        .lt('date_heure', tomorrow.toISOString())
-        .order('date_heure', { ascending: true });
-
-      if (apptsError) {
-        console.error('Erreur appointments du jour:', apptsError);
-        throw apptsError;
-      }
-
-      const apptsList = Array.isArray(apptsData) ? apptsData : [];
-      
-      // 8) Récupérer les patients pour les RDV du jour
-      const apptPatientIds = Array.from(new Set(apptsList.map(a => a.patient_id).filter(Boolean)));
-      let apptPatientMap = {};
-      
-      if (apptPatientIds.length > 0) {
-        const { data: apptPatientsData, error: apptPatientsError } = await supabase
-          .from('patients')
-          .select('id, nom, prenom, telephone, numero_dossier')
-          .in('id', apptPatientIds);
-        
-        if (apptPatientsError) {
-          console.error('Erreur patients RDV:', apptPatientsError);
-        } else if (apptPatientsData) {
-          apptPatientMap = Object.fromEntries(apptPatientsData.map(p => [p.id, p]));
-        }
-      }
-
-      // 9) Fusionner les RDV avec les patients
-      apptsList.forEach(appt => {
-        const enrichedAppt = {
-          ...appt,
-          patient: apptPatientMap[appt.patient_id] || null
-        };
-        
-        const key = appt.medecin_id;
-        if (!apptsByDoc[key]) apptsByDoc[key] = [];
-        apptsByDoc[key].push(enrichedAppt);
-      });
-
       setWaitingQueues(queues);
-      setAppointmentsByDoctor(apptsByDoc);
+      setRawWaitingQueuesToday(rawQueues);
 
-      // 10) Récupérer les consultations du jour pour chaque médecin
+      // 7) Récupérer les consultations du jour pour chaque médecin
       const { data: consultationsData, error: consultationsError } = await supabase
         .from('consultations')
         .select('*')
@@ -277,6 +248,33 @@ const GlobalWaitingQueue = ({
           consultationsByDoc[key].push(consultation);
         });
         setConsultationsByDoctor(consultationsByDoc);
+      }
+
+      // 8) Récupérer les RDV du jour par médecin (indépendamment de la file
+      // d'attente) : une consultation "terminée aujourd'hui" (date_consultation)
+      // peut être rattachée à un RDV d'un autre jour resté ouvert (RDV de la
+      // veille jamais clôturé, consulté après minuit) — consultations.appointment_id
+      // n'étant pas fiabilisé, on ne peut pas filtrer dessus directement. On ne
+      // garde donc dans doctorStats que les consultations dont le patient a
+      // soit un RDV aujourd'hui, soit un passage en file aujourd'hui sans RDV
+      // (vrai walk-in) — voir doctorStats plus bas.
+      const { data: appointmentsTodayData, error: appointmentsTodayError } = await supabase
+        .from('appointments')
+        .select('id, patient_id, medecin_id, priorite')
+        .in('medecin_id', medecinIds)
+        .gte('date_heure', today.toISOString())
+        .lt('date_heure', tomorrow.toISOString());
+
+      if (appointmentsTodayError) {
+        console.error('Erreur RDV du jour:', appointmentsTodayError);
+      } else if (appointmentsTodayData) {
+        const appointmentsByDoc = {};
+        appointmentsTodayData.forEach(appointment => {
+          const key = appointment.medecin_id;
+          if (!appointmentsByDoc[key]) appointmentsByDoc[key] = [];
+          appointmentsByDoc[key].push(appointment);
+        });
+        setAppointmentsByDoctorToday(appointmentsByDoc);
       }
     } catch (error) {
       console.error('Erreur lors du chargement des files d\'attente:', error);
@@ -316,10 +314,6 @@ const GlobalWaitingQueue = ({
   const allQueues = filterActiveQueueItems(Object.values(waitingQueues).flat());
   const globalStats = computeQueueStats(allQueues);
   const totalDoctors = filterDoctors().length;
-  const totalAppointments = Object.values(appointmentsByDoctor).reduce(
-    (acc, arr) => acc + (arr ? arr.length : 0),
-    0,
-  );
   const totalWaiting = globalStats.onBench;
   const totalUrgent = globalStats.urgent;
 
@@ -356,39 +350,68 @@ const GlobalWaitingQueue = ({
 
     const enConsultation = activeDoctorQueue.filter(p => isInConsultationQueueStatus(p.status)).length;
 
-    // Utiliser la table consultations pour les consultations terminées
+    // Utiliser la table consultations pour les consultations terminées, en
+    // excluant les orphelines (RDV d'un autre jour resté ouvert) — voir le
+    // commentaire de l'étape 8 dans fetchAllData.
     const doctorConsultations = consultationsByDoctor[doctor.id] || [];
+    const doctorAppointmentsToday = appointmentsByDoctorToday[doctor.id] || [];
+    const todayApptPatientIds = new Set(doctorAppointmentsToday.map(a => a.patient_id));
+    const todayWalkinPatientIds = new Set(
+      (rawWaitingQueuesToday[doctor.id] || [])
+        .filter(q => !q.appointment_id)
+        .map(q => q.patient_id)
+    );
     const finishedConsultations = doctorConsultations.filter(c =>
-      c.statut === 'terminee' ||
-      c.statut === 'termine' ||
-      c.statut === 'finished' ||
-      c.statut === 'completed'
+      (c.statut === 'terminee' ||
+        c.statut === 'termine' ||
+        c.statut === 'finished' ||
+        c.statut === 'completed') &&
+      (todayApptPatientIds.has(c.patient_id) || todayWalkinPatientIds.has(c.patient_id))
     );
     const terminees = finishedConsultations.length;
 
-    const total = enAttente + enConsultation + terminees;
+    // "Total du jour" doit s'incrémenter dès la création d'un RDV,
+    // indépendamment de la présence du patient (pas seulement une fois
+    // arrivé/en consultation/terminé) — donc basé sur le nombre de RDV
+    // planifiés aujourd'hui, plus les vrais walk-in ajoutés en file sans RDV.
+    const todayApptCount = doctorAppointmentsToday.length;
+    const walkinOnlyPatientIds = Array.from(todayWalkinPatientIds).filter(
+      patientId => !todayApptPatientIds.has(patientId)
+    );
+    const total = todayApptCount + walkinOnlyPatientIds.length;
 
-    // Répartition par urgence : "Dont (urgence)" doit décomposer le même
-    // total que la colonne "Total du jour", donc elle doit couvrir les MÊMES
-    // patients — présents (waiting_queue.priority) ET terminés
-    // (consultations.niveau_urgence, copié depuis waiting_queue.priority à la
-    // création de la consultation). Se limiter aux présents faisait que
-    // Très urgent + Urgent + Normal ne retombait jamais sur Total du jour dès
-    // qu'il y avait au moins une consultation terminée.
+    // Répartition par urgence : même raisonnement que "Total du jour" — un
+    // RDV pas encore arrivé doit compter dans sa case d'urgence dès sa
+    // création (priorité du RDV), pas seulement une fois le patient confirmé
+    // présent (waiting_queue.priority) ou la consultation terminée
+    // (consultations.niveau_urgence). On part donc des RDV du jour (par
+    // priorite), on retire ceux déjà comptés via la file active ou les
+    // consultations terminées pour ne pas les compter deux fois, et on ajoute
+    // leur contribution "pas encore arrivé" par tranche d'urgence.
     const presentPatients = activeDoctorQueue;
+    const alreadyCountedPatientIds = new Set([
+      ...presentPatients.map(p => p.patient_id),
+      ...finishedConsultations.map(c => c.patient_id),
+    ]);
+    const notYetArrivedAppointments = doctorAppointmentsToday.filter(
+      a => !alreadyCountedPatientIds.has(a.patient_id)
+    );
 
     const tresUrgent =
       presentPatients.filter(p => p.priority === 'tres_urgente' || p.appointment?.priorite === 'tres_urgente').length +
-      finishedConsultations.filter(c => c.niveau_urgence === 'tres_urgente').length;
+      finishedConsultations.filter(c => c.niveau_urgence === 'tres_urgente').length +
+      notYetArrivedAppointments.filter(a => a.priorite === 'tres_urgente').length;
     const urgent =
       presentPatients.filter(p => p.priority === 'urgente' || p.appointment?.priorite === 'urgente').length +
-      finishedConsultations.filter(c => c.niveau_urgence === 'urgente').length;
+      finishedConsultations.filter(c => c.niveau_urgence === 'urgente').length +
+      notYetArrivedAppointments.filter(a => a.priorite === 'urgente').length;
     const normal =
       presentPatients.filter(p => {
         const priority = p.priority || p.appointment?.priorite;
         return priority === 'normale' || priority === 'normal' || !priority;
       }).length +
-      finishedConsultations.filter(c => !c.niveau_urgence || c.niveau_urgence === 'normale').length;
+      finishedConsultations.filter(c => !c.niveau_urgence || c.niveau_urgence === 'normale').length +
+      notYetArrivedAppointments.filter(a => !a.priorite || a.priorite === 'normale' || a.priorite === 'normal').length;
 
     // Total du jour : somme de toutes les consultations (attente + en cours + terminées)
     const totalDuJour = total;
@@ -421,6 +444,12 @@ const GlobalWaitingQueue = ({
 
   const doctorStats = doctorStatsSorted;
 
+  // "RDV aujourd'hui" doit être le total tous médecins confondus, cohérent
+  // avec la colonne "Total du jour" du tableau récapitulatif ci-dessous
+  // (même logique que le fix appliqué à DoctorSpecificQueue.jsx : enAttente +
+  // enConsultation + terminées, pas un simple count() sur `appointments`).
+  const totalRdvAujourdhui = doctorStats.reduce((acc, stat) => acc + stat.totalDuJour, 0);
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -438,7 +467,7 @@ const GlobalWaitingQueue = ({
             icon={Calendar}
             tone="green"
             label="RDV aujourd'hui"
-            value={totalAppointments}
+            value={totalRdvAujourdhui}
             onClick={onNavigateCalendar}
             hoverMessage="Ouvrir le calendrier"
           />

@@ -12,6 +12,7 @@ import {
   deduplicateNotifications,
 } from '../../lib/notifications';
 import useUserProfile from '../../hooks/useUserProfile';
+import Dropdown from '../../components/common/Dropdown';
 import { Bell, AlertTriangle, CheckCircle, Clock, Filter, Search, RefreshCw, Trash2, Check } from 'lucide-react';
 import KpiCard from '../../components/common/KpiCard';
 
@@ -303,41 +304,44 @@ const NotificationsRealtime = () => {
                 className="mt-4 pt-4 border-t border-gray-200"
               >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <select
+                  <Dropdown
                     value={filterType}
-                    onChange={(e) => setFilterType(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  >
-                    <option value="">Tous les types</option>
-                    <option value="patient_arrive">Patient arrivé</option>
-                    <option value="medecin_disponible">Médecin disponible</option>
-                    <option value="consultation_terminee">Consultation terminée</option>
-                    <option value="document_scanne">Document scanné</option>
-                    <option value="urgence">Urgence</option>
-                    <option value="rappel">Rappel</option>
-                  </select>
+                    onChange={(value) => setFilterType(value)}
+                    options={[
+                      { value: '', label: 'Tous les types' },
+                      { value: 'patient_arrive', label: 'Patient arrivé' },
+                      { value: 'medecin_disponible', label: 'Médecin disponible' },
+                      { value: 'consultation_terminee', label: 'Consultation terminée' },
+                      { value: 'document_scanne', label: 'Document scanné' },
+                      { value: 'urgence', label: 'Urgence' },
+                      { value: 'rappel', label: 'Rappel' },
+                    ]}
+                    size="md"
+                  />
 
-                  <select
+                  <Dropdown
                     value={filterPriorite}
-                    onChange={(e) => setFilterPriorite(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  >
-                    <option value="">Toutes priorités</option>
-                    <option value="urgente">Urgente</option>
-                    <option value="haute">Haute</option>
-                    <option value="normale">Normale</option>
-                    <option value="basse">Basse</option>
-                  </select>
+                    onChange={(value) => setFilterPriorite(value)}
+                    options={[
+                      { value: '', label: 'Toutes priorités' },
+                      { value: 'urgente', label: 'Urgente' },
+                      { value: 'haute', label: 'Haute' },
+                      { value: 'normale', label: 'Normale' },
+                      { value: 'basse', label: 'Basse' },
+                    ]}
+                    size="md"
+                  />
 
-                  <select
+                  <Dropdown
                     value={filterLu}
-                    onChange={(e) => setFilterLu(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  >
-                    <option value="">Tous les statuts</option>
-                    <option value="false">Non lues</option>
-                    <option value="true">Lues</option>
-                  </select>
+                    onChange={(value) => setFilterLu(value)}
+                    options={[
+                      { value: '', label: 'Tous les statuts' },
+                      { value: 'false', label: 'Non lues' },
+                      { value: 'true', label: 'Lues' },
+                    ]}
+                    size="md"
+                  />
                 </div>
               </motion.div>
             )}

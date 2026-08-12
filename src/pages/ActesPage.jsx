@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Activity, 
-  Search, 
-  Filter, 
-  Coins,
-  RefreshCw,
-  CheckCircle
+import {
+  Calendar,
+  CalendarCheck,
+  Search,
+  Filter,
+  Clock,
+  RefreshCw
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { unifiedNotificationService } from '../services/unifiedNotificationService';
 import { useTypesActes } from '../hooks/useTypesActes';
 import { formatMontant } from '../utils/currency';
+import Dropdown from '../components/common/Dropdown';
+import Pagination, { ItemsPerPageSelector } from '../components/common/Pagination';
 
 const ActesPage = () => {
   const { userProfile } = useAuth();
@@ -20,6 +21,8 @@ const ActesPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [actes, setActes] = useState([]);
   const [specialiteInfo, setSpecialiteInfo] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Utiliser le hook useTypesActes pour récupérer la liste des actes
   const { typesActes, loading: loadingActes, refetch: refetchActes } = useTypesActes();
@@ -52,7 +55,7 @@ const ActesPage = () => {
                   .select('id, nom, description')
                   .eq('id', userProfile.specialite_id)
                   .single();
-                
+
                 if (error) throw error;
                 if (data) setSpecialiteInfo(data);
             } catch (error) {
@@ -62,7 +65,7 @@ const ActesPage = () => {
     };
     fetchSpecialiteInfo();
   }, [userProfile]);
-  
+
   // Utiliser le loading du hook pour l'état de chargement global de la page
   useEffect(() => {
       setIsLoading(loadingActes);
@@ -89,167 +92,174 @@ const ActesPage = () => {
     return matchesSearch && matchesCategory;
   });
 
+  const tarifMoyen = actes.length > 0
+    ? actes.reduce((sum, acte) => sum + acte.tarif_base, 0) / actes.length
+    : 0;
+
+  const totalPages = Math.ceil(filteredActes.length / itemsPerPage);
+  const paginatedActes = filteredActes.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory]);
+
   return (
-    <div className="space-y-6 p-6">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Catalogue des Actes</h1>
-          <p className="text-gray-600">
-            {specialiteInfo 
-              ? `Actes de la spécialité : ${specialiteInfo.nom}`
-              : 'Liste des actes médicaux disponibles'}
-          </p>
+    <div className="max-w-6xl mx-auto p-6 md:p-8">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-violet-100 flex items-center justify-center flex-none">
+            <CalendarCheck className="text-violet-700" size={21} strokeWidth={1.5} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Catalogue des actes</h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {specialiteInfo
+                ? `Actes de la spécialité : ${specialiteInfo.nom}`
+                : 'Liste des actes médicaux disponibles'}
+            </p>
+          </div>
         </div>
         <button
           onClick={fetchActes}
-          className="flex items-center px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-          title="Rafraîchir"
+          className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-700 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
         >
-          <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+          Actualiser
         </button>
       </div>
 
-      {/* Barre de recherche et filtres */}
-      <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher un acte</label>
+      {/* Search & filters */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 md:p-6 mb-5">
+        <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-3.5">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Rechercher un acte</label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Rechercher par code, libellé ou description..."
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+                placeholder="Rechercher par code, libellé ou description…"
+                className="w-full pl-9 pr-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
               />
             </div>
           </div>
-          
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Catégorie</label>
-            <select
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Catégorie</label>
+            <Dropdown
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-            >
-              <option value="all">Toutes les catégories</option>
-              {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
+              onChange={(value) => setSelectedCategory(value)}
+              options={[
+                { value: 'all', label: 'Toutes les catégories' },
+                ...categories.map(category => ({ value: category, label: category })),
+              ]}
+              size="md"
+              className="w-full"
+            />
           </div>
         </div>
       </div>
 
-      {/* Statistiques rapides */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Activity className="w-8 h-8 text-medical-primary" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total actes</p>
-              <p className="text-2xl font-semibold text-gray-900">{actes.length}</p>
-            </div>
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-violet-100 flex items-center justify-center flex-none">
+            <Calendar className="text-violet-700" size={20} strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-0.5">Total actes</p>
+            <p className="text-[22px] font-semibold text-gray-900 leading-tight">{actes.length}</p>
           </div>
         </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Coins className="w-8 h-8 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Tarif moyen</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {actes.length > 0 ? formatMontant(actes.reduce((sum, acte) => sum + acte.tarif_base, 0) / actes.length) : formatMontant(0)}
-              </p>
-            </div>
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center flex-none">
+            <Clock className="text-emerald-700" size={20} strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-0.5">Tarif moyen</p>
+            <p className="text-[22px] font-semibold text-gray-900 leading-tight">{formatMontant(tarifMoyen)}</p>
           </div>
         </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Filter className="w-8 h-8 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Résultats filtrés</p>
-              <p className="text-2xl font-semibold text-gray-900">{filteredActes.length}</p>
-            </div>
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-orange-100 flex items-center justify-center flex-none">
+            <Filter className="text-orange-700" size={20} strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-0.5">Résultats filtrés</p>
+            <p className="text-[22px] font-semibold text-gray-900 leading-tight">{filteredActes.length}</p>
           </div>
         </div>
       </div>
 
-      {/* Liste des actes */}
-      <div className="bg-white rounded-lg shadow-md border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Liste des actes</h2>
-          <p className="text-sm text-gray-600">{filteredActes.length} acte(s) trouvé(s)</p>
+      {/* List */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Liste des actes</p>
+            <p className="text-xs text-gray-500 mt-0.5">{filteredActes.length} acte(s) trouvé(s)</p>
+          </div>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
         </div>
-        
+
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <RefreshCw className="w-8 h-8 text-medical-primary animate-spin" />
+          <div className="flex items-center justify-center py-16">
+            <RefreshCw className="w-7 h-7 text-violet-600 animate-spin" />
           </div>
         ) : filteredActes.length === 0 ? (
-          <div className="text-center py-12">
-            <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">
-              {searchTerm ? 'Aucun acte ne correspond à votre recherche' : 'Aucun acte trouvé pour cette spécialité'}
+          <div className="text-center py-16 px-5">
+            <Search className="mx-auto mb-2.5 text-gray-300" size={30} strokeWidth={1.5} />
+            <p className="text-sm text-gray-400">
+              {searchTerm || selectedCategory !== 'all'
+                ? 'Aucun acte ne correspond à ces filtres'
+                : 'Aucun acte trouvé pour cette spécialité'}
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Code
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Libellé
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Catégorie
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tarif
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredActes.map((acte) => (
-                  <tr key={acte.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                        {acte.code}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{acte.libelle}</div>
-                        {acte.description && (
-                          <div className="text-sm text-gray-500">{acte.description}</div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                        {acte.categorie}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {formatMontant(acte.tarif_base)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="overflow-y-auto max-h-[330px]">
+              {paginatedActes.map((acte) => (
+                <div
+                  key={acte.id}
+                  className="flex items-center gap-4 px-6 py-4 border-b border-gray-100 last:border-b-0 hover:bg-gray-50/60 transition-colors"
+                >
+                  <span className="px-2.5 py-1 bg-violet-50 text-violet-700 rounded-full text-[11.5px] font-semibold font-mono flex-none">
+                    {acte.code}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13.5px] font-medium text-gray-900 truncate">{acte.libelle}</p>
+                    {acte.description && (
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">{acte.description}</p>
+                    )}
+                  </div>
+                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[11.5px] font-medium flex-none">
+                    {acte.categorie}
+                  </span>
+                  <span className="text-[13.5px] font-semibold text-gray-900 flex-none w-28 text-right">
+                    {formatMontant(acte.tarif_base)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-gray-100">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                itemsPerPage={itemsPerPage}
+                totalItems={filteredActes.length}
+              />
+            </div>
+          </>
         )}
       </div>
     </div>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { 
-  Search, 
+import Dropdown from '../components/common/Dropdown';
+import {
+  Search,
   User, 
   Calendar, 
   Phone, 
@@ -158,15 +159,17 @@ const FicheIdentificationPage = () => {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Statut</label>
-            <select
+            <Dropdown
               value={selectedFilter}
-              onChange={(e) => setSelectedFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-            >
-              <option value="all">Tous les patients</option>
-              <option value="actif">Patients actifs</option>
-              <option value="inactif">Patients inactifs</option>
-            </select>
+              onChange={(value) => setSelectedFilter(value)}
+              options={[
+                { value: 'all', label: 'Tous les patients' },
+                { value: 'actif', label: 'Patients actifs' },
+                { value: 'inactif', label: 'Patients inactifs' },
+              ]}
+              size="md"
+              className="w-full"
+            />
           </div>
           
           <div className="flex items-end">

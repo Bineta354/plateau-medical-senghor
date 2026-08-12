@@ -15,6 +15,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 
 const DetailsRendezVous = () => {
   const [appointments, setAppointments] = useState([]);
@@ -23,11 +24,15 @@ const DetailsRendezVous = () => {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(25);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     fetchAppointments();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const fetchAppointments = async () => {
     try {
@@ -139,9 +144,21 @@ const DetailsRendezVous = () => {
 
       {/* Tableau des rendez-vous */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-gray-50">
+          <p className="text-sm text-gray-600">
+            {filteredAppointments.length} rendez-vous trouvé(s)
+          </p>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
+        </div>
+        <div className="overflow-x-auto overflow-y-auto max-h-[300px]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Nom
@@ -219,30 +236,15 @@ const DetailsRendezVous = () => {
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
-            <div className="text-sm text-gray-700">
-              Affichage de {startIndex + 1} à {Math.min(endIndex, filteredAppointments.length)} sur {filteredAppointments.length} rendez-vous
-            </div>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-              >
-                Précédent
-              </button>
-              <span className="px-3 py-1 text-sm text-gray-700">
-                Page {currentPage} sur {totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-              >
-                Suivant
-              </button>
-            </div>
+        {filteredAppointments.length > 0 && (
+          <div className="bg-gray-50 border-t border-gray-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredAppointments.length}
+            />
           </div>
         )}
       </div>

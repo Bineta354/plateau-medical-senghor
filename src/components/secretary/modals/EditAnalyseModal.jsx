@@ -7,6 +7,7 @@ import { unifiedNotificationService } from '../../../services/unifiedNotificatio
 import { updateAnalyse } from '../../../services/consultation/analyseService';
 import { Database } from 'lucide-react';
 import PropTypes from 'prop-types';
+import Dropdown from '../../common/Dropdown';
 
 
 const EditAnalyseModal = ({ analyse, onClose, onSave }) => {
@@ -78,16 +79,18 @@ const EditAnalyseModal = ({ analyse, onClose, onSave }) => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Statut</label>
-              <select
+              <Dropdown
                 value={formData.statut}
-                onChange={(e) => setFormData({ ...formData, statut: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="prescrit">Prescrit</option>
-                <option value="en_cours">En cours</option>
-                <option value="termine">Terminé</option>
-                <option value="annule">Annulé</option>
-              </select>
+                onChange={(value) => setFormData({ ...formData, statut: value })}
+                options={[
+                  { value: 'prescrit', label: 'Prescrit' },
+                  { value: 'en_cours', label: 'En cours' },
+                  { value: 'termine', label: 'Terminé' },
+                  { value: 'annule', label: 'Annulé' },
+                ]}
+                size="md"
+                className="w-full"
+              />
             </div>
             <div className="flex items-center pt-6">
               <label className="flex items-center cursor-pointer">

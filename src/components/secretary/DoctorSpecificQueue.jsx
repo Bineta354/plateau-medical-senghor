@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { unifiedNotificationService } from '../../services/unifiedNotificationService';
-import { 
-  Stethoscope, 
-  Clock, 
-  AlertTriangle, 
-  Calendar, 
+import {
+  Stethoscope,
+  Clock,
+  AlertTriangle,
+  Calendar,
   Phone,
   Activity,
   UserCheck,
@@ -14,7 +14,8 @@ import {
   Eye,
   FileImage,
   Upload,
-  ClipboardList
+  ClipboardList,
+  CheckCircle
 } from 'lucide-react';
 import PatientDocumentUploader from './PatientDocumentUploader';
 import PatientAntecedentsModal from './PatientAntecedentsModal';
@@ -22,6 +23,7 @@ import {
   computeQueueStats,
   filterActiveQueueItems,
   isUrgentQueuePriority,
+  isOnWaitingBench,
   matchesQueueFilterStatus,
   hasPastAppointment,
 } from '../../utils/waitingQueueStatus';
@@ -35,7 +37,12 @@ const DoctorSpecificQueue = ({
 }) => {
   const { userProfile } = useAuth();
   const [waitingQueue, setWaitingQueue] = useState([]);
+  // Copie non filtrée (tous statuts) de la file du jour, utilisée uniquement
+  // pour distinguer les vrais walk-in (sans RDV) des consultations "orphelines"
+  // rattachées à un RDV d'un autre jour — voir rendezVousDuJour plus bas.
+  const [rawWaitingQueueToday, setRawWaitingQueueToday] = useState([]);
   const [appointments, setAppointments] = useState([]);
+  const [finishedConsultations, setFinishedConsultations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -90,6 +97,14 @@ const DoctorSpecificQueue = ({
       }, () => {
         fetchAppointments();
       })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'consultations',
+        filter: `medecin_id=eq.${doctor.id}`
+      }, () => {
+        fetchFinishedConsultations();
+      })
       .subscribe();
 
     return () => {
@@ -103,7 +118,8 @@ const DoctorSpecificQueue = ({
       setLoading(true);
       await Promise.all([
         fetchWaitingQueue(),
-        fetchAppointments()
+        fetchAppointments(),
+        fetchFinishedConsultations()
       ]);
       console.log('✅ [DoctorSpecificQueue] Données rechargées avec succès');
     } catch (error) {
@@ -116,31 +132,69 @@ const DoctorSpecificQueue = ({
   const fetchWaitingQueue = async () => {
     try {
       console.log('📋 [DoctorSpecificQueue] Récupération de la file d\'attente pour médecin:', doctor.id);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // waiting_queue n'a pas de FK vers patients (seulement vers appointments) :
+      // un embed `patient:patients(...)` échoue silencieusement côté PostgREST
+      // (PGRST200) et vide la file. On récupère donc les patients séparément et
+      // on fusionne à la main, comme le fait déjà GlobalWaitingQueue.jsx.
+      //
+      // Scope sur `created_at` du jour (même logique que SalleAttentePage) : sans
+      // ça, un patient jamais "clôturé" la veille (statut resté "waiting")
+      // continue d'apparaître dans la salle d'attente du jour, faussant les
+      // KPI (ex: file affichée incohérente avec le total "Rendez-vous").
       const { data, error } = await supabase
         .from('waiting_queue')
         .select(`
           *,
-          patient:patients(nom, prenom, telephone, numero_dossier),
           appointment:appointments(motif, duree)
         `)
         .eq('medecin_id', doctor.id)
+        .gte('created_at', today.toISOString())
+        .lt('created_at', tomorrow.toISOString())
         .order('order_position', { ascending: true });
 
       if (error) {
         console.error('❌ [DoctorSpecificQueue] Erreur récupération file d\'attente:', error);
         throw error;
       }
-      
-      console.log('✅ [DoctorSpecificQueue] File d\'attente récupérée:', data?.length || 0, 'patients');
-      console.log('📊 [DoctorSpecificQueue] Détails file d\'attente:', data?.map(p => ({
+
+      const queueList = data || [];
+      const patientIds = Array.from(new Set(queueList.map(q => q.patient_id).filter(Boolean)));
+      let patientMap = {};
+
+      if (patientIds.length > 0) {
+        const { data: patientsData, error: patientsError } = await supabase
+          .from('patients')
+          .select('id, nom, prenom, telephone, numero_dossier')
+          .in('id', patientIds);
+
+        if (patientsError) {
+          console.error('❌ [DoctorSpecificQueue] Erreur récupération patients:', patientsError);
+        } else if (patientsData) {
+          patientMap = Object.fromEntries(patientsData.map(p => [p.id, p]));
+        }
+      }
+
+      const enriched = queueList.map(item => ({
+        ...item,
+        patient: patientMap[item.patient_id] || null,
+      }));
+
+      console.log('✅ [DoctorSpecificQueue] File d\'attente récupérée:', enriched.length || 0, 'patients');
+      console.log('📊 [DoctorSpecificQueue] Détails file d\'attente:', enriched.map(p => ({
         id: p.id,
         patient_id: p.patient_id,
         appointment_id: p.appointment_id,
         status: p.status,
         patient_name: `${p.patient?.prenom} ${p.patient?.nom}`
       })));
-      
-      setWaitingQueue(filterActiveQueueItems(data || []));
+
+      setWaitingQueue(filterActiveQueueItems(enriched));
+      setRawWaitingQueueToday(enriched);
     } catch (error) {
       console.error('❌ [DoctorSpecificQueue] Erreur lors du chargement de la file d\'attente:', error);
     }
@@ -168,6 +222,28 @@ const DoctorSpecificQueue = ({
       setAppointments(data || []);
     } catch (error) {
       console.error('Erreur lors du chargement des rendez-vous:', error);
+    }
+  };
+
+  const fetchFinishedConsultations = async () => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const { data, error } = await supabase
+        .from('consultations')
+        .select('id, statut, patient_id')
+        .eq('medecin_id', doctor.id)
+        .gte('date_consultation', today.toISOString())
+        .lt('date_consultation', tomorrow.toISOString())
+        .in('statut', ['terminee', 'termine', 'finished', 'completed']);
+
+      if (error) throw error;
+      setFinishedConsultations(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des consultations terminées:', error);
     }
   };
 
@@ -328,8 +404,8 @@ const DoctorSpecificQueue = ({
           : filterStatus;
 
     if (queueFilter === 'urgent') {
-      filtered = filtered.filter((patient) =>
-        isUrgentQueuePriority(patient.priority),
+      filtered = filtered.filter(
+        (patient) => isOnWaitingBench(patient.status) && isUrgentQueuePriority(patient.priority),
       );
     } else if (queueFilter !== 'all') {
       filtered = filtered.filter((patient) =>
@@ -402,6 +478,32 @@ const DoctorSpecificQueue = ({
   const filteredPatients = filterPatients();
   const filteredAppointments = filterAppointments();
   const queueStats = computeQueueStats(waitingQueue);
+  const urgentCount = filterActiveQueueItems(waitingQueue).filter(
+    (p) => isOnWaitingBench(p.status) && isUrgentQueuePriority(p.priority),
+  ).length;
+  // Une consultation "terminée aujourd'hui" (date_consultation) peut être
+  // rattachée à un RDV d'un autre jour resté ouvert (ex: RDV de la veille
+  // jamais clôturé, consulté après minuit) : consultations.appointment_id
+  // n'est pas fiabilisé, donc on ne peut pas filtrer dessus. On ne garde donc
+  // dans les KPI que les consultations dont le patient a soit un RDV
+  // aujourd'hui, soit un passage en file aujourd'hui sans RDV (vrai walk-in)
+  // — ça exclut ces orphelines sans faire disparaître les vrais walk-in.
+  const todayAppointmentPatientIds = new Set(appointments.map((a) => a.patient_id));
+  const todayWalkinPatientIds = new Set(
+    rawWaitingQueueToday.filter((q) => !q.appointment_id).map((q) => q.patient_id),
+  );
+  const relevantFinishedConsultations = finishedConsultations.filter(
+    (c) => todayAppointmentPatientIds.has(c.patient_id) || todayWalkinPatientIds.has(c.patient_id),
+  );
+  // "Rendez-vous" doit s'incrémenter dès la création d'un RDV, indépendamment
+  // de la présence du patient (pas seulement une fois arrivé/en
+  // consultation/terminé) — donc basé sur `appointments` (même source que le
+  // panneau "Rendez-vous du Jour" ci-dessous), plus les vrais walk-in ajoutés
+  // en file sans RDV (qui n'apparaissent pas dans `appointments`).
+  const walkinOnlyPatientIds = Array.from(todayWalkinPatientIds).filter(
+    (patientId) => !todayAppointmentPatientIds.has(patientId),
+  );
+  const rendezVousDuJour = appointments.length + walkinOnlyPatientIds.length;
 
   return (
     <div key={refreshKey} className="p-6">
@@ -423,39 +525,37 @@ const DoctorSpecificQueue = ({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <KpiCard
             tone="blue"
-            icon={UserCheck}
-            label="Patients actifs"
-            value={queueStats.total}
-            onClick={() => handleStatCardClick('all')}
-            active={statFilter === 'all'}
-            hoverMessage="Afficher tous les patients actifs"
+            icon={Calendar}
+            label="Rendez-vous"
+            value={rendezVousDuJour}
+            onClick={() => handleStatCardClick('appointments')}
+            active={statFilter === 'appointments'}
+            hoverMessage="Voir les rendez-vous du jour"
           />
           <KpiCard
             tone="yellow"
             icon={Clock}
-            label="En salle"
+            label="En salle d'attente"
             value={queueStats.onBench}
             onClick={() => handleStatCardClick('waiting')}
             active={statFilter === 'waiting'}
-            hoverMessage="Filtrer les patients en salle"
+            hoverMessage="Filtrer les patients en salle d'attente"
           />
           <KpiCard
-            tone="purple"
-            icon={Stethoscope}
-            label="En consultation"
-            value={queueStats.inConsultation}
-            onClick={() => handleStatCardClick('in_consultation')}
-            active={statFilter === 'in_consultation'}
-            hoverMessage="Filtrer les patients en consultation"
+            tone="red"
+            icon={AlertTriangle}
+            label="Urgent en attente"
+            value={urgentCount}
+            onClick={() => handleStatCardClick('urgent')}
+            active={statFilter === 'urgent'}
+            hoverMessage="Filtrer les patients urgents en salle d'attente"
           />
           <KpiCard
             tone="green"
-            icon={Calendar}
-            label="Rendez-vous"
-            value={appointments.length}
-            onClick={() => handleStatCardClick('appointments')}
-            active={statFilter === 'appointments'}
-            hoverMessage="Voir les rendez-vous du jour"
+            icon={CheckCircle}
+            label="Terminé"
+            value={relevantFinishedConsultations.length}
+            hoverMessage="Consultations terminées aujourd'hui"
           />
         </div>
       </div>
@@ -469,7 +569,7 @@ const DoctorSpecificQueue = ({
           <div className="p-4 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center">
               <Clock className="w-5 h-5 mr-2" />
-              Salle d'attente ({filteredPatients.length})
+              Salle d'attente
             </h3>
           </div>
           
@@ -615,13 +715,13 @@ const DoctorSpecificQueue = ({
           <div className="p-4 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center">
               <Calendar className="w-5 h-5 mr-2" />
-              Rendez-vous du Jour ({filteredAppointments.length})
+              Rendez-vous du Jour
             </h3>
           </div>
           
           <div className="p-4">
             {filteredAppointments.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
                 {filteredAppointments.map((appointment) => {
                   // Ne pas se fier qu'à la file active : un RDV "terminé" ou
                   // "annulé" n'est plus dans waitingQueue (filterActiveQueueItems

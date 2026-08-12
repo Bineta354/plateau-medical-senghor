@@ -3,12 +3,37 @@ import { getSpecialityFilter, getSpecialiteIdsWithChildren } from './specialityC
 
 // ===== SERVICES POUR LES UTILISATEURS (USERS) =====
 export const userService = {
-  // Récupérer tous les utilisateurs
-  async getAll() {
-    const { data, error } = await supabase
+  // Récupérer tous les utilisateurs, cloisonnés par tenant (cabinet).
+  // tenantId: à fournir par l'appelant (ex: useAuth().tenantId) pour éviter un aller-retour
+  // réseau supplémentaire ; sinon résolu depuis l'utilisateur connecté, comme dans getDoctors().
+  async getAll(options = {}) {
+    const { tenantId = null } = options
+    let currentTenantId = tenantId
+    if (!currentTenantId) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: currentUserData } = await supabase
+            .from('users')
+            .select('tenant_id')
+            .eq('auth_id', user.id)
+            .maybeSingle()
+          currentTenantId = currentUserData?.tenant_id || null
+        }
+      } catch (e) {
+        console.warn('[userService.getAll] Impossible de récupérer le tenant_id utilisateur:', e)
+      }
+    }
+
+    let query = supabase
       .from('users')
       .select('*')
       .order('created_at', { ascending: false })
+    if (currentTenantId) {
+      query = query.eq('tenant_id', currentTenantId)
+    }
+
+    const { data, error } = await query
     if (error) throw error
     return data
   },
@@ -232,6 +257,31 @@ export const userService = {
       console.error(`[SPECIALITY_CONFIG] Erreur lors de la récupération des spécialités pratiquées:`, error)
       return []
     }
+  },
+
+  // Récupérer les spécialités (additionnelles, table de liaison medecin_specialites) d'UN médecin donné.
+  // Complète getUniqueDoctorSpecialties() ci-dessus, qui lit la même table mais de façon agrégée
+  // (toutes spécialités pratiquées, tous médecins confondus) — extrait de
+  // src/pages/administration/FormulaireUtilisateur.jsx → fetchUtilisateur() (lignes ~226-234).
+  async getSpecialitesByMedecin(medecinId) {
+    const { data, error } = await supabase
+      .from('medecin_specialites')
+      .select('specialite_id, specialites:specialite_id(id, nom)')
+      .eq('medecin_id', medecinId)
+    if (error) throw error
+    return data || []
+  },
+
+  // Synchronise (remplace) la liste des spécialités additionnelles d'un médecin via le RPC
+  // sync_medecin_specialites (delete+insert atomique côté DB) — extrait de
+  // src/pages/administration/FormulaireUtilisateur.jsx → handleSubmit(), appelé pour la
+  // création (ligne ~337) et pour la modification (ligne ~357) d'un utilisateur médecin.
+  async syncSpecialitesMedecin(medecinId, specialiteIds = []) {
+    const { error } = await supabase.rpc('sync_medecin_specialites', {
+      p_medecin_id: medecinId,
+      p_specialite_ids: specialiteIds,
+    })
+    if (error) throw error
   }
 }
 
@@ -256,6 +306,41 @@ export const patientService = {
       .single()
     if (error) throw error
     return data
+  },
+
+  // Récupérer un patient par ID avec sa jointure assurance — extrait de
+  // src/pages/patients/PatientDetailsPage.jsx -> loadPatient() (lignes ~32-52).
+  // Additif : ne remplace pas getById() ci-dessus, utilisé quand la page a besoin
+  // du détail de l'assurance (nom, type, taux, description) en plus du patient.
+  async getByIdWithAssurance(id) {
+    const { data, error } = await supabase
+      .from('patients')
+      .select(`
+        *,
+        assurances (
+          id,
+          nom,
+          type_assurance,
+          taux_remboursement,
+          description
+        )
+      `)
+      .eq('id', id)
+      .single()
+    if (error) throw error
+    return data
+  },
+
+  // Liste de tous les patients avec leur assurance liée (colonnes réduites) — extrait de
+  // src/pages/caissier/Recapitulatif.jsx (chargement initial, sélecteur "Patient").
+  // Additif : distinct de getAll() ci-dessus (qui fait select('*') sans jointure).
+  async getAllWithAssurance() {
+    const { data, error } = await supabase
+      .from('patients')
+      .select('id, nom, prenom, assurance_id, assurances ( id, nom, taux_remboursement )')
+      .order('nom', { ascending: true })
+    if (error) throw error
+    return data || []
   },
 
   // Créer un nouveau patient

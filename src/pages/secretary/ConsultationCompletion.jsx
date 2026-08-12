@@ -9,16 +9,16 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   ArrowLeft,
   User,
-  Pill,
   Activity,
-  Receipt,
   Printer,
   Save,
   CheckCircle,
   AlertCircle,
   Calendar,
   Loader,
-  Plus
+  Plus,
+  Edit3,
+  File
 } from 'lucide-react';
 import { formatDoctorSpecialties } from '../../utils/doctorUtils';
 import { formatMontant } from '../../utils/currency';
@@ -557,10 +557,10 @@ const ConsultationCompletion = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-center">
-          <Loader className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Chargement des données de consultation...</p>
+          <Loader className="w-10 h-10 animate-spin text-violet-500 mx-auto mb-4" />
+          <p className="text-gray-500 text-sm">Chargement des données de consultation...</p>
         </div>
       </div>
     );
@@ -568,14 +568,14 @@ const ConsultationCompletion = () => {
 
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-red-900 mb-2">Erreur</h2>
-          <p className="text-red-700 mb-4">{error}</p>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white border border-red-200 rounded-[20px] shadow-sm p-8 text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Erreur</h2>
+          <p className="text-sm text-gray-500 mb-6">{error}</p>
           <button
             onClick={() => navigate('/secretary-dashboard')}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800"
           >
             Retour à l'accueil
           </button>
@@ -584,264 +584,257 @@ const ConsultationCompletion = () => {
     );
   }
 
+  const actesTotal = calculateActesTotal();
+  const total = calculateTotal();
+  const patientInitials = `${patient?.prenom?.[0] || ''}${patient?.nom?.[0] || ''}`.toUpperCase();
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto p-6">
+    <div className="min-h-screen bg-slate-50 px-6 sm:px-10 py-8 pb-14 font-sans">
+      <div className="max-w-[1180px] mx-auto">
         {/* En-tête */}
-        <div className="mb-6">
-          <button
-            onClick={() => navigate('/secretary-dashboard')}
-            className="flex items-center text-gray-600 hover:text-gray-900 mb-4"
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" /> Retour à l'accueil
-          </button>
-          <h1 className="text-3xl font-bold text-gray-900">Completion de Consultation</h1>
-          <p className="text-gray-600 mt-2">
-            Consultation du {new Date(consultation.date_consultation).toLocaleDateString('fr-FR')}
-          </p>
+        <button
+          onClick={() => navigate('/secretary-dashboard')}
+          className="inline-flex items-center gap-1.5 text-[13px] text-gray-500 hover:text-gray-900 mb-4"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" /> Retour à l'accueil
+        </button>
+
+        <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
+          <div>
+            <h1 className="m-0 text-2xl font-semibold text-gray-900 tracking-tight">Clôture de consultation</h1>
+            <p className="mt-1 text-[13px] text-gray-500">
+              Consultation du {new Date(consultation.date_consultation).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} · N° {consultationId}
+            </p>
+          </div>
+          <span className="px-3 py-1.5 bg-emerald-500/10 text-emerald-700 rounded-full text-xs font-medium">
+            Terminée
+          </span>
         </div>
 
         {/* Contenu principal */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5">
           {/* Colonne principale - Détails */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="flex flex-col gap-5">
             {/* Informations patient et médecin */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <User className="w-5 h-5 mr-2 text-blue-600" />
+            <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-[22px]">
+              <p className="m-0 mb-4 text-[11px] font-semibold tracking-[.12em] uppercase text-zinc-400 flex items-center gap-2">
+                <User className="w-3.5 h-3.5 text-violet-700" strokeWidth={1.5} />
                 Informations
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <h3 className="font-semibold text-gray-700 mb-2">Patient</h3>
-                  <p className="text-gray-900">{patient?.prenom} {patient?.nom}</p>
-                  <p className="text-sm text-gray-600">Dossier: {patient?.numero_dossier}</p>
-                  {patient?.assurances && (
-                    <p className="text-sm text-gray-600">Assurance: {patient.assurances.nom}</p>
-                  )}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-violet-500 to-purple-400 text-white flex items-center justify-center text-sm font-semibold flex-none">
+                    {patientInitials || '—'}
+                  </div>
+                  <div>
+                    <p className="m-0 text-sm font-semibold text-gray-900">{patient?.prenom} {patient?.nom}</p>
+                    <p className="mt-0.5 text-xs text-gray-500">Dossier {patient?.numero_dossier}</p>
+                    {patient?.assurances && (
+                      <p className="mt-0.5 text-xs text-gray-500">{patient.assurances.nom}</p>
+                    )}
+                  </div>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-700 mb-2">Spécialité</h3>
-                  <p className="text-gray-900">{formatDoctorSpecialties(medecin)}</p>
+                  <p className="m-0 mb-1 text-[11px] text-gray-400">Médecin</p>
+                  <p className="m-0 text-[13.5px] font-medium text-gray-900">{medecin?.prenom} {medecin?.nom}</p>
+                  <p className="mt-0.5 text-xs text-gray-500">{formatDoctorSpecialties(medecin)}</p>
                 </div>
               </div>
             </div>
 
             {/* Actes de consultation */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Activity className="w-5 h-5 mr-2 text-green-600" />
-                Actes de Consultation
-              </h2>
+            <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm overflow-hidden">
+              <div className="px-[22px] py-4 border-b border-gray-100 flex items-center gap-2">
+                <Activity className="w-3.5 h-3.5 text-emerald-700" strokeWidth={1.5} />
+                <p className="m-0 text-[13px] font-semibold text-gray-900">Actes de consultation</p>
+              </div>
               {actes.length > 0 ? (
-                <div className="space-y-3">
-                  {actes.map((acte) => (
-                    <div key={acte.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-semibold">{acte.types_actes?.nom || 'Acte'}</p>
-                          {acte.types_actes?.description && (
-                            <p className="text-sm text-gray-600">{acte.types_actes.description}</p>
-                          )}
-                          <p className="text-sm text-gray-500 mt-1">
-                            Quantité: {acte.quantite || 1}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-green-600">
-                            {formatMontant(acte.montant_total || (acte.tarif_unitaire * (acte.quantite || 1)))}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {formatMontant(acte.tarif_unitaire)} / unité
-                          </p>
-                        </div>
-                      </div>
+                actes.map((acte) => (
+                  <div key={acte.id} className="flex justify-between items-center px-[22px] py-3.5 border-b border-gray-100 last:border-b-0">
+                    <div>
+                      <p className="m-0 text-[13.5px] font-medium text-gray-900">{acte.types_actes?.nom || 'Acte'}</p>
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {acte.types_actes?.description}{acte.types_actes?.description ? ' · ' : ''}Quantité : {acte.quantite || 1}
+                      </p>
                     </div>
-                  ))}
-                </div>
+                    <div className="text-right">
+                      <p className="m-0 text-[13.5px] font-semibold text-emerald-700">
+                        {formatMontant(acte.montant_total || (acte.tarif_unitaire * (acte.quantite || 1)))}
+                      </p>
+                      <p className="mt-0.5 text-[11.5px] text-gray-400">
+                        {formatMontant(acte.tarif_unitaire)} / unité
+                      </p>
+                    </div>
+                  </div>
+                ))
               ) : (
-                <p className="text-gray-500 text-center py-4">Aucun acte enregistré</p>
+                <p className="text-gray-400 text-sm text-center py-6">Aucun acte enregistré</p>
               )}
             </div>
 
             {/* Ordonnances */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Pill className="w-5 h-5 mr-2 text-purple-600" />
-                Ordonnances ({ordonnances.length})
-              </h2>
+            <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm overflow-hidden">
+              <div className="px-[22px] py-4 border-b border-gray-100 flex items-center gap-2">
+                <Edit3 className="w-3.5 h-3.5 text-violet-700" strokeWidth={1.5} />
+                <p className="m-0 text-[13px] font-semibold text-gray-900">Ordonnances ({ordonnances.length})</p>
+              </div>
               {ordonnances.length > 0 ? (
-                <div className="space-y-3">
-                  {ordonnances.map((ordonnance) => (
-                    <div key={ordonnance.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-semibold">Ordonnance #{ordonnance.numero_ordonnance}</p>
-                          <p className="text-sm text-gray-600">
-                            {ordonnance.lignes_ordonnance?.length || 0} médicament(s)
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Date: {new Date(ordonnance.date_prescription).toLocaleDateString('fr-FR')}
-                          </p>
-                          {ordonnance.prochain_rdv && (
-                            <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                              <div className="flex items-center text-sm text-blue-900">
-                                <Calendar className="w-4 h-4 mr-2" />
-                                <span className="font-medium">Date de suivi:</span>
-                                <span className="ml-2">{ordonnance.prochain_rdv}</span>
-                              </div>
-                              <button
-                                onClick={() => handleCreateAppointmentFromOrdonnance(ordonnance)}
-                                disabled={creatingAppointment}
-                                className="mt-2 flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                              >
-                                {creatingAppointment ? (
-                                  <>
-                                    <Loader className="w-3 h-3 mr-1 animate-spin" />
-                                    Création...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Plus className="w-3 h-3 mr-1" />
-                                    Planifier rendez-vous
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          )}
+                ordonnances.map((ordonnance) => (
+                  <div key={ordonnance.id} className="px-[22px] py-4 border-b border-gray-100 last:border-b-0">
+                    <p className="m-0 text-[13.5px] font-semibold text-gray-900">Ordonnance #{ordonnance.numero_ordonnance}</p>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      {ordonnance.lignes_ordonnance?.length || 0} médicament(s) · {new Date(ordonnance.date_prescription).toLocaleDateString('fr-FR')}
+                    </p>
+                    {ordonnance.prochain_rdv && (
+                      <div className="mt-2.5 px-3 py-2.5 bg-violet-50 border border-violet-100 rounded-xl">
+                        <div className="flex items-center gap-1.5 text-xs text-violet-700">
+                          <Calendar className="w-3.5 h-3.5" strokeWidth={1.5} />
+                          <span className="font-semibold">Suivi :</span> {ordonnance.prochain_rdv}
                         </div>
+                        <button
+                          onClick={() => handleCreateAppointmentFromOrdonnance(ordonnance)}
+                          disabled={creatingAppointment}
+                          className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-violet-500 text-white rounded-[9px] text-[11.5px] font-medium hover:bg-violet-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                        >
+                          {creatingAppointment ? (
+                            <>
+                              <Loader className="w-3 h-3 animate-spin" />
+                              Création...
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3 h-3" />
+                              Planifier rendez-vous
+                            </>
+                          )}
+                        </button>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    )}
+                  </div>
+                ))
               ) : (
-                <p className="text-gray-500 text-center py-4">Aucune ordonnance</p>
+                <p className="text-gray-400 text-sm text-center py-6">Aucune ordonnance</p>
               )}
             </div>
           </div>
 
           {/* Colonne latérale - Facturation et Actions */}
-          <div className="space-y-6">
+          <div className="flex flex-col gap-5">
             {/* Section Facturation */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Receipt className="w-5 h-5 mr-2 text-orange-600" />
+            <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-[22px]">
+              <p className="m-0 mb-4 text-[11px] font-semibold tracking-[.12em] uppercase text-zinc-400 flex items-center gap-2">
+                <File className="w-3.5 h-3.5 text-orange-700" strokeWidth={1.5} />
                 Facturation
-              </h2>
+              </p>
 
               {invoiceGenerated && facture ? (
-                <div className="space-y-4">
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div className="flex items-center mb-2">
-                      <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-                      <span className="font-semibold text-green-900">Facture générée</span>
+                <>
+                  <div className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3.5 mb-3.5">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CheckCircle className="w-[15px] h-[15px] text-emerald-600" strokeWidth={1.5} />
+                      <span className="text-[13px] font-semibold text-emerald-800">Facture générée</span>
                     </div>
-                    <p className="text-sm text-green-700">N° {facture.numero_facture}</p>
-                    <p className="text-sm text-green-700">
-                      Date: {new Date(facture.date_facture).toLocaleDateString('fr-FR')}
+                    <p className="m-0 text-xs text-emerald-700">
+                      N° {facture.numero_facture} · {new Date(facture.date_facture).toLocaleDateString('fr-FR')}
                     </p>
                   </div>
-                  <div className="border-t pt-4">
-                    {facture.lignes_facture && facture.lignes_facture.length > 0 && (
-                      <>
-                        {facture.lignes_facture.map((ligne, idx) => (
-                          <div key={idx} className="flex justify-between mb-2 text-sm">
-                            <span>{ligne.description}:</span>
-                            <span className="font-semibold">
-                              {formatMontant(ligne.montant_ligne)}
-                            </span>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                  </div>
+                  {facture.lignes_facture && facture.lignes_facture.length > 0 && (
+                    <div className="flex flex-col gap-2 pb-3.5 border-b border-gray-100 mb-3.5">
+                      {facture.lignes_facture.map((ligne, idx) => (
+                        <div key={idx} className="flex justify-between text-[13px]">
+                          <span className="text-gray-600">{ligne.description}</span>
+                          <span className="font-semibold text-gray-900">{formatMontant(ligne.montant_ligne)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <button
                     onClick={handlePrintFacture}
-                    className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-xl text-[13px] font-medium hover:bg-gray-800"
                   >
-                    <Printer className="w-4 h-4 mr-2" />
+                    <Printer className="w-3.5 h-3.5" strokeWidth={1.5} />
                     Imprimer la facture
                   </button>
-                </div>
+                </>
               ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Prix de la consultation (FCFA)
-                    </label>
-                    <input
-                      type="text"
-                      value={new Intl.NumberFormat('fr-FR', {
-                        maximumFractionDigits: 0,
-                        useGrouping: true
-                      }).format(prixConsultation).replace(/\u00A0/g, ' ')}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\s/g, '');
-                        const numValue = parseFloat(value) || 0;
-                        setPrixConsultation(numValue);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="0"
-                      min="0"
-                      step="100"
-                    />
-                  </div>
+                <>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                    Prix de la consultation (F CFA)
+                  </label>
+                  <input
+                    type="text"
+                    value={new Intl.NumberFormat('fr-FR', {
+                      maximumFractionDigits: 0,
+                      useGrouping: true
+                    }).format(prixConsultation).replace(/\u00A0/g, ' ')}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\s/g, '');
+                      const numValue = parseFloat(value) || 0;
+                      setPrixConsultation(numValue);
+                    }}
+                    className="w-full border border-gray-200 rounded-[10px] px-3 py-2.5 text-[13.5px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400"
+                    placeholder="0"
+                  />
 
-                  <div className="border-t pt-4 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Consultation:</span>
-                      <span>{formatMontant(prixConsultation)}</span>
+                  <div className="flex flex-col gap-2 mt-4 pt-3.5 border-t border-gray-100">
+                    <div className="flex justify-between text-[13px]">
+                      <span className="text-gray-500">Consultation</span>
+                      <span className="text-gray-900">{formatMontant(prixConsultation)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Actes ({actes.length}):</span>
-                      <span>{formatMontant(calculateActesTotal())}</span>
+                    <div className="flex justify-between text-[13px]">
+                      <span className="text-gray-500">Actes ({actes.length})</span>
+                      <span className="text-gray-900">{formatMontant(actesTotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-2 border-t border-gray-100">
+                      <span className="font-semibold text-gray-900">Total</span>
+                      <span className="font-bold text-gray-900">{formatMontant(total)}</span>
                     </div>
                   </div>
 
                   <button
                     onClick={generateInvoice}
-                    disabled={generatingInvoice || calculateTotal() === 0}
-                    className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    disabled={generatingInvoice || total === 0}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 mt-4 bg-violet-500 text-white rounded-xl text-[13px] font-medium hover:bg-violet-600 disabled:bg-gray-300 disabled:cursor-not-allowed shadow-[0_4px_14px_rgba(139,92,246,.35)]"
                   >
                     {generatingInvoice ? (
                       <>
-                        <Loader className="w-4 h-4 mr-2 animate-spin" />
+                        <Loader className="w-3.5 h-3.5 animate-spin" />
                         Génération...
                       </>
                     ) : (
                       <>
-                        <Save className="w-4 h-4 mr-2" />
+                        <Save className="w-3.5 h-3.5" strokeWidth={1.5} />
                         Générer la facture
                       </>
                     )}
                   </button>
-                </div>
+                </>
               )}
             </div>
 
             {/* Section Impression */}
             {(ordonnances.length > 0 || certificats.length > 0) && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-xl font-semibold mb-4 flex items-center">
-                  <Printer className="w-5 h-5 mr-2 text-gray-600" />
+              <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm p-[22px]">
+                <p className="m-0 mb-3.5 text-[11px] font-semibold tracking-[.12em] uppercase text-zinc-400 flex items-center gap-2">
+                  <Printer className="w-3.5 h-3.5 text-gray-500" strokeWidth={1.5} />
                   Impression
-                </h2>
-                <div className="space-y-3">
+                </p>
+                <div className="flex flex-col gap-2.5">
                   {ordonnances.length > 0 && (
                     <button
                       onClick={handlePrintOrdonnances}
-                      className="w-full flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 bg-violet-50 text-violet-700 rounded-xl text-[13px] font-medium hover:bg-violet-100"
                     >
-                      <Printer className="w-4 h-4 mr-2" />
+                      <Printer className="w-3.5 h-3.5" strokeWidth={1.5} />
                       Imprimer ordonnance(s)
                     </button>
                   )}
                   {certificats.length > 0 && (
                     <button
                       onClick={handlePrintCertificats}
-                      className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-[13px] font-medium hover:bg-gray-200"
                     >
-                      <Printer className="w-4 h-4 mr-2" />
+                      <Printer className="w-3.5 h-3.5" strokeWidth={1.5} />
                       Imprimer certificat(s)
                     </button>
                   )}

@@ -1,6 +1,7 @@
 # Cabinet Médical - Application de Gestion
 
-## 🏥 Vue d'ensemble
+## 🏥 Vue d'         
+                 
 
 Logiciel de gestion de cabinet médical complet développé avec React, Tailwind CSS et Supabase.
 

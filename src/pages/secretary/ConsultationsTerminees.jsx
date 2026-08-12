@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Stethoscope, Search, Calendar } from 'lucide-react';
 
 // Hooks
@@ -6,79 +7,31 @@ import { useConsultationWorkflow } from '../../hooks/consultation/useHistoriqueC
 
 // Components
 import ConsultationsTable from '../../components/consultation/ConsultationsTable';
-import ConsultationDetailsModal from '../../components/consultation/modals/ConsultationDetailsModal';
-import Pagination from '../../components/common/Pagination';
-
-// Modals
-import EditFactureModal from '../../components/secretary/modals/EditFactureModal';
-import EditOrdonnanceModal from '../../components/secretary/modals/EditOrdonnanceModal';
-import EditCertificatModal from '../../components/secretary/modals/EditCertificatModal';
-import EditAnalyseModal from '../../components/secretary/modals/EditAnalyseModal';
-import EditActeModal from '../../components/secretary/modals/EditActeModal';
-
-const ITEMS_PER_PAGE = 20;
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 
 const ConsultationsTerminees = () => {
-  /* -------------------- LISTE -------------------- */
+  const navigate = useNavigate();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const { consultations, loading: loadingList, fetchConsultations } =
     useConsultationWorkflow();
 
-  /* -------------------- CONSULTATION -------------------- */
-  const [selectedConsultation, setSelectedConsultation] = useState(null);
- const safeconsultations =consultations ||[]
-  const {
-    workflows,
-    facture,
-    loadingDetails, // Changed from loading: loadingDetails
-    loadConsultationDetails,
-    generateFacture,
-    resetWorkflow,
-  } = useConsultationWorkflow();
+  const safeconsultations = consultations || [];
 
-  /* -------------------- MODALES -------------------- */
-  const [modalsState, setModalsState] = useState({
-    facture: false,
-    ordonnance: false,
-    certificat: false,
-    analyse: false,
-    acte: false,
-  });
-
-  const [selectedItem, setSelectedItem] = useState(null);
-
-  /* -------------------- EFFECTS -------------------- */
   useEffect(() => {
     fetchConsultations();
   }, [fetchConsultations]);
 
-  /* -------------------- HANDLERS -------------------- */
-  const handleViewDetails = async (consultation) => {
-    setSelectedConsultation(consultation);
-    await loadConsultationDetails(consultation.id);
-  };
-
-  const handleCloseDetails = () => {
-    setSelectedConsultation(null);
-    resetWorkflow();
-  };
-
-  const openModal = (name, item = null) => {
-    setSelectedItem(item);
-    setModalsState((prev) => ({ ...prev, [name]: true }));
-  };
-
-  const closeModal = (name) => {
-    setSelectedItem(null);
-    setModalsState((prev) => ({ ...prev, [name]: false }));
-  };
-
-  const handleCreateFacture = async () => {
-    await generateFacture(selectedConsultation);
-    openModal('facture');
+  // Redirection directe vers la fiche de consultation en lecture seule :
+  // ConsultationDetail.jsx affiche déjà un bandeau "Lecture seule" et bloque
+  // l'édition dès que consultation.statut === 'terminee', donc pas besoin
+  // d'une modale séparée qui duplique cette vue.
+  const handleViewDetails = (consultation) => {
+    navigate(`/consultation/${consultation.id}`);
   };
 
   /* -------------------- FILTRAGE -------------------- */
@@ -120,11 +73,16 @@ const ConsultationsTerminees = () => {
     setCurrentPage(1);
   }, [searchTerm, dateStart, dateEnd]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredConsultations.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredConsultations.length / itemsPerPage));
   const paginatedConsultations = filteredConsultations.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
+
+  // N'afficher le loader qu'au tout premier chargement : si des consultations
+  // sont déjà en mémoire, un refetch (realtime, remontage, etc.) ne doit pas
+  // remplacer la table par un spinner plein écran.
+  const showLoader = loadingList && safeconsultations.length === 0;
 
   /* -------------------- RENDER -------------------- */
   return (
@@ -176,85 +134,36 @@ const ConsultationsTerminees = () => {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow border">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200">
+          <h2 className="text-sm font-medium text-gray-700">
+            {filteredConsultations.length} consultation(s) trouvée(s)
+          </h2>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
+        </div>
         <ConsultationsTable
           consultations={paginatedConsultations}
-          loading={loadingList}
+          loading={showLoader}
           onViewDetails={handleViewDetails}
           searchTerm={searchTerm}
         />
-        {!loadingList && filteredConsultations.length > 0 && (
+        {!showLoader && filteredConsultations.length > 0 && (
           <div className="border-t border-gray-200">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredConsultations.length}
             />
           </div>
         )}
       </div>
-
-      {/* Détails */}
-      <ConsultationDetailsModal
-        consultation={selectedConsultation}
-        workflows={workflows}
-        facture={facture}
-        loading={loadingDetails}
-        onClose={handleCloseDetails}
-        actions={{
-          onCreateFacture: handleCreateFacture,
-          onEditFacture: () => openModal('facture'),
-          onEditOrdonnance: (item) => openModal('ordonnance', item),
-          onEditCertificat: (item) => openModal('certificat', item),
-          onEditAnalyse: (item) => openModal('analyse', item),
-          onEditActe: (item) => openModal('acte', item),
-        }}
-      />
-
-      {/* MODALES */}
-      {modalsState.facture && (
-        <EditFactureModal
-          facture={facture}
-          consultation={selectedConsultation}
-          onClose={() => closeModal('facture')}
-          onSave={() => closeModal('facture')}
-        />
-      )}
-
-      {modalsState.ordonnance && (
-        <EditOrdonnanceModal
-          ordonnance={selectedItem}
-          consultation={selectedConsultation}
-          onClose={() => closeModal('ordonnance')}
-          onSave={() => closeModal('ordonnance')}
-        />
-      )}
-
-      {modalsState.certificat && (
-        <EditCertificatModal
-          certificat={selectedItem}
-          consultation={selectedConsultation}
-          onClose={() => closeModal('certificat')}
-          onSave={() => closeModal('certificat')}
-        />
-      )}
-
-      {modalsState.analyse && (
-        <EditAnalyseModal
-          analyse={selectedItem}
-          consultation={selectedConsultation}
-          onClose={() => closeModal('analyse')}
-          onSave={() => closeModal('analyse')}
-        />
-      )}
-
-      {modalsState.acte && (
-        <EditActeModal
-          acte={selectedItem}
-          consultation={selectedConsultation}
-          onClose={() => closeModal('acte')}
-          onSave={() => closeModal('acte')}
-        />
-      )}
     </div>
   );
 };

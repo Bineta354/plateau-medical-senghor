@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import ParametrageLayout from '../../components/ParametrageLayout';
 import ParametrageList from '../../components/ParametrageList';
-import { supabase } from '../../lib/supabase';
+import { appareilsRefService } from '../../services/referentielService';
+import { specialtyService } from '../../lib/services/specialtyService';
 
 const EMPTY_APPAREIL = { nom: '', description: '', ordre_affichage: 0, actif: true };
 
@@ -22,19 +23,19 @@ const Appareils = () => {
   }, []);
 
   const fetchSpecialites = async () => {
-    const { data } = await supabase.from('specialites').select('id, nom').eq('actif', true).order('nom');
-    setSpecialites(data || []);
+    try {
+      const data = await specialtyService.getAll();
+      setSpecialites(data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des spécialités:', error);
+      setSpecialites([]);
+    }
   };
 
   const fetchAppareils = async () => {
     try {
-      const { data, error } = await supabase
-        .from('appareils')
-        .select(`*, appareils_specialites(specialite_id, specialites(id, nom))`)
-        .order('ordre_affichage', { ascending: true })
-        .order('nom');
-      if (error) throw error;
-      setAppareils(data || []);
+      const data = await appareilsRefService.list();
+      setAppareils(data);
     } catch (error) {
       console.error('Erreur lors du chargement des appareils:', error);
     } finally {
@@ -60,21 +61,13 @@ const Appareils = () => {
 
       let appareilId = editingId;
       if (editingId) {
-        const { error } = await supabase.from('appareils').update(dataToSave).eq('id', editingId);
-        if (error) throw error;
+        await appareilsRefService.update(editingId, dataToSave);
       } else {
-        const { data, error } = await supabase.from('appareils').insert([dataToSave]).select('id').single();
-        if (error) throw error;
-        appareilId = data.id;
+        const created = await appareilsRefService.create(dataToSave);
+        appareilId = created.id;
       }
 
-      // Mise à jour des liaisons spécialités
-      await supabase.from('appareils_specialites').delete().eq('appareil_id', appareilId);
-      if (selectedSpecialites.length > 0) {
-        await supabase.from('appareils_specialites').insert(
-          selectedSpecialites.map(specialite_id => ({ appareil_id: appareilId, specialite_id }))
-        );
-      }
+      await appareilsRefService.syncSpecialites(appareilId, selectedSpecialites);
 
       setNewAppareil(EMPTY_APPAREIL);
       setSelectedSpecialites([]);
@@ -115,8 +108,7 @@ const Appareils = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer cet appareil ?')) {
       try {
-        const { error } = await supabase.from('appareils').delete().eq('id', id);
-        if (error) throw error;
+        await appareilsRefService.remove(id);
         fetchAppareils();
       } catch (error) {
         console.error('Erreur lors de la suppression:', error);
@@ -228,7 +220,9 @@ const Appareils = () => {
             </div>
           </form>
         )}
+      </ParametrageLayout>
 
+      <div className="px-6">
         <div className="mb-4 flex flex-col md:flex-row gap-4">
           <input
             type="text"
@@ -290,7 +284,7 @@ const Appareils = () => {
             </tbody>
           </table>
         </div>
-      </ParametrageLayout>
+      </div>
     </div>
   );
 };

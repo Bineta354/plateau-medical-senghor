@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { unifiedNotificationService } from '../../services/unifiedNotificationService';
+import Dropdown from '../../components/common/Dropdown';
 import { 
   MessageSquare, 
   Send, 
@@ -511,16 +512,18 @@ const RappelsSmsPage = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                <select
+                <Dropdown
                   value={templateForm.type}
-                  onChange={(e) => setTemplateForm({...templateForm, type: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                >
-                  <option value="rappel_24h">Rappel 24h</option>
-                  <option value="rappel_jour">Rappel jour J</option>
-                  <option value="confirmation">Confirmation</option>
-                  <option value="annulation">Annulation</option>
-                </select>
+                  onChange={(value) => setTemplateForm({...templateForm, type: value})}
+                  options={[
+                    { value: 'rappel_24h', label: 'Rappel 24h' },
+                    { value: 'rappel_jour', label: 'Rappel jour J' },
+                    { value: 'confirmation', label: 'Confirmation' },
+                    { value: 'annulation', label: 'Annulation' },
+                  ]}
+                  size="md"
+                  className="w-full"
+                />
               </div>
               
               <div>
@@ -566,18 +569,19 @@ const RappelsSmsPage = () => {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Template</label>
-                <select
+                <Dropdown
                   value={smsForm.template_id}
-                  onChange={(e) => setSmsForm({...smsForm, template_id: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                >
-                  <option value="">Sélectionner un template</option>
-                  {smsTemplates.filter(t => t.actif).map(template => (
-                    <option key={template.id} value={template.id}>
-                      {template.nom}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setSmsForm({...smsForm, template_id: value})}
+                  options={[
+                    { value: '', label: 'Sélectionner un template' },
+                    ...smsTemplates.filter(t => t.actif).map(template => ({
+                      value: template.id,
+                      label: template.nom,
+                    })),
+                  ]}
+                  size="md"
+                  className="w-full"
+                />
               </div>
               
               <div>
@@ -593,14 +597,16 @@ const RappelsSmsPage = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Type d'envoi</label>
-                <select
+                <Dropdown
                   value={smsForm.type_rappel}
-                  onChange={(e) => setSmsForm({...smsForm, type_rappel: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                >
-                  <option value="immediat">Immédiat</option>
-                  <option value="programme">Programmé</option>
-                </select>
+                  onChange={(value) => setSmsForm({...smsForm, type_rappel: value})}
+                  options={[
+                    { value: 'immediat', label: 'Immédiat' },
+                    { value: 'programme', label: 'Programmé' },
+                  ]}
+                  size="md"
+                  className="w-full"
+                />
               </div>
               
               {smsForm.type_rappel === 'programme' && (

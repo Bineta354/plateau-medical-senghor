@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { formatMontant } from '../../utils/currency';
+import Dropdown from '../../components/common/Dropdown';
 import {
   Pill,
   Search, 
@@ -544,17 +545,19 @@ const FacturationPharmacie = () => {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Statut</label>
-            <select
+            <Dropdown
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-            >
-              <option value="all">Tous les statuts</option>
-              <option value="delivree">Délivrées</option>
-              <option value="en_preparation">En préparation</option>
-              <option value="en_attente">En attente</option>
-              <option value="annulee">Annulées</option>
-            </select>
+              onChange={(value) => setSelectedStatus(value)}
+              options={[
+                { value: 'all', label: 'Tous les statuts' },
+                { value: 'delivree', label: 'Délivrées' },
+                { value: 'en_preparation', label: 'En préparation' },
+                { value: 'en_attente', label: 'En attente' },
+                { value: 'annulee', label: 'Annulées' },
+              ]}
+              size="md"
+              className="w-full"
+            />
           </div>
           
           <div className="flex items-end">
@@ -655,18 +658,19 @@ const FacturationPharmacie = () => {
               
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                 <div className="md:col-span-2">
-                  <select
+                  <Dropdown
                     value={factureData.medicamentId}
-                    onChange={(e) => setFactureData({...factureData, medicamentId: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">Sélectionner un médicament</option>
-                    {medicamentsDisponibles.map(med => (
-                      <option key={med.id} value={med.id}>
-                        {med.nom} {med.dosage} - {formatMontant(med.prix)} (Stock: {med.stock})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFactureData({...factureData, medicamentId: value})}
+                    options={[
+                      { value: '', label: 'Sélectionner un médicament' },
+                      ...medicamentsDisponibles.map(med => ({
+                        value: med.id,
+                        label: `${med.nom} ${med.dosage} - ${formatMontant(med.prix)} (Stock: ${med.stock})`,
+                      })),
+                    ]}
+                    size="md"
+                    className="w-full"
+                  />
                 </div>
                 
                 <div>

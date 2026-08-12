@@ -1,22 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useConsultationsPage } from '../../hooks/consultation/useConsultationsPage';
 import { getConsultationMotif, getConsultationTypeLabel } from '../../utils/consultationUtils';
 import KpiCard from '../../components/common/KpiCard';
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 import {
-  Plus, 
-  Search, 
-  Filter, 
-  Calendar, 
-  User, 
-  Stethoscope, 
+  Plus,
+  Search,
+  Filter,
+  Calendar,
+  User,
+  Stethoscope,
   FileText,
   Eye,
   Edit,
-  Trash2,
   Clock,
   CheckCircle,
   XCircle,
   AlertCircle,
+  AlertTriangle,
   Download,
   Star,
   Bell,
@@ -25,8 +26,6 @@ import {
   CalendarDays,
   Heart,
   Brain,
-  Activity,
-  MoreHorizontal,
   Pill,
   FileCheck
 } from 'lucide-react';
@@ -51,8 +50,6 @@ const Consultations = () => {
     showModal, setShowModal,
     showModeleModal, setShowModeleModal,
     showExportModal, setShowExportModal,
-    showVoirPlusModal, setShowVoirPlusModal,
-    selectedConsultationId, setSelectedConsultationId,
 
     // Form State
     selectedPatient, setSelectedPatient,
@@ -66,11 +63,16 @@ const Consultations = () => {
     createConsultation,
     createConsultationFromModele,
     updateConsultationStatus,
-    deleteConsultation,
     generateRapport,
     resetForm,
     navigate
   } = useConsultationsPage();
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, urgenceFilter, typeFilter]);
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -135,10 +137,7 @@ const Consultations = () => {
     return date.toLocaleDateString('fr-FR', {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
+      year: 'numeric'
     });
   };
 
@@ -162,6 +161,12 @@ const Consultations = () => {
       </div>
     );
   }
+
+  const totalPages = Math.max(1, Math.ceil(filteredConsultations.length / itemsPerPage));
+  const paginatedConsultations = filteredConsultations.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
     <div className="p-6">
@@ -192,16 +197,14 @@ const Consultations = () => {
       </div>
 
       {/* Statistiques avancées */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KpiCard icon={Stethoscope} tone="blue" label="Total" value={stats.total} />
-
-        <KpiCard icon={Clock} tone="blue" label="En consultation" value={stats.enCours} />
 
         <KpiCard icon={CheckCircle} tone="green" label="Terminées" value={stats.terminees} />
 
-        <KpiCard icon={AlertCircle} tone="red" label="Urgentes" value={stats.urgentes} />
+        <KpiCard icon={AlertTriangle} tone="yellow" label="Urgentes" value={stats.urgentes} />
 
-        <KpiCard icon={Activity} tone="purple" label="Durée moy." value={`${Math.round(stats.dureeMoyenne)}min`} />
+        <KpiCard icon={AlertCircle} tone="red" label="Très urgentes" value={stats.tresUrgentes} />
       </div>
 
       {/* Barre d'outils avancée */}
@@ -268,9 +271,21 @@ const Consultations = () => {
 
       {/* Liste des consultations */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200">
+          <h2 className="text-sm font-medium text-gray-700">
+            {filteredConsultations.length} consultation(s) trouvée(s)
+          </h2>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
+        </div>
+        <div className="overflow-x-auto overflow-y-auto max-h-[400px]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Patient
@@ -296,7 +311,7 @@ const Consultations = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredConsultations.map((consultation) => (
+              {paginatedConsultations.map((consultation) => (
                 <tr key={consultation.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -322,7 +337,7 @@ const Consultations = () => {
                     {formatDate(consultation.date_consultation)}
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900 max-w-xs truncate">
+                    <div className="text-sm text-gray-900 max-w-[140px] truncate">
                       {getConsultationMotif(consultation)}
                     </div>
                   </td>
@@ -353,17 +368,6 @@ const Consultations = () => {
                       </button>
                       
                       <button
-                        onClick={() => {
-                          setSelectedConsultationId(consultation.id);
-                          setShowVoirPlusModal(true);
-                        }}
-                        className="text-purple-600 hover:text-purple-900"
-                        title="Voir plus - 8 sous-catégories"
-                      >
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                      
-                      <button
                         onClick={() => generateRapport(consultation.id, 'complet')}
                         className="text-green-600 hover:text-green-900"
                         title="Générer rapport complet"
@@ -389,14 +393,6 @@ const Consultations = () => {
                           </button>
                         </>
                       )}
-                      
-                      <button
-                        onClick={() => deleteConsultation(consultation.id)}
-                        className="text-red-600 hover:text-red-900"
-                        title="Supprimer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
                     </div>
                   </td>
                 </tr>
@@ -419,6 +415,18 @@ const Consultations = () => {
                 Nouvelle consultation
               </button>
             </div>
+          </div>
+        )}
+
+        {filteredConsultations.length > 0 && (
+          <div className="border-t border-gray-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredConsultations.length}
+            />
           </div>
         )}
       </div>
@@ -604,18 +612,6 @@ const Consultations = () => {
              <h3 className="text-lg font-medium mb-4">Exportation</h3>
              <p className="text-gray-500 mb-6">La fonctionnalité d'export sera bientôt disponible.</p>
              <button onClick={() => setShowExportModal(false)} className="px-4 py-2 bg-gray-200 rounded-lg">Fermer</button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Voir Plus (Placeholder) */}
-      {showVoirPlusModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-           {/* ... Contenu modal voir plus ... */}
-           <div className="bg-white rounded-xl max-w-md w-full p-6 text-center">
-             <h3 className="text-lg font-medium mb-4">Détails Rapides</h3>
-             <p className="text-gray-500 mb-6">Détails pour consultation {selectedConsultationId}</p>
-             <button onClick={() => setShowVoirPlusModal(false)} className="px-4 py-2 bg-gray-200 rounded-lg">Fermer</button>
           </div>
         </div>
       )}
