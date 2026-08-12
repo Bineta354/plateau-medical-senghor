@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { NewAppointmentModal } from '../../components/rendez-vous/NewAppointmentModal';
 import { printOrdonnances } from '../../services/impression/ordonnancePrint';
 import { unifiedNotificationService } from '../../services/unifiedNotificationService';
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 import {
   User,
   Calendar,
@@ -35,10 +36,12 @@ const FichePatientOnly = () => {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dossier'); // 'dossier' | 'ordonnances' | 'rdv'
-  const PAGE_SIZE = 4;
   const [dossierPage, setDossierPage] = useState(1);
+  const [dossierPageSize, setDossierPageSize] = useState(10);
   const [ordonnancesPage, setOrdonnancesPage] = useState(1);
+  const [ordonnancesPageSize, setOrdonnancesPageSize] = useState(10);
   const [rdvPage, setRdvPage] = useState(1);
+  const [rdvPageSize, setRdvPageSize] = useState(10);
   const [showNewAppointment, setShowNewAppointment] = useState(false);
 
   useEffect(() => {
@@ -273,50 +276,21 @@ const FichePatientOnly = () => {
     }
   };
 
-  // Pagination client-side pour les listes de la fiche (dossier, ordonnances, RDV) :
-  // même pattern (Précédent/Suivant + "Page X / Y") que AssuranceCreanceDetail.jsx.
-  const paginate = (items, page) => {
+  // Pagination client-side pour les listes de la fiche (dossier, ordonnances, RDV) —
+  // chaque liste a son propre état de page/taille de page, via le composant partagé
+  // <Pagination> (voir src/components/common/Pagination.jsx).
+  const paginate = (items, page, pageSize) => {
     const totalRows = items.length;
-    const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
     const effectivePage = Math.min(Math.max(1, page), totalPages);
-    const start = (effectivePage - 1) * PAGE_SIZE;
+    const start = (effectivePage - 1) * pageSize;
     return {
-      items: items.slice(start, start + PAGE_SIZE),
+      items: items.slice(start, start + pageSize),
       totalRows,
       totalPages,
       effectivePage,
       start,
     };
-  };
-
-  const PaginationFooter = ({ totalRows, totalPages, effectivePage, start, setPage }) => {
-    if (totalRows <= PAGE_SIZE) return null;
-    return (
-      <div className="flex flex-wrap items-center justify-between gap-3 pt-4 mt-4 border-t border-gray-200">
-        <p className="text-xs text-gray-500">
-          {start + 1}–{Math.min(start + PAGE_SIZE, totalRows)} sur {totalRows}
-        </p>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={effectivePage <= 1}
-            className="px-3 py-1.5 border border-gray-300 rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-          >
-            Précédent
-          </button>
-          <span className="px-2 text-xs text-gray-600">Page {effectivePage} / {totalPages}</span>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={effectivePage >= totalPages}
-            className="px-3 py-1.5 border border-gray-300 rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-          >
-            Suivant
-          </button>
-        </div>
-      </div>
-    );
   };
 
   const calculateAge = (birthDate) => {
@@ -343,9 +317,9 @@ const FichePatientOnly = () => {
   }
 
   const age = calculateAge(selectedPatient?.date_naissance);
-  const dossierPag = paginate(consultations, dossierPage);
-  const ordonnancesPag = paginate(prescriptions, ordonnancesPage);
-  const rdvPag = paginate(appointments, rdvPage);
+  const dossierPag = paginate(consultations, dossierPage, dossierPageSize);
+  const ordonnancesPag = paginate(prescriptions, ordonnancesPage, ordonnancesPageSize);
+  const rdvPag = paginate(appointments, rdvPage, rdvPageSize);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -511,7 +485,17 @@ const FichePatientOnly = () => {
                 {activeTab === 'dossier' && (
                   consultations.length > 0 ? (
                     <>
-                      <div className="space-y-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs text-gray-500">{dossierPag.totalRows} consultation(s)</p>
+                        <ItemsPerPageSelector
+                          value={dossierPageSize}
+                          onChange={(size) => {
+                            setDossierPageSize(size);
+                            setDossierPage(1);
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-3 max-h-[440px] overflow-y-auto">
                         {dossierPag.items.map((consultation) => (
                           <div
                             key={consultation.id}
@@ -541,7 +525,13 @@ const FichePatientOnly = () => {
                           </div>
                         ))}
                       </div>
-                      <PaginationFooter {...dossierPag} setPage={setDossierPage} />
+                      <Pagination
+                        currentPage={dossierPag.effectivePage}
+                        totalPages={dossierPag.totalPages}
+                        onPageChange={setDossierPage}
+                        itemsPerPage={dossierPageSize}
+                        totalItems={dossierPag.totalRows}
+                      />
                     </>
                   ) : (
                     <div className="flex flex-col items-center justify-center text-center py-12">
@@ -554,7 +544,17 @@ const FichePatientOnly = () => {
                 {activeTab === 'ordonnances' && userProfile?.role === 'doctor' && (
                   prescriptions.length > 0 ? (
                     <>
-                      <div className="space-y-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs text-gray-500">{ordonnancesPag.totalRows} ordonnance(s)</p>
+                        <ItemsPerPageSelector
+                          value={ordonnancesPageSize}
+                          onChange={(size) => {
+                            setOrdonnancesPageSize(size);
+                            setOrdonnancesPage(1);
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-3 max-h-[440px] overflow-y-auto">
                         {ordonnancesPag.items.map((ordonnance) => (
                           <div
                             key={ordonnance.id}
@@ -596,7 +596,13 @@ const FichePatientOnly = () => {
                           </div>
                         ))}
                       </div>
-                      <PaginationFooter {...ordonnancesPag} setPage={setOrdonnancesPage} />
+                      <Pagination
+                        currentPage={ordonnancesPag.effectivePage}
+                        totalPages={ordonnancesPag.totalPages}
+                        onPageChange={setOrdonnancesPage}
+                        itemsPerPage={ordonnancesPageSize}
+                        totalItems={ordonnancesPag.totalRows}
+                      />
                     </>
                   ) : (
                     <div className="flex flex-col items-center justify-center text-center py-12">
@@ -609,7 +615,17 @@ const FichePatientOnly = () => {
                 {activeTab === 'rdv' && (
                   appointments.length > 0 ? (
                     <>
-                      <div className="space-y-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs text-gray-500">{rdvPag.totalRows} rendez-vous</p>
+                        <ItemsPerPageSelector
+                          value={rdvPageSize}
+                          onChange={(size) => {
+                            setRdvPageSize(size);
+                            setRdvPage(1);
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-3 max-h-[380px] overflow-y-auto">
                         {rdvPag.items.map((appointment) => (
                           <div key={appointment.id} className="flex items-center justify-between p-4 border border-gray-100 rounded-2xl">
                             <div>
@@ -626,7 +642,13 @@ const FichePatientOnly = () => {
                           </div>
                         ))}
                       </div>
-                      <PaginationFooter {...rdvPag} setPage={setRdvPage} />
+                      <Pagination
+                        currentPage={rdvPag.effectivePage}
+                        totalPages={rdvPag.totalPages}
+                        onPageChange={setRdvPage}
+                        itemsPerPage={rdvPageSize}
+                        totalItems={rdvPag.totalRows}
+                      />
                     </>
                   ) : (
                     <div className="flex flex-col items-center justify-center text-center py-12">

@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { BarChart3, FileText, Printer, Download, RefreshCw, X } from 'lucide-react';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import Dropdown from '../../components/common/Dropdown';
-import Pagination from '../../components/common/Pagination';
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 import { formatMontant } from '../../utils/currency';
 import { getStatusColor, getStatusLabel, computeStatutPaiement } from '../../utils/factureStatus';
 import { listFactures } from '../../services/paiementService';
@@ -18,8 +18,6 @@ const PERIODS = [
   { value: 'month', label: 'Par mois' },
   { value: 'range', label: 'Par période (du ... au ...)' },
 ];
-
-const ITEMS_PER_PAGE = 10;
 
 const getDateRange = (period, dateDebut, dateFin) => {
   const now = new Date();
@@ -60,6 +58,11 @@ const Recapitulatif = () => {
   const [revenuParMedecin, setRevenuParMedecin] = useState([]);
   const [factureView, setFactureView] = useState('couverture'); // 'couverture' | 'liste'
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [resumePatientPage, setResumePatientPage] = useState(1);
+  const [resumePatientPageSize, setResumePatientPageSize] = useState(10);
+  const [resumeCouverturePage, setResumeCouverturePage] = useState(1);
+  const [resumeCouverturePageSize, setResumeCouverturePageSize] = useState(10);
   const printRef = useRef(null);
   const [printSingleId, setPrintSingleId] = useState(null);
 
@@ -200,6 +203,8 @@ const Recapitulatif = () => {
 
   useEffect(() => {
     setCurrentPage(1);
+    setResumePatientPage(1);
+    setResumeCouverturePage(1);
   }, [period, dateDebut, dateFin, filterPatient, filterMedecin, filterCouverture]);
 
   const patientLabel = filterPatient ? patients.find((p) => String(p.id) === String(filterPatient)) : null;
@@ -654,10 +659,22 @@ const Recapitulatif = () => {
     ]);
   };
 
-  const totalPagesFactures = Math.max(1, Math.ceil(factures.length / ITEMS_PER_PAGE));
+  const totalPagesFactures = Math.max(1, Math.ceil(factures.length / itemsPerPage));
   const facturesToShow = printSingleId
     ? factures.filter((f) => f.id === printSingleId)
-    : factures.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+    : factures.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const totalPagesResumePatient = Math.max(1, Math.ceil(resumePatient.length / resumePatientPageSize));
+  const resumePatientToShow = resumePatient.slice(
+    (resumePatientPage - 1) * resumePatientPageSize,
+    resumePatientPage * resumePatientPageSize
+  );
+
+  const totalPagesResumeCouverture = Math.max(1, Math.ceil(resumeCouverture.length / resumeCouverturePageSize));
+  const resumeCouvertureToShow = resumeCouverture.slice(
+    (resumeCouverturePage - 1) * resumeCouverturePageSize,
+    resumeCouverturePage * resumeCouverturePageSize
+  );
 
   const activePeriodLabel = PERIODS.find((p) => p.value === period)?.label || '';
 
@@ -813,21 +830,30 @@ const Recapitulatif = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
             <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-2">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-2 flex-wrap">
                 <p className="text-[13px] font-semibold text-gray-900">Reste à payer par patient</p>
-                {resumePatient.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleExportResumePatient}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-[11.5px] font-medium hover:bg-gray-200 transition-colors"
-                  >
-                    <Download className="w-3 h-3" /> CSV
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  <ItemsPerPageSelector
+                    value={resumePatientPageSize}
+                    onChange={(size) => {
+                      setResumePatientPageSize(size);
+                      setResumePatientPage(1);
+                    }}
+                  />
+                  {resumePatient.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleExportResumePatient}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-[11.5px] font-medium hover:bg-gray-200 transition-colors"
+                    >
+                      <Download className="w-3 h-3" /> CSV
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="overflow-x-auto max-h-[230px] overflow-y-auto">
+              <div className="overflow-x-auto overflow-y-auto max-h-[240px]">
                 <table className="min-w-full text-[13px]">
-                  <thead className="bg-gray-50 sticky top-0">
+                  <thead className="bg-gray-50 sticky top-0 z-10">
                     <tr>
                       <th className="px-5 py-2.5 text-left text-[11.5px] font-semibold text-gray-500">Patient</th>
                       <th className="px-5 py-2.5 text-right text-[11.5px] font-semibold text-gray-500">Reste (F CFA)</th>
@@ -838,7 +864,7 @@ const Recapitulatif = () => {
                     {resumePatient.length === 0 ? (
                       <tr><td colSpan={3} className="px-5 py-4 text-center text-gray-500">Aucun</td></tr>
                     ) : (
-                      resumePatient.map((r, idx) => (
+                      resumePatientToShow.map((r, idx) => (
                         <tr key={r.patient?.id ?? `p-${idx}`} className="hover:bg-gray-50">
                           <td className="px-5 py-2.5 text-gray-900">{r.patient?.prenom} {r.patient?.nom}</td>
                           <td className={`px-5 py-2.5 text-right font-medium ${resteClass(r.totalRestant)}`}>{resteLabel(r.totalRestant)}</td>
@@ -849,23 +875,41 @@ const Recapitulatif = () => {
                   </tbody>
                 </table>
               </div>
+              {resumePatient.length > 0 && (
+                <Pagination
+                  currentPage={resumePatientPage}
+                  totalPages={totalPagesResumePatient}
+                  onPageChange={setResumePatientPage}
+                  itemsPerPage={resumePatientPageSize}
+                  totalItems={resumePatient.length}
+                />
+              )}
             </div>
             <div className="bg-white border border-gray-200 rounded-[20px] shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-2">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-2 flex-wrap">
                 <p className="text-[13px] font-semibold text-gray-900">Reste à payer par couverture</p>
-                {resumeCouverture.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleExportResumeCouverture}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-[11.5px] font-medium hover:bg-gray-200 transition-colors"
-                  >
-                    <Download className="w-3 h-3" /> CSV
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  <ItemsPerPageSelector
+                    value={resumeCouverturePageSize}
+                    onChange={(size) => {
+                      setResumeCouverturePageSize(size);
+                      setResumeCouverturePage(1);
+                    }}
+                  />
+                  {resumeCouverture.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleExportResumeCouverture}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-[11.5px] font-medium hover:bg-gray-200 transition-colors"
+                    >
+                      <Download className="w-3 h-3" /> CSV
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="overflow-x-auto max-h-[230px] overflow-y-auto">
+              <div className="overflow-x-auto overflow-y-auto max-h-[240px]">
                 <table className="min-w-full text-[13px]">
-                  <thead className="bg-gray-50 sticky top-0">
+                  <thead className="bg-gray-50 sticky top-0 z-10">
                     <tr>
                       <th className="px-5 py-2.5 text-left text-[11.5px] font-semibold text-gray-500">Couverture</th>
                       <th className="px-5 py-2.5 text-right text-[11.5px] font-semibold text-gray-500">Reste (F CFA)</th>
@@ -875,7 +919,7 @@ const Recapitulatif = () => {
                     {resumeCouverture.length === 0 ? (
                       <tr><td colSpan={2} className="px-5 py-4 text-center text-gray-500">Aucun</td></tr>
                     ) : (
-                      resumeCouverture.map((r) => (
+                      resumeCouvertureToShow.map((r) => (
                         <tr key={r.nom} className="hover:bg-gray-50">
                           <td className="px-5 py-2.5 text-gray-900">{r.nom}</td>
                           <td className={`px-5 py-2.5 text-right font-medium ${resteClass(r.total)}`}>{resteLabel(r.total)}</td>
@@ -885,6 +929,15 @@ const Recapitulatif = () => {
                   </tbody>
                 </table>
               </div>
+              {resumeCouverture.length > 0 && (
+                <Pagination
+                  currentPage={resumeCouverturePage}
+                  totalPages={totalPagesResumeCouverture}
+                  onPageChange={setResumeCouverturePage}
+                  itemsPerPage={resumeCouverturePageSize}
+                  totalItems={resumeCouverture.length}
+                />
+              )}
             </div>
           </div>
 
@@ -1067,6 +1120,13 @@ const Recapitulatif = () => {
                 ) : (
                   factures.length > 0 && (
                     <>
+                      <ItemsPerPageSelector
+                        value={itemsPerPage}
+                        onChange={(size) => {
+                          setItemsPerPage(size);
+                          setCurrentPage(1);
+                        }}
+                      />
                       <button
                         type="button"
                         onClick={handleExportFactures}
@@ -1135,9 +1195,9 @@ const Recapitulatif = () => {
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto overflow-y-auto max-h-[280px] print:max-h-none print:overflow-visible">
                   <table className="min-w-full text-sm">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 sticky top-0 z-10 print:static">
                       <tr>
                         <th className="px-5 py-3 text-left text-[11px] font-semibold text-gray-500 whitespace-nowrap">N° facture</th>
                         <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 whitespace-nowrap">Date</th>
@@ -1198,6 +1258,8 @@ const Recapitulatif = () => {
                       currentPage={currentPage}
                       totalPages={totalPagesFactures}
                       onPageChange={setCurrentPage}
+                      itemsPerPage={itemsPerPage}
+                      totalItems={factures.length}
                     />
                   </div>
                 )}

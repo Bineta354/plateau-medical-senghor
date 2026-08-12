@@ -29,10 +29,8 @@ import KpiCard from '../../components/common/KpiCard';
 import { useAlert } from '../../contexts/AlertContext';
 import { generateFacturePDF } from '../../services/impression/facturePdf.js';
 import { formatMontant } from '../../utils/currency';
-import Pagination from '../../components/common/Pagination';
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 import { getStatusColor, getStatusLabel, isOutstanding } from '../../utils/factureStatus';
-
-const ITEMS_PER_PAGE = 20;
 
 const FacturationFactures = () => {
   const location = useLocation();
@@ -45,6 +43,7 @@ const FacturationFactures = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingFacture, setEditingFacture] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [factureData, setFactureData] = useState({
     patientId: '',
     type: '',
@@ -368,10 +367,10 @@ const FacturationFactures = () => {
     setCurrentPage(1);
   }, [searchTerm, selectedStatus, selectedType, selectedPeriod]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredFactures.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredFactures.length / itemsPerPage));
   const paginatedFactures = filteredFactures.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   const getTypeColor = (type) => {
@@ -723,14 +722,23 @@ const FacturationFactures = () => {
 
       {/* Liste des factures */}
       <div className="bg-white rounded-lg shadow-md border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Toutes les factures</h2>
-          <p className="text-sm text-gray-600">{filteredFactures.length} facture(s) trouvée(s)</p>
+        <div className="p-6 border-b border-gray-200 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Toutes les factures</h2>
+            <p className="text-sm text-gray-600">{filteredFactures.length} facture(s) trouvée(s)</p>
+          </div>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
         </div>
-        
-        <div className="overflow-x-auto">
+
+        <div className="overflow-x-auto overflow-y-auto max-h-[380px]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Facture
@@ -860,6 +868,8 @@ const FacturationFactures = () => {
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredFactures.length}
             />
           </div>
         )}

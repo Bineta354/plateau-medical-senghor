@@ -1,15 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
-  Users,
   Award,
   Activity,
   Shield,
   Settings,
-  Stethoscope,
-  ChevronRight,
-  CreditCard
+  Smile,
+  Building2,
+  ListChecks
 } from 'lucide-react';
 
 const ParametragePage = () => {
@@ -18,146 +16,118 @@ const ParametragePage = () => {
   const sections = [
     {
       title: 'Cabinet & Équipe',
-      description: 'Gérez la structure de votre cabinet et vos collaborateurs',
       items: [
-        { 
-          name: 'Utilisateurs', 
-          description: 'Comptes, rôles et accès',
-          path: '/administration/gestion-utilisateurs', 
-          icon: Users,
-          color: 'bg-blue-500' 
-        },
-        { 
-          name: 'Médecins', 
-          description: 'Gestion des praticiens',
-          path: '/administration/gestion-medecins', 
-          icon: Stethoscope,
-          color: 'bg-indigo-500' 
-        },
-        { 
-          name: 'Spécialités', 
+        {
+          name: 'Spécialités',
           description: 'Spécialités médicales du cabinet',
-          path: '/parametrage/specialites', 
+          path: '/parametrage/specialites',
           icon: Award,
-          color: 'bg-purple-500' 
+          iconColor: '#6d28d9',
+          iconBg: 'rgba(139,92,246,.12)'
+        },
+        {
+          name: 'Paramètres du cabinet',
+          description: 'Coordonnées, logo, horaires et rétrocession',
+          path: '/administration/personnalisation/general',
+          icon: Building2,
+          iconColor: '#1d4ed8',
+          iconBg: 'rgba(96,165,250,.16)'
         },
       ]
     },
     {
       title: 'Actes & Tarifs',
-      description: 'Configurez votre catalogue de soins et la facturation',
       items: [
-        { 
-          name: 'Catalogue des Actes', 
-          description: 'Types d\'actes, codes CCAM et tarifs',
-          path: '/parametrage/types-actes', 
+        {
+          name: 'Catalogue des actes',
+          description: "Types d'actes, codes CCAM et tarifs",
+          path: '/parametrage/types-actes',
           icon: Activity,
-          color: 'bg-emerald-500' 
-        },
-        { 
-          name: 'Assurances', 
-          description: 'Organismes et couvertures',
-          path: '/parametrage/assurances', 
-          icon: Shield,
-          color: 'bg-teal-500' 
+          iconColor: '#047857',
+          iconBg: 'rgba(52,211,153,.14)'
         },
         {
-          name: 'Tiers Payant',
-          description: 'Gestion du tiers payant',
-          path: '/parametrage/tiers-payant',
-          icon: CreditCard,
-          color: 'bg-cyan-500'
+          name: 'États dentaires',
+          description: "États de l'odontogramme utilisés en consultation",
+          path: '/parametrage/etats-dentaires',
+          icon: Smile,
+          iconColor: '#be185d',
+          iconBg: 'rgba(244,114,182,.16)'
+        },
+        {
+          name: 'Assurances',
+          description: 'Organismes et couvertures',
+          path: '/parametrage/assurances',
+          icon: Shield,
+          iconColor: '#0e7490',
+          iconBg: 'rgba(45,212,191,.16)'
+        },
+        {
+          name: 'Listes de référence',
+          description: 'Antécédents, signes cliniques, diagnostics, appareils, médicaments, constantes, documents',
+          path: '/parametrage/listes-reference',
+          icon: ListChecks,
+          iconColor: '#0369a1',
+          iconBg: 'rgba(56,189,248,.16)'
         }
       ]
     },
-      ];
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 15 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.3 }
-    }
-  };
+  ];
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-10 min-h-screen bg-gray-50/50">
-      {/* Header */}
-      <div className="flex items-start justify-between border-b border-gray-200 pb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <div className="p-2 bg-gray-900 rounded-lg">
-                <Settings className="w-8 h-8 text-white" />
-            </div>
+    <div className="min-h-screen bg-slate-50 px-6 py-8 md:px-10">
+      <div className="max-w-[1180px] mx-auto">
+
+        <div className="flex items-center gap-3.5 mb-2">
+          <div className="w-11 h-11 rounded-xl bg-gray-900 flex items-center justify-center flex-none">
+            <Settings className="w-5 h-5 text-white" strokeWidth={1.5} />
+          </div>
+          <h1 className="text-[26px] font-semibold text-gray-900 tracking-tight m-0">
             Paramétrage
           </h1>
-          <p className="text-lg text-gray-500 mt-2 max-w-2xl">
-            Centre de configuration de votre application. Gérez les utilisateurs, les actes médicaux et les préférences globales.
-          </p>
         </div>
-      </div>
+        <p className="text-sm text-gray-500 max-w-xl leading-relaxed mb-7">
+          Centre de configuration de votre application. Gérez l'organisation du cabinet, les actes médicaux et les préférences globales.
+        </p>
 
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="space-y-12"
-      >
-        {sections.map((section, idx) => (
-          <section key={idx} className="space-y-4">
-            <div className="flex items-center gap-3 mb-4">
-                <h2 className="text-xl font-bold text-gray-800">{section.title}</h2>
-                <span className="h-px flex-1 bg-gray-200 ml-4"></span>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {section.items.map((item) => (
-                <motion.button
-                  key={item.name}
-                  variants={itemVariants}
-                  onClick={() => navigate(item.path)}
-                  className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-blue-100 hover:-translate-y-1 transition-all duration-300 text-left group relative overflow-hidden"
-                >
-                  <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                    <item.icon className="w-24 h-24" />
-                  </div>
+        <div className="space-y-8">
+          {sections.map((section) => (
+            <section key={section.title}>
+              <div className="flex items-center gap-3 mb-4">
+                <h2 className="text-[15px] font-semibold text-gray-900 m-0">{section.title}</h2>
+                <span className="flex-1 h-px bg-gray-200"></span>
+              </div>
 
-                  <div className="relative z-10 flex items-start gap-4">
-                    <div className={`p-3 rounded-xl ${item.color} text-white shadow-md group-hover:scale-110 transition-transform duration-300`}>
-                      <item.icon className="w-6 h-6" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {section.items.map((item) => (
+                  <button
+                    key={item.name}
+                    onClick={() => navigate(item.path)}
+                    className="text-left cursor-pointer bg-white border border-gray-200 rounded-[20px] p-5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 flex flex-col gap-3.5"
+                  >
+                    <div
+                      className="w-[42px] h-[42px] rounded-xl flex items-center justify-center"
+                      style={{ background: item.iconBg }}
+                    >
+                      <item.icon className="w-[19px] h-[19px]" style={{ color: item.iconColor }} strokeWidth={1.5} />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                      <h3 className="text-[14.5px] font-semibold text-gray-900 mb-1">
                         {item.name}
                       </h3>
-                      <p className="text-sm text-gray-500 mt-1 leading-relaxed">
+                      <p className="text-[12.5px] text-gray-500 leading-relaxed">
                         {item.description}
                       </p>
                     </div>
-                  </div>
-                  
-                  <div className="mt-4 flex items-center text-sm font-medium text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0">
-                    Configurer
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </div>
-                </motion.button>
-              ))}
-            </div>
-          </section>
-        ))}
-      </motion.div>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
 
 export default ParametragePage;
-

@@ -32,14 +32,23 @@ export const fetchParametres = async (tenantId = null) => {
       console.warn('[fetchParametres] Aucun tenantId fourni : les paramètres du cabinet (horaires, coordonnées...) ne seront pas chargés pour éviter de mélanger ceux d\'un autre cabinet.');
     }
 
-    // Récupérer les paramètres de la plateforme
-    const { data: platformData, error: platformError } = await supabase
-      .from('parametres_plateforme')
-      .select('*')
-      .maybeSingle();
+    // Les paramètres de plateforme (apparence, modèles de documents...) sont
+    // eux aussi propres à chaque tenant — même mise en garde que pour
+    // parametres_cabinet ci-dessus, ne pas les charger sans tenantId.
+    let platformData = null;
 
-    if (platformError && platformError.code !== 'PGRST116') {
-      console.log('Table parametres_plateforme non trouvée, utilisation des valeurs par défaut');
+    if (tenantId) {
+      const { data, error: platformError } = await supabase
+        .from('parametres_plateforme')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+      if (platformError && platformError.code !== 'PGRST116') {
+        console.log('Table parametres_plateforme non trouvée, utilisation des valeurs par défaut');
+      } else {
+        platformData = data || null;
+      }
     }
 
     // Fusionner les données - platformData d'abord, puis cabinetData pour écraser
@@ -66,10 +75,11 @@ export const fetchParametres = async (tenantId = null) => {
 /**
  * Sauvegarde les paramètres dans les tables appropriées.
  * @param {Object} settings - L'objet complet des paramètres à sauvegarder.
- * @param {string} tenantId - Le tenant_id du cabinet connecté. Requis pour la
- *   partie `parametres_cabinet` : plusieurs cabinets partagent cette table, il
- *   ne faut jamais mettre à jour/créer une ligne sans savoir à quel tenant
- *   elle appartient (sous peine d'écraser les réglages d'un autre cabinet).
+ * @param {string} tenantId - Le tenant_id du cabinet connecté. Requis pour
+ *   `parametres_cabinet` ET `parametres_plateforme` : plusieurs cabinets
+ *   partagent ces tables, il ne faut jamais mettre à jour/créer une ligne
+ *   sans savoir à quel tenant elle appartient (sous peine d'écraser les
+ *   réglages d'un autre cabinet).
  */
 export const saveParametres = async (settings, tenantId = null) => {
   try {
@@ -91,12 +101,14 @@ export const saveParametres = async (settings, tenantId = null) => {
       numero_agrement: settings.numero_agrement,
       ninea: settings.ninea,
       registre_commerce: settings.registre_commerce,
+      tva: settings.tva,
       logo_url: settings.logo_url,
       devise: settings.devise,
       fuseau_horaire: settings.fuseau_horaire,
       langue: settings.langue,
       format_date: settings.format_date,
       horaires_ouverture: settings.horaires_ouverture,
+      jours_inactivite: settings.jours_inactivite,
       taux_retrocession_medecin: settings.taux_retrocession_medecin,
     };
 
@@ -187,6 +199,7 @@ export const saveParametres = async (settings, tenantId = null) => {
     };
     
     const platformData = {
+        tenant_id: tenantId,
         configuration: platformConfiguration,
         updated_at: new Date().toISOString()
     };
@@ -200,6 +213,7 @@ export const saveParametres = async (settings, tenantId = null) => {
     const { data: existingPlatform } = await supabase
       .from('parametres_plateforme')
       .select('id')
+      .eq('tenant_id', tenantId)
       .maybeSingle();
 
     if (existingPlatform) {

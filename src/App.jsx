@@ -47,7 +47,7 @@ const SmartDashboard = () => {
   }
   const role = userProfile?.role || currentUser?.user_metadata?.role || currentUser?.app_metadata?.role;
   if (role === ROLES.ADMIN) {
-    return <Dashboard />;
+    return <Navigate to="/administration/tableau-de-bord" replace />;
   } else if (role === ROLES.DOCTOR) {
     return <DoctorDashboard />; // Affiche le dashboard médecin au lieu de rediriger
   } else if (role === ROLES.SECRETARY) {
@@ -81,6 +81,7 @@ const TestAuth = lazy(() => import('./pages/TestAuth'));
 const DatabaseCheck = lazy(() => import('./components/admin/DatabaseCheck'));
 const TestSpecialityFilter = lazy(() => import('./pages/test/TestSpecialityFilter'));
 const TestKpiCard = lazy(() => import('./pages/test/TestKpiCard'));
+const TestGraphiques = lazy(() => import('./pages/test/TestGraphiques'));
 const CabinetWelcome = lazy(() => import('./pages/CabinetWelcome'));
 const CabinetWelcomePublic = lazy(() => import('./pages/CabinetWelcomePublic'));
 
@@ -90,18 +91,8 @@ const Medecins = lazy(() => import('./pages/parametrage/Medecins'));
 const MedecinsForm = lazy(() => import('./pages/parametrage/MedecinsForm'));
 const Specialites = lazy(() => import('./pages/parametrage/Specialites'));
 const SpecialitesForm = lazy(() => import('./pages/parametrage/SpecialitesForm'));
-const ListeEtiologies = lazy(() => import('./pages/parametrage/ListeEtiologies'));
-const PlaintesPrincipales = lazy(() => import('./pages/parametrage/PlaintesPrincipales'));
-const TypesSymptomes = lazy(() => import('./pages/parametrage/TypesSymptomes'));
-const CategoriesAntecedents = lazy(() => import('./pages/parametrage/CategoriesAntecedents'));
-const TypesAntecedents = lazy(() => import('./pages/parametrage/TypesAntecedents'));
+const ListesReference = lazy(() => import('./pages/parametrage/ListesReference'));
 const TypesCertificats = lazy(() => import('./pages/parametrage/TypesCertificats'));
-const Employeurs = lazy(() => import('./pages/parametrage/Employeurs'));
-const TiersPayant = lazy(() => import('./pages/parametrage/TiersPayant'));
-const TypeCouvertureMedicale = lazy(() => import('./pages/parametrage/TypeCouvertureMedicale'));
-const ListeArchives = lazy(() => import('./pages/parametrage/ListeArchives'));
-const TypesArchives = lazy(() => import('./pages/parametrage/TypesArchives'));
-const FamillesArchives = lazy(() => import('./pages/parametrage/FamillesArchives'));
 
 // Pages de paramétrage médical - Phase 1
 const Constantes = lazy(() => import('./pages/parametrage/Constantes'));
@@ -121,7 +112,6 @@ const ToothStatesPage = lazy(() => import('./pages/parametrage/ToothStatesPage')
 
 // Pages de paramétrage supplémentaires manquantes
 const AntecedentsForm = lazy(() => import('./pages/parametrage/AntecedentsForm'));
-const ParametresCabinet = lazy(() => import('./pages/parametrage/ParametresCabinet'));
 
 // Pages du module Rendez-vous
 const FichePatient = lazy(() => import('./pages/rendez-vous/FichePatient'));
@@ -160,13 +150,11 @@ const FacturationFactures = lazy(() => import('./pages/facturation/FacturationFa
 
 // Pages d'administration
 
+const AdminDashboard = lazy(() => import('./pages/administration/AdminDashboard'));
 const GestionUtilisateurs = lazy(() => import('./pages/administration/GestionUtilisateurs'));
 const FormulaireUtilisateur = lazy(() => import('./pages/administration/FormulaireUtilisateur'));
 const GestionMedecins = lazy(() => import('./pages/administration/GestionMedecins'));
-const GestionSecretaires = lazy(() => import('./pages/administration/GestionSecretaires'));
-const GestionComptables = lazy(() => import('./pages/administration/GestionComptables'));
 const GestionCaissiers = lazy(() => import('./pages/administration/GestionCaissiers'));
-const GestionAdmins = lazy(() => import('./pages/administration/GestionAdmins'));
 const Personnalisation = lazy(() => import('./pages/administration/Parametrage'));
 const PersonnalisationMain = lazy(() => import('./pages/administration/PersonnalisationMain'));
 const PersonnalisationGeneral = lazy(() => import('./pages/administration/PersonnalisationGeneral'));
@@ -407,6 +395,11 @@ const AppContent = () => {
             <LazyPageWrapper Component={TestKpiCard} message="Chargement du test KpiCard..." />
           </ProtectedRoute>
         } />
+        <Route path="/test-graphiques" element={
+          <ProtectedRoute>
+            <LazyPageWrapper Component={TestGraphiques} message="Chargement des graphiques..." />
+          </ProtectedRoute>
+        } />
 
         <Route path="/dental-chart" element={
           <ProtectedRoute>
@@ -635,75 +628,15 @@ const AppContent = () => {
           </ProtectedRoute>
         } />
         
-        <Route path="/parametrage/liste-etiologies" element={
+        <Route path="/parametrage/listes-reference" element={
           <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={ListeEtiologies} message="Chargement liste étiologies..." />
+            <LazyPageWrapper Component={ListesReference} message="Chargement des listes de référence..." />
           </ProtectedRoute>
         } />
-        
-        <Route path="/parametrage/plaintes-principales" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={PlaintesPrincipales} message="Chargement plaintes principales..." />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/parametrage/types-symptomes" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={TypesSymptomes} message="Chargement types symptômes..." />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/parametrage/categories-antecedents" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={CategoriesAntecedents} message="Chargement catégories antécédents..." />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/parametrage/types-antecedents" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={TypesAntecedents} message="Chargement types antécédents..." />
-          </ProtectedRoute>
-        } />
-        
+
         <Route path="/parametrage/types-certificats" element={
           <ProtectedRoute allowedRoles={['admin']}>
             <LazyPageWrapper Component={TypesCertificats} message="Chargement types certificats..." />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/parametrage/employeurs" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={Employeurs} message="Chargement employeurs..." />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/parametrage/tiers-payant" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={TiersPayant} message="Chargement tiers payant..." />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/parametrage/type-couverture-medicale" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={TypeCouvertureMedicale} message="Chargement type couverture médicale..." />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/parametrage/liste-archives" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={ListeArchives} message="Chargement liste archives..." />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/parametrage/types-archives" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={TypesArchives} message="Chargement types archives..." />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/parametrage/familles-archives" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={FamillesArchives} message="Chargement familles archives..." />
           </ProtectedRoute>
         } />
         
@@ -779,18 +712,6 @@ const AppContent = () => {
           </ProtectedRoute>
         } />
         
-        {/* Routes de paramètres généraux */}
-        <Route path="/personnalisation" element={
-          <ProtectedRoute allowedRoles={['admin', 'doctor']}>
-            <LazyPageWrapper Component={ParametresCabinet} message="Chargement personnalisation..." />
-          </ProtectedRoute>
-        } />
-        <Route path="/cabinet-settings" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={ParametresCabinet} message="Chargement paramètres cabinet..." />
-          </ProtectedRoute>
-        } />
-        
         <Route path="/settings" element={
           <ProtectedRoute allowedRoles={['admin']}>
             <GeneralSettingsPage />
@@ -859,36 +780,6 @@ const AppContent = () => {
           </ProtectedRoute>
         } />
         
-        {/* Routes de gestion des secrétaires */}
-        <Route path="/administration/gestion-secretaires" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={GestionSecretaires} message="Chargement gestion secrétaires..." />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/administration/gestion-secretaires/details/:id" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <Suspense fallback={<LoadingSpinner message="Chargement formulaire secrétaire..." />}>
-              <FormulaireUtilisateur />
-            </Suspense>
-          </ProtectedRoute>
-        } />
-        
-        {/* Routes de gestion des comptables */}
-        <Route path="/administration/gestion-comptables" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={GestionComptables} message="Chargement gestion comptables..." />
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/administration/gestion-comptables/details/:id" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <Suspense fallback={<LoadingSpinner message="Chargement formulaire comptable..." />}>
-              <FormulaireUtilisateur />
-            </Suspense>
-          </ProtectedRoute>
-        } />
-
         {/* Routes de gestion des caissiers */}
         <Route path="/administration/gestion-caissiers" element={
           <ProtectedRoute allowedRoles={['admin']}>
@@ -904,21 +795,13 @@ const AppContent = () => {
           </ProtectedRoute>
         } />
         
-        {/* Routes de gestion des administrateurs */}
-        <Route path="/administration/gestion-admins" element={
+        {/* Tableau de bord administrateur (vue d'ensemble : effectifs, activité, finance) */}
+        <Route path="/administration/tableau-de-bord" element={
           <ProtectedRoute allowedRoles={['admin']}>
-            <LazyPageWrapper Component={GestionAdmins} message="Chargement gestion administrateurs..." />
+            <LazyPageWrapper Component={AdminDashboard} message="Chargement du tableau de bord administrateur..." />
           </ProtectedRoute>
         } />
-        
-        <Route path="/administration/gestion-admins/details/:id" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <Suspense fallback={<LoadingSpinner message="Chargement formulaire administrateur..." />}>
-              <FormulaireUtilisateur />
-            </Suspense>
-          </ProtectedRoute>
-        } />
-        
+
         {/* Routes de personnalisation */}
         <Route path="/administration/personnalisation" element={
           <ProtectedRoute allowedRoles={['admin']}>

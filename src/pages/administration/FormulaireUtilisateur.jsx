@@ -115,21 +115,17 @@ const FormulaireUtilisateur = ({ preselectedRole = null }) => {
   const getPageType = () => {
     const path = location.pathname || window.location.hash;
     if (path.includes('/gestion-medecins/')) return 'medecin';
-    if (path.includes('/gestion-secretaires/')) return 'secretaire';
     if (path.includes('/gestion-caissiers/')) return 'caissier';
-    if (path.includes('/gestion-admins/')) return 'admin';
     return 'utilisateur';
   };
 
   const pageType = getPageType();
-  
+
   // Déterminer la route de retour et le titre selon le type
   const getReturnRoute = () => {
     switch (pageType) {
       case 'medecin': return '/administration/gestion-medecins';
-      case 'secretaire': return '/administration/gestion-secretaires';
       case 'caissier': return '/administration/gestion-caissiers';
-      case 'admin': return '/administration/gestion-admins';
       default: return '/administration/gestion-utilisateurs';
     }
   };
@@ -137,9 +133,7 @@ const FormulaireUtilisateur = ({ preselectedRole = null }) => {
   const getPageTitle = () => {
     switch (pageType) {
       case 'medecin': return isNewUser ? 'Nouveau Médecin' : 'Détails Médecin';
-      case 'secretaire': return isNewUser ? 'Nouveau Secrétaire' : 'Détails Secrétaire';
       case 'caissier': return isNewUser ? 'Nouveau Caissier' : 'Détails Caissier';
-      case 'admin': return isNewUser ? 'Nouvel Administrateur' : 'Détails Administrateur';
       default: return isNewUser ? 'Nouvel Utilisateur' : 'Détails Utilisateur';
     }
   };
@@ -147,9 +141,7 @@ const FormulaireUtilisateur = ({ preselectedRole = null }) => {
   const getListTitle = () => {
     switch (pageType) {
       case 'medecin': return 'Gestion des Médecins';
-      case 'secretaire': return 'Gestion des Secrétaires';
       case 'caissier': return 'Gestion des Caissiers';
-      case 'admin': return 'Gestion des Administrateurs';
       default: return 'Gestion des Utilisateurs';
     }
   };
@@ -163,12 +155,6 @@ const FormulaireUtilisateur = ({ preselectedRole = null }) => {
       // Définir le rôle par défaut selon le type de page
       if (pageType === 'medecin') {
         setFormData(prev => ({ ...prev, role: ROLES.DOCTOR }));
-      } else if (pageType === 'secretaire') {
-        setFormData(prev => ({ ...prev, role: ROLES.SECRETARY }));
-      } else if (pageType === 'caissier') {
-        setFormData(prev => ({ ...prev, role: ROLES.CASHIER }));
-      } else if (pageType === 'admin') {
-        setFormData(prev => ({ ...prev, role: ROLES.ADMIN }));
       } else if (pageType === 'caissier') {
         setFormData(prev => ({ ...prev, role: ROLES.CAISSIER }));
       }
@@ -858,7 +844,6 @@ const FormulaireUtilisateur = ({ preselectedRole = null }) => {
                             <option value={ROLES.ADMIN}>Administrateur</option>
                             <option value={ROLES.CAISSIER}>Caissier</option>
                             <option value={ROLES.ACCOUNTING}>Comptabilité</option>
-                            <option value={ROLES.CASHIER}>Caissier</option>
                           </select>
                         </div>
                         

@@ -2,13 +2,50 @@ import React from 'react';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 /**
+ * Sélecteur autonome "Afficher [N] par page", destiné à être placé en haut
+ * d'une liste (à côté de son titre/compteur), séparément de la nav de pagination
+ * du bas rendue par <Pagination>.
+ * @param {number} value - Nombre d'éléments par page actuellement sélectionné
+ * @param {function} onChange - Callback au changement (reçoit un Number)
+ * @param {number[]} [options] - Options disponibles
+ * @param {string} [label] - Libellé affiché avant le select
+ */
+export const ItemsPerPageSelector = ({ value, onChange, options = [10, 25, 50, 100], label = 'Afficher' }) => {
+  return (
+    <label className="flex items-center gap-2 text-sm text-gray-700">
+      {label}
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="border border-gray-300 rounded-md text-sm py-1 pl-2 pr-7 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+      par page
+    </label>
+  );
+};
+
+/**
  * Composant de Pagination simple.
  * @param {number} currentPage - Page actuelle (1-indexée)
  * @param {number} totalPages - Nombre total de pages
  * @param {function} onPageChange - Callback au changement de page
+ * @param {number} [itemsPerPage] - Nombre d'éléments par page (optionnel, utilisé pour le texte "Affichage de A à B")
+ * @param {number} [totalItems] - Nombre total d'éléments (optionnel, pour afficher "X résultats")
  */
-const Pagination = ({ currentPage, totalPages, onPageChange }) => {
-  if (totalPages <= 1) return null;
+const Pagination = ({
+  currentPage,
+  totalPages,
+  onPageChange,
+  itemsPerPage,
+  totalItems,
+}) => {
+  if (totalPages <= 1 && totalItems == null) return null;
 
   const pages = [];
   // Logique simple pour afficher les pages : 1 ... prev current next ... last
@@ -30,6 +67,7 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
 
   return (
     <div className="flex items-center justify-between px-4 py-3 sm:px-6">
+      {totalPages > 1 && (
       <div className="flex flex-1 justify-between sm:hidden">
         <button
           onClick={() => onPageChange(currentPage - 1)}
@@ -46,13 +84,31 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
           Suivant
         </button>
       </div>
-      
+      )}
+
       <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-        <div>
+        <div className="flex items-center gap-4">
           <p className="text-sm text-gray-700">
-            Page <span className="font-medium">{currentPage}</span> sur <span className="font-medium">{totalPages}</span>
+            {totalItems != null ? (
+              <>
+                Affichage de{' '}
+                <span className="font-medium">
+                  {totalItems === 0 ? 0 : (currentPage - 1) * (itemsPerPage || 0) + 1}
+                </span>{' '}
+                à{' '}
+                <span className="font-medium">
+                  {Math.min(currentPage * (itemsPerPage || totalItems), totalItems)}
+                </span>{' '}
+                sur <span className="font-medium">{totalItems}</span> résultats
+              </>
+            ) : (
+              <>
+                Page <span className="font-medium">{currentPage}</span> sur <span className="font-medium">{totalPages}</span>
+              </>
+            )}
           </p>
         </div>
+        {totalPages > 1 && (
         <div>
           <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
             <button
@@ -104,6 +160,7 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
             </button>
           </nav>
         </div>
+        )}
       </div>
     </div>
   );

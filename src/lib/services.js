@@ -3,12 +3,37 @@ import { getSpecialityFilter, getSpecialiteIdsWithChildren } from './specialityC
 
 // ===== SERVICES POUR LES UTILISATEURS (USERS) =====
 export const userService = {
-  // Récupérer tous les utilisateurs
-  async getAll() {
-    const { data, error } = await supabase
+  // Récupérer tous les utilisateurs, cloisonnés par tenant (cabinet).
+  // tenantId: à fournir par l'appelant (ex: useAuth().tenantId) pour éviter un aller-retour
+  // réseau supplémentaire ; sinon résolu depuis l'utilisateur connecté, comme dans getDoctors().
+  async getAll(options = {}) {
+    const { tenantId = null } = options
+    let currentTenantId = tenantId
+    if (!currentTenantId) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: currentUserData } = await supabase
+            .from('users')
+            .select('tenant_id')
+            .eq('auth_id', user.id)
+            .maybeSingle()
+          currentTenantId = currentUserData?.tenant_id || null
+        }
+      } catch (e) {
+        console.warn('[userService.getAll] Impossible de récupérer le tenant_id utilisateur:', e)
+      }
+    }
+
+    let query = supabase
       .from('users')
       .select('*')
       .order('created_at', { ascending: false })
+    if (currentTenantId) {
+      query = query.eq('tenant_id', currentTenantId)
+    }
+
+    const { data, error } = await query
     if (error) throw error
     return data
   },

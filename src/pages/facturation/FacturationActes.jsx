@@ -36,9 +36,7 @@ import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import FactureCard from '../../components/facturation/FactureCard';
 import FactureDetailsModal from '../../components/facturation/FactureDetailsModal';
-import Pagination from '../../components/common/Pagination';
-
-const ITEMS_PER_PAGE = 20;
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 
 const FacturationActes = () => {
   const { tenantId } = useAuth();
@@ -50,6 +48,7 @@ const FacturationActes = () => {
   const [showDetails, setShowDetails] = useState(null);
   const [editingFacture, setEditingFacture] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [factureData, setFactureData] = useState({
     patientId: '',
     actesSelectionnes: [], // Tableau pour plusieurs actes
@@ -172,7 +171,7 @@ const FacturationActes = () => {
           )
         `)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(1000);
 
       if (actesError) throw actesError;
 
@@ -245,10 +244,10 @@ const FacturationActes = () => {
     setCurrentPage(1);
   }, [searchTerm, selectedStatus]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredFacturations.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredFacturations.length / itemsPerPage));
   const paginatedFacturations = filteredFacturations.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   const handleInputChange = (e) => {
@@ -989,14 +988,23 @@ const FacturationActes = () => {
 
       {/* Liste des facturations compact */}
       <div className="bg-white rounded-lg shadow-md border border-gray-200">
-        <div className="p-3 border-b border-gray-200">
-          <h2 className="text-base font-semibold text-gray-900">Facturations d'actes</h2>
-          <p className="text-xs text-gray-600">{filteredFacturations.length} facturation(s) trouvée(s)</p>
+        <div className="p-3 border-b border-gray-200 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Facturations d'actes</h2>
+            <p className="text-xs text-gray-600">{filteredFacturations.length} facturation(s) trouvée(s)</p>
+          </div>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
         </div>
-        
-        <div className="overflow-x-auto">
+
+        <div className="overflow-x-auto overflow-y-auto max-h-[320px]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   N° Facture
@@ -1060,6 +1068,8 @@ const FacturationActes = () => {
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredFacturations.length}
             />
           </div>
         )}

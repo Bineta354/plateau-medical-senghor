@@ -7,9 +7,7 @@ import { useConsultationWorkflow } from '../../hooks/consultation/useHistoriqueC
 
 // Components
 import ConsultationsTable from '../../components/consultation/ConsultationsTable';
-import Pagination from '../../components/common/Pagination';
-
-const ITEMS_PER_PAGE = 20;
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 
 const ConsultationsTerminees = () => {
   const navigate = useNavigate();
@@ -18,6 +16,7 @@ const ConsultationsTerminees = () => {
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const { consultations, loading: loadingList, fetchConsultations } =
     useConsultationWorkflow();
 
@@ -74,10 +73,10 @@ const ConsultationsTerminees = () => {
     setCurrentPage(1);
   }, [searchTerm, dateStart, dateEnd]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredConsultations.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredConsultations.length / itemsPerPage));
   const paginatedConsultations = filteredConsultations.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   // N'afficher le loader qu'au tout premier chargement : si des consultations
@@ -135,6 +134,18 @@ const ConsultationsTerminees = () => {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow border">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200">
+          <h2 className="text-sm font-medium text-gray-700">
+            {filteredConsultations.length} consultation(s) trouvée(s)
+          </h2>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
+        </div>
         <ConsultationsTable
           consultations={paginatedConsultations}
           loading={showLoader}
@@ -147,6 +158,8 @@ const ConsultationsTerminees = () => {
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredConsultations.length}
             />
           </div>
         )}

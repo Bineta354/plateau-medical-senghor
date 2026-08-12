@@ -186,9 +186,9 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          {hasAnyRole(['admin', 'doctor']) && (
+          {hasAnyRole(['admin']) && (
             <button
-              onClick={() => navigate('/personnalisation')}
+              onClick={() => navigate('/administration/personnalisation/general')}
               className="flex items-center px-4 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary/90 transition-colors shadow-md"
             >
               <FileText className="w-4 h-4 mr-2" />

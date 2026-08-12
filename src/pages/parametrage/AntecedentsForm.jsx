@@ -138,7 +138,7 @@ const AntecedentsForm = () => {
 
       await antecedentsRefService.syncSpecialites(antecedentId, selectedSpecialites);
 
-      navigate('/parametrage/antecedents', {
+      navigate('/parametrage/listes-reference', {
         state: {
           message: isEditing
             ? 'Antécédent modifié avec succès'
@@ -172,7 +172,7 @@ const AntecedentsForm = () => {
   };
 
   const handleCancel = () => {
-    navigate('/parametrage/antecedents');
+    navigate('/parametrage/listes-reference');
   };
 
   if (loading && isEditing) {

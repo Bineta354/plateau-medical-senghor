@@ -65,7 +65,7 @@ const PAIEMENTS_FETCH_LIMIT = 3000;
 export async function getSessionsAvecEncaissements({ dateDebut, dateFin } = {}) {
   let sessionsQuery = supabase
     .from('sessions_caisse')
-    .select('id, date_session, caissier_id, fond_caisse, montant_journalier, solde_final, users ( prenom, nom )')
+    .select('id, date_session, caissier_id, fond_caisse, montant_journalier, solde_final, heure_ouverture, heure_fermeture, users ( prenom, nom )')
     .eq('statut', 'fermee')
     .order('date_session', { ascending: false });
   if (dateDebut) sessionsQuery = sessionsQuery.gte('date_session', dateDebut);
@@ -105,10 +105,21 @@ export async function getSessionsAvecEncaissements({ dateDebut, dateFin } = {}) 
 
   return {
     sessions: sessions.map((s) => {
+      // Bornage par heure_ouverture/heure_fermeture (et pas seulement date + caissier) : un
+      // même caissier peut fermer plusieurs sessions le même jour (cf. commentaire de la
+      // migration sessions_caisse — "plusieurs fermées possibles"), et un simple match sur le
+      // jour attribuerait alors TOUS les paiements du jour à CHAQUE session de ce jour-là,
+      // dupliquant la répartition par mode entre sessions distinctes.
+      const startOfDay = s.date_session ? new Date(`${s.date_session}T00:00:00`).getTime() : -Infinity;
+      const endOfDay = s.date_session ? new Date(`${s.date_session}T23:59:59.999`).getTime() : Infinity;
+      const debut = s.heure_ouverture ? new Date(s.heure_ouverture).getTime() : startOfDay;
+      const fin = s.heure_fermeture ? new Date(s.heure_fermeture).getTime() : endOfDay;
       const paiementsSession = (paiements || []).filter((p) => {
-        const memeJour = p.date_paiement && p.date_paiement.slice(0, 10) === s.date_session;
+        if (!p.date_paiement) return false;
         const memeCaissier = s.caissier_id == null ? p.caissier_id == null : p.caissier_id === s.caissier_id;
-        return memeJour && memeCaissier;
+        if (!memeCaissier) return false;
+        const t = new Date(p.date_paiement).getTime();
+        return t >= debut && t <= fin;
       });
       const parMode = paiementsSession.reduce((acc, p) => {
         const mode = p.mode_paiement || 'autre';

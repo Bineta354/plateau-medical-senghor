@@ -31,7 +31,12 @@ const INITIAL_SETTINGS = {
   numero_agrement: '',
   ninea: '',
   registre_commerce: '',
-  
+  tva: 0,
+
+  // Général - Gestion des patients et rémunération
+  jours_inactivite: 365,
+  taux_retrocession_medecin: null,
+
   // Général - Horaires
   horaires_ouverture: {
     lundi: { ouvert: true, debut: '08:00', fin: '18:00' },

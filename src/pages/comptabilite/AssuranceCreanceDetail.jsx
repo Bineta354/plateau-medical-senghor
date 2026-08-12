@@ -6,6 +6,7 @@ import { formatMontant } from '../../utils/currency';
 import { COUVERTURE_FETCH_LIMIT, isCouvertureListTruncated } from '../../config/creances';
 import { generateDossierAssurancePDF } from '../../services/impression/dossierAssurancePdf';
 import useToast from '../../hooks/useToast';
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 
 /**
  * Détail des créances d'un assureur — accessible depuis Impayés & Relances
@@ -16,8 +17,6 @@ import useToast from '../../hooks/useToast';
  */
 
 const formatDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR') : '—');
-
-const PAGE_SIZES = [10, 25, 50, 100];
 
 const AssuranceCreanceDetail = () => {
   const { assuranceId } = useParams();
@@ -215,17 +214,13 @@ const AssuranceCreanceDetail = () => {
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
             />
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-sm text-gray-600">Afficher</span>
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-            >
-              {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-            <span className="text-sm text-gray-600">entrées</span>
-          </div>
+          <ItemsPerPageSelector
+            value={pageSize}
+            onChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
         </div>
       </div>
 
@@ -238,9 +233,9 @@ const AssuranceCreanceDetail = () => {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[280px]">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium text-gray-700">N° Facture</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-700">Date</th>
@@ -271,32 +266,14 @@ const AssuranceCreanceDetail = () => {
             </table>
           </div>
 
-          {/* Pagination: Affichage X à Y sur Z + Précédent / Suivant */}
-          <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 border-t border-gray-200">
-            <p className="text-sm text-gray-600">
-              Affichage de {totalRows === 0 ? 0 : start + 1} à {Math.min(start + pageSize, totalRows)} sur {totalRows} entrées
-            </p>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={effectivePage <= 1}
-                className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Précédent
-              </button>
-              <span className="px-3 py-1.5 text-sm text-gray-600">
-                Page {effectivePage} / {totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={effectivePage >= totalPages}
-                className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Suivant
-              </button>
-            </div>
+          <div className="border-t border-gray-200">
+            <Pagination
+              currentPage={effectivePage}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              itemsPerPage={pageSize}
+              totalItems={totalRows}
+            />
           </div>
         </div>
       )}

@@ -12,9 +12,7 @@ import {
   Clock
 } from 'lucide-react';
 import { formatDoctorSpecialties } from '../../utils/doctorUtils';
-import Pagination from '../../components/common/Pagination';
-
-const ITEMS_PER_PAGE = 20;
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 
 const formatISODate = (date) => date.toISOString().split('T')[0];
 
@@ -44,6 +42,7 @@ const RechercheRendezVousPage = () => {
   const [error, setError] = useState('');
   const [isInitialMount, setIsInitialMount] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const specialitesDisponibles = useMemo(() => {
     const values = doctors
@@ -218,10 +217,10 @@ const RechercheRendezVousPage = () => {
     });
   };
 
-  const totalPages = Math.max(1, Math.ceil(appointments.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(appointments.length / itemsPerPage));
   const paginatedAppointments = appointments.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   const renderStatusBadge = (statut) => {
@@ -414,11 +413,18 @@ const RechercheRendezVousPage = () => {
               {loading ? 'Chargement des rendez-vous...' : `${appointments.length} rendez-vous trouvé(s)`}
             </p>
           </div>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[400px]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Date & heure
@@ -504,6 +510,8 @@ const RechercheRendezVousPage = () => {
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={appointments.length}
             />
           </div>
         )}

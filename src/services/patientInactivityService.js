@@ -259,4 +259,4 @@ const PatientInactivityService = {
   }
 }
 
-export default new PatientInactivityService();
+export default PatientInactivityService;

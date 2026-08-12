@@ -940,13 +940,6 @@ const DoctorDashboard = () => {
           
           <div className="flex items-center space-x-3">
             <button
-              onClick={() => navigate('/personnalisation')}
-              className="flex items-center px-4 py-2 bg-medical-primary text-white rounded-lg hover:bg-medical-primary/90 transition-colors shadow-md"
-            >
-              <FileText className="w-4 h-4 mr-2" />
-              Personnalisation
-            </button>
-            <button
               onClick={() => setShowCreateRdvModal(true)}
               className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
             >

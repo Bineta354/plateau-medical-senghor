@@ -17,6 +17,28 @@ const ElementsSynthese = () => {
   const [filterCategorie, setFilterCategorie] = useState('');
   const [filterType, setFilterType] = useState('');
 
+  const categories = [
+    { value: 'generale', label: 'Générale' },
+    { value: 'cardiovasculaire', label: 'Cardiovasculaire' },
+    { value: 'respiratoire', label: 'Respiratoire' },
+    { value: 'digestif', label: 'Digestif' },
+    { value: 'neurologique', label: 'Neurologique' },
+    { value: 'metabolique', label: 'Métabolique' },
+    { value: 'oncologique', label: 'Oncologique' },
+    { value: 'allergique', label: 'Allergique' },
+    { value: 'chirurgical', label: 'Chirurgical' },
+    { value: 'traumatologique', label: 'Traumatologique' },
+    { value: 'psychiatrique', label: 'Psychiatrique' }
+  ];
+
+  // Doit rester synchronisé avec la contrainte CHECK(type_element IN (...))
+  // sur la table elements_synthese (migration 20250102000002_phase2_parametrage_medical.sql).
+  const typesElements = [
+    { value: 'observation', label: 'Observation', color: 'bg-blue-100 text-blue-800' },
+    { value: 'conclusion', label: 'Conclusion', color: 'bg-purple-100 text-purple-800' },
+    { value: 'recommandation', label: 'Recommandation', color: 'bg-green-100 text-green-800' },
+    { value: 'prescription', label: 'Prescription', color: 'bg-orange-100 text-orange-800' }
+  ];
 
   useEffect(() => {
     fetchElements();
@@ -75,7 +97,6 @@ const ElementsSynthese = () => {
   const handleEdit = (element) => {
     setEditingId(element.id);
     setNewElement(element);
-    setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

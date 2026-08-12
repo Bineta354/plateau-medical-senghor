@@ -59,6 +59,7 @@ import { getCaissiers } from '../../services/caissierService';
 import { listAssurances } from '../../services/assuranceService';
 import KpiCard from '../../components/common/KpiCard';
 import ExportUtils from '../../utils/ExportUtils';
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 
 const ETAPES_MOBILE_MONEY = (nom, montant) =>
   ETAPES_MOBILE_MONEY_BASE(nom, formatMontant(Number(montant)));
@@ -187,8 +188,6 @@ const Caisse = () => {
   const componentRef = useRef();
   const searchInputRef = useRef();
   const patientSearchRef = useRef(null);
-
-  const PAGE_SIZES = [10, 25, 50, 100];
 
   // Factures en attente/partiel uniquement (exclure les factures "couverture" enfants)
   const facturesCaisse = (list) => (list || []).filter((f) => f.facture_parent_id == null);
@@ -1675,7 +1674,16 @@ const Caisse = () => {
       {/* Liste factures en attente (DataTables: filtre + pagination, plus récentes en premier) */}
       <div className="bg-white rounded-xl shadow p-6 mb-6">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-          <h2 className="text-lg font-semibold">Factures en attente de paiement</h2>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-lg font-semibold">Factures en attente de paiement</h2>
+            <ItemsPerPageSelector
+              value={pageSize}
+              onChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+            />
+          </div>
           <div className="relative w-full sm:w-80">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -1710,18 +1718,8 @@ const Caisse = () => {
           <p className="text-gray-500 text-center py-8">Aucune facture en attente.</p>
         ) : (
           <>
-            {/* Barre DataTables: nb entrées + filtre */}
+            {/* Barre DataTables: filtre */}
             <div className="flex flex-wrap items-center gap-4 mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Afficher</span>
-                <Dropdown
-                  value={String(pageSize)}
-                  onChange={(value) => { setPageSize(Number(value)); setPage(1); }}
-                  options={PAGE_SIZES.map((n) => ({ value: String(n), label: String(n) }))}
-                  size="sm"
-                />
-                <span className="text-sm text-gray-600">entrées</span>
-              </div>
               <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
                 <span className="text-sm text-gray-600">Filtrer:</span>
                 <input
@@ -1734,9 +1732,9 @@ const Caisse = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto max-h-[340px]">
               <table className="min-w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Patient</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">N° facture</th>
@@ -1803,32 +1801,15 @@ const Caisse = () => {
               </table>
             </div>
 
-            {/* Pagination: Affichage X à Y sur Z + Précédent / Suivant */}
-            <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-200">
-              <p className="text-sm text-gray-600">
-                Affichage de {totalRows === 0 ? 0 : start + 1} à {Math.min(start + pageSize, totalRows)} sur {totalRows} entrées
-              </p>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  Précédent
-                </button>
-                <span className="px-3 py-1.5 text-sm text-gray-600">
-                  Page {effectivePage} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                >
-                  Suivant
-                </button>
-              </div>
+            {/* Pagination */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <Pagination
+                currentPage={effectivePage}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                itemsPerPage={pageSize}
+                totalItems={totalRows}
+              />
             </div>
           </>
         )}
@@ -1864,16 +1845,13 @@ const Caisse = () => {
                     Tout l&apos;historique
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Afficher</span>
-                  <Dropdown
-                    value={String(payeesPageSize)}
-                    onChange={(value) => { setPayeesPageSize(Number(value)); setPayeesPage(1); }}
-                    options={PAGE_SIZES.map((n) => ({ value: String(n), label: String(n) }))}
-                    size="sm"
-                  />
-                  <span className="text-sm text-gray-600">entrées</span>
-                </div>
+                <ItemsPerPageSelector
+                  value={payeesPageSize}
+                  onChange={(size) => {
+                    setPayeesPageSize(size);
+                    setPayeesPage(1);
+                  }}
+                />
                 <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
                   <span className="text-sm text-gray-600">Filtrer:</span>
                   <input
@@ -1892,9 +1870,9 @@ const Caisse = () => {
                 </p>
               ) : (
               <>
-              <div className="overflow-x-auto -mx-6">
+              <div className="overflow-x-auto overflow-y-auto max-h-[260px] -mx-6">
                 <table className="min-w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 sticky top-0 z-10">
                     <tr>
                       <th className="px-6 py-2 text-left text-xs font-medium text-gray-600 uppercase">Patient</th>
                       <th className="px-6 py-2 text-left text-xs font-medium text-gray-600 uppercase">N° facture</th>
@@ -1926,31 +1904,14 @@ const Caisse = () => {
                 </table>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-200">
-                <p className="text-sm text-gray-600">
-                  Affichage de {payeesTotalRows === 0 ? 0 : payeesStart + 1} à {Math.min(payeesStart + payeesPageSize, payeesTotalRows)} sur {payeesTotalRows} entrées
-                </p>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setPayeesPage((p) => Math.max(1, p - 1))}
-                    disabled={payeesPage <= 1}
-                    className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Précédent
-                  </button>
-                  <span className="px-3 py-1.5 text-sm text-gray-600">
-                    Page {payeesEffectivePage} / {payeesTotalPages}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setPayeesPage((p) => Math.min(payeesTotalPages, p + 1))}
-                    disabled={payeesPage >= payeesTotalPages}
-                    className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Suivant
-                  </button>
-                </div>
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <Pagination
+                  currentPage={payeesEffectivePage}
+                  totalPages={payeesTotalPages}
+                  onPageChange={setPayeesPage}
+                  itemsPerPage={payeesPageSize}
+                  totalItems={payeesTotalRows}
+                />
               </div>
               </>
               )}

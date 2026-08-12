@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useConsultationsPage } from '../../hooks/consultation/useConsultationsPage';
 import { getConsultationMotif, getConsultationTypeLabel } from '../../utils/consultationUtils';
 import KpiCard from '../../components/common/KpiCard';
-import Pagination from '../../components/common/Pagination';
+import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
 import {
   Plus,
   Search,
@@ -29,8 +29,6 @@ import {
   Pill,
   FileCheck
 } from 'lucide-react';
-
-const ITEMS_PER_PAGE = 10;
 
 const Consultations = () => {
   const {
@@ -71,6 +69,7 @@ const Consultations = () => {
   } = useConsultationsPage();
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, urgenceFilter, typeFilter]);
@@ -163,10 +162,10 @@ const Consultations = () => {
     );
   }
 
-  const totalPages = Math.max(1, Math.ceil(filteredConsultations.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredConsultations.length / itemsPerPage));
   const paginatedConsultations = filteredConsultations.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   return (
@@ -272,9 +271,21 @@ const Consultations = () => {
 
       {/* Liste des consultations */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200">
+          <h2 className="text-sm font-medium text-gray-700">
+            {filteredConsultations.length} consultation(s) trouvée(s)
+          </h2>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
+        </div>
+        <div className="overflow-x-auto overflow-y-auto max-h-[400px]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Patient
@@ -413,6 +424,8 @@ const Consultations = () => {
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredConsultations.length}
             />
           </div>
         )}

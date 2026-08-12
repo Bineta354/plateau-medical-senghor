@@ -12,9 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTypesActes } from '../hooks/useTypesActes';
 import { formatMontant } from '../utils/currency';
 import Dropdown from '../components/common/Dropdown';
-import Pagination from '../components/common/Pagination';
-
-const ITEMS_PER_PAGE = 10;
+import Pagination, { ItemsPerPageSelector } from '../components/common/Pagination';
 
 const ActesPage = () => {
   const { userProfile } = useAuth();
@@ -24,6 +22,7 @@ const ActesPage = () => {
   const [actes, setActes] = useState([]);
   const [specialiteInfo, setSpecialiteInfo] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Utiliser le hook useTypesActes pour récupérer la liste des actes
   const { typesActes, loading: loadingActes, refetch: refetchActes } = useTypesActes();
@@ -97,10 +96,10 @@ const ActesPage = () => {
     ? actes.reduce((sum, acte) => sum + acte.tarif_base, 0) / actes.length
     : 0;
 
-  const totalPages = Math.ceil(filteredActes.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(filteredActes.length / itemsPerPage);
   const paginatedActes = filteredActes.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   useEffect(() => {
@@ -198,9 +197,18 @@ const ActesPage = () => {
 
       {/* List */}
       <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <p className="text-sm font-semibold text-gray-900">Liste des actes</p>
-          <p className="text-xs text-gray-500 mt-0.5">{filteredActes.length} acte(s) trouvé(s)</p>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Liste des actes</p>
+            <p className="text-xs text-gray-500 mt-0.5">{filteredActes.length} acte(s) trouvé(s)</p>
+          </div>
+          <ItemsPerPageSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
         </div>
 
         {isLoading ? (
@@ -218,7 +226,7 @@ const ActesPage = () => {
           </div>
         ) : (
           <>
-            <div>
+            <div className="overflow-y-auto max-h-[330px]">
               {paginatedActes.map((acte) => (
                 <div
                   key={acte.id}
@@ -247,6 +255,8 @@ const ActesPage = () => {
                 currentPage={currentPage}
                 totalPages={totalPages}
                 onPageChange={setCurrentPage}
+                itemsPerPage={itemsPerPage}
+                totalItems={filteredActes.length}
               />
             </div>
           </>

@@ -189,6 +189,49 @@ describe('reversementBancaireService', () => {
       expect(truncated).toBe(true);
     });
 
+    test('sépare la répartition par mode entre plusieurs sessions fermées le même jour par le même caissier', async () => {
+      const sessions = [
+        {
+          id: 1,
+          date_session: '2026-08-06',
+          caissier_id: 3,
+          fond_caisse: 20000,
+          montant_journalier: 27000,
+          heure_ouverture: '2026-08-06T07:00:00Z',
+          heure_fermeture: '2026-08-06T09:00:00Z',
+          users: { prenom: 'Moussa', nom: 'Fall' },
+        },
+        {
+          id: 2,
+          date_session: '2026-08-06',
+          caissier_id: 3,
+          fond_caisse: 20000,
+          montant_journalier: 6000,
+          heure_ouverture: '2026-08-06T09:30:00Z',
+          heure_fermeture: '2026-08-06T11:00:00Z',
+          users: { prenom: 'Moussa', nom: 'Fall' },
+        },
+      ];
+      const paiements = [
+        { montant: 27000, mode_paiement: 'especes', caissier_id: 3, date_paiement: '2026-08-06T08:00:00Z' },
+        { montant: 6000, mode_paiement: 'especes', caissier_id: 3, date_paiement: '2026-08-06T10:00:00Z' },
+      ];
+
+      supabase.from.mockImplementation((table) => {
+        if (table === 'sessions_caisse') return makeThenable({ data: sessions, error: null });
+        if (table === 'paiements') return makeThenable({ data: paiements, error: null });
+        if (table === 'reversements_bancaires') return makeThenable({ data: [], error: null });
+        throw new Error(`Table inattendue : ${table}`);
+      });
+
+      const { sessions: result } = await getSessionsAvecEncaissements({});
+
+      const session1 = result.find((r) => r.id === 1);
+      const session2 = result.find((r) => r.id === 2);
+      expect(session1.especes).toBe(27000);
+      expect(session2.especes).toBe(6000);
+    });
+
     test('propage une erreur supabase sur la lecture des sessions', async () => {
       supabase.from.mockReturnValue(makeThenable({ data: null, error: new Error('sessions unreachable') }));
 
