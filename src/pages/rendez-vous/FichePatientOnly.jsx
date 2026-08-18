@@ -6,6 +6,8 @@ import { NewAppointmentModal } from '../../components/rendez-vous/NewAppointment
 import { printOrdonnances } from '../../services/impression/ordonnancePrint';
 import { unifiedNotificationService } from '../../services/unifiedNotificationService';
 import Pagination, { ItemsPerPageSelector } from '../../components/common/Pagination';
+import { getSyntheseHistorique } from '../../services/consultation/consultationService';
+import SyntheseEntryCard from '../../components/consultation/SyntheseEntryCard';
 import {
   User,
   Calendar,
@@ -21,7 +23,8 @@ import {
   X,
   Activity,
   ArrowLeft,
-  Eye
+  Eye,
+  Brain
 } from 'lucide-react';
 
 const FichePatientOnly = () => {
@@ -34,14 +37,17 @@ const FichePatientOnly = () => {
   const [consultations, setConsultations] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
   const [appointments, setAppointments] = useState([]);
+  const [syntheses, setSyntheses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('dossier'); // 'dossier' | 'ordonnances' | 'rdv'
+  const [activeTab, setActiveTab] = useState('dossier'); // 'dossier' | 'ordonnances' | 'syntheses' | 'rdv'
   const [dossierPage, setDossierPage] = useState(1);
   const [dossierPageSize, setDossierPageSize] = useState(10);
   const [ordonnancesPage, setOrdonnancesPage] = useState(1);
   const [ordonnancesPageSize, setOrdonnancesPageSize] = useState(10);
   const [rdvPage, setRdvPage] = useState(1);
   const [rdvPageSize, setRdvPageSize] = useState(10);
+  const [synthesesPage, setSynthesesPage] = useState(1);
+  const [synthesesPageSize, setSynthesesPageSize] = useState(5);
   const [showNewAppointment, setShowNewAppointment] = useState(false);
 
   useEffect(() => {
@@ -229,6 +235,12 @@ const FichePatientOnly = () => {
       if (appointmentsError) throw appointmentsError;
       setAppointments(appointmentsData || []);
 
+      // Historique des synthèses de consultation (groupé par consultation) — même service
+      // que l'onglet "Historique complet" de SyntheseTab.jsx. Chargé sans condition de rôle
+      // (comme les ordonnances ci-dessus) ; l'onglet lui-même reste réservé au médecin.
+      const syntheseHistoriqueData = await getSyntheseHistorique(patientId);
+      setSyntheses(syntheseHistoriqueData || []);
+
     } catch (error) {
       console.error('Erreur lors du chargement des données patient:', error);
     } finally {
@@ -320,6 +332,7 @@ const FichePatientOnly = () => {
   const dossierPag = paginate(consultations, dossierPage, dossierPageSize);
   const ordonnancesPag = paginate(prescriptions, ordonnancesPage, ordonnancesPageSize);
   const rdvPag = paginate(appointments, rdvPage, rdvPageSize);
+  const synthesesPag = paginate(syntheses, synthesesPage, synthesesPageSize);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -449,9 +462,12 @@ const FichePatientOnly = () => {
               <nav className="flex gap-1 p-1.5 bg-gray-50 border-b border-gray-200">
                 {[
                   { key: 'dossier', label: 'Dossier médical', icon: FileText, count: consultations.length },
-                  // Ordonnances : seul le médecin peut les consulter (contenu médical), masqué pour secrétaire/admin.
+                  // Ordonnances et synthèses : seul le médecin peut les consulter (contenu médical), masqué pour secrétaire/admin.
                   ...(userProfile?.role === 'doctor'
-                    ? [{ key: 'ordonnances', label: 'Ordonnances', icon: Activity, count: prescriptions.length }]
+                    ? [
+                        { key: 'ordonnances', label: 'Ordonnances', icon: Activity, count: prescriptions.length },
+                        { key: 'syntheses', label: 'Synthèses', icon: Brain, count: syntheses.reduce((sum, c) => sum + c.syntheses.length, 0) },
+                      ]
                     : []),
                   { key: 'rdv', label: 'Rendez-vous', icon: Calendar, count: appointments.length },
                 ].map((tab) => {
@@ -608,6 +624,63 @@ const FichePatientOnly = () => {
                     <div className="flex flex-col items-center justify-center text-center py-12">
                       <Activity className="w-10 h-10 text-gray-300 mb-3" />
                       <p className="text-gray-500">Aucune ordonnance trouvée pour ce patient</p>
+                    </div>
+                  )
+                )}
+
+                {activeTab === 'syntheses' && userProfile?.role === 'doctor' && (
+                  syntheses.length > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs text-gray-500">{synthesesPag.totalRows} consultation(s) avec synthèse</p>
+                        <ItemsPerPageSelector
+                          value={synthesesPageSize}
+                          onChange={(size) => {
+                            setSynthesesPageSize(size);
+                            setSynthesesPage(1);
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-5 max-h-[440px] overflow-y-auto">
+                        {synthesesPag.items.map((consultation) => (
+                          <div key={consultation.consultation_id}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs font-semibold text-gray-500">
+                                {new Date(consultation.date_consultation).toLocaleDateString('fr-FR', {
+                                  day: 'numeric', month: 'long', year: 'numeric'
+                                })}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                · Dr {consultation.medecin_prenom} {consultation.medecin_nom}
+                              </span>
+                            </div>
+                            <div className="space-y-2.5">
+                              {consultation.syntheses.map((synthese) => (
+                                <SyntheseEntryCard
+                                  key={synthese.id}
+                                  nom={synthese.element_nom}
+                                  description={synthese.element_description}
+                                  type={synthese.element_type}
+                                  commentaires={synthese.commentaires}
+                                  createdAt={synthese.created_at}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <Pagination
+                        currentPage={synthesesPag.effectivePage}
+                        totalPages={synthesesPag.totalPages}
+                        onPageChange={setSynthesesPage}
+                        itemsPerPage={synthesesPageSize}
+                        totalItems={synthesesPag.totalRows}
+                      />
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center py-12">
+                      <Brain className="w-10 h-10 text-gray-300 mb-3" />
+                      <p className="text-gray-500">Aucune synthèse enregistrée pour ce patient</p>
                     </div>
                   )
                 )}

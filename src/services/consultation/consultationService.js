@@ -230,7 +230,7 @@ export const getSyntheses = async (consultationId) => {
       element_synthese_id,
       commentaires,
       created_at,
-      elements_synthese (id, nom, description)
+      elements_synthese (id, nom, description, categorie, type_element)
     `)
     .eq('consultation_id', consultationId)
     .order('created_at', { ascending: true });

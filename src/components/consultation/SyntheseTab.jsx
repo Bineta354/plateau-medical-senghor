@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import PropTypes from 'prop-types';
-import { Activity, AlertCircle, Award, Brain, Calendar, Edit, Eye, FileText, Heart, Pill, Plus, Trash2, User } from 'lucide-react';
+import { Activity, AlertCircle, Award, Brain, Calendar, ChevronDown, ChevronUp, Eye, FileText, Heart, Pill, Plus, User } from 'lucide-react';
 import { generateSynthesisPDF } from '../../services/impression/synthesePdf';
 import { useAlert } from '../../contexts/AlertContext';
 import { useAuth } from '../../contexts/AuthContext';
 import SyntheseModal from './modals/SyntheseModal';
+import SyntheseEntryCard, { TYPE_META, DEFAULT_TYPE_META, groupByType } from './SyntheseEntryCard';
+
 export default function SyntheseTab(
   {
     id,
@@ -32,6 +34,7 @@ export default function SyntheseTab(
 
   const [showSyntheseModal, setShowSyntheseModal] = useState(false)
   const [editingSynthese, setEditingSynthese] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
   const handleAddSynthese = () => {
     setEditingSynthese(null);
     setShowSyntheseModal(true);
@@ -210,14 +213,23 @@ export default function SyntheseTab(
           </div>
         </div>
     
-        {/* Résumé automatique visuel */}
-        <div className="mb-8">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center">
-              <Brain className="w-5 h-5 mr-2" />
-              Résumé automatique de la consultation
-            </h3>
-    
+        {/* Aperçu des données collectées — replié par défaut : c'est un aperçu de ce que
+            "Sauvegarder synthèse" va enregistrer, pas le contenu de référence (qui est la
+            liste "Éléments de synthèse" plus bas une fois généré/ajouté). */}
+        <div className="mb-6">
+          <button
+            type="button"
+            onClick={() => setShowPreview((prev) => !prev)}
+            className="w-full flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-left hover:bg-gray-100 transition-colors"
+          >
+            <span className="text-sm font-medium text-gray-700 flex items-center">
+              <Brain className="w-4 h-4 mr-2 text-gray-500" />
+              Aperçu des données collectées dans cette consultation
+            </span>
+            {showPreview ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+          </button>
+          {showPreview && (
+          <div className="bg-white border border-t-0 border-gray-200 rounded-b-lg p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Antécédents significatifs */}
               {antecedents && antecedents.length > 0 && (
@@ -426,13 +438,14 @@ export default function SyntheseTab(
               </div>
             )}
           </div>
+          )}
         </div>
-    
-        {/* Synthèses manuelles */}
+
+        {/* Éléments de synthèse enregistrés (ajoutés manuellement ou via "Sauvegarder synthèse") */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
-              <h3 className="text-lg font-semibold text-gray-900">Éléments de synthèse manuels</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Éléments de synthèse</h3>
               {/* Toggle Mode */}
               <div className="flex items-center bg-gray-100 rounded-lg p-1">
                 <button
@@ -468,58 +481,46 @@ export default function SyntheseTab(
             )}
           </div>
     
-          {/* Vue consultation actuelle */}
+          {/* Vue consultation actuelle : regroupée par type (Observation / Prescription /
+              Recommandation / Conclusion) pour une lecture plus organisée qu'une liste plate. */}
           {syntheseMode === 'current' && (
             <>
               {syntheses && syntheses.length > 0 ? (
-                <div className="space-y-4">
-                  {syntheses.map((synthese) => (
-                    <div key={synthese.id} className="bg-gray-50 border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium text-gray-900">
-                          {synthese.elements_synthese?.nom}
-                        </h4>
-                        <div className="flex items-center space-x-2">
-                          {!isTerminated && (
-                            <>
-                              <button
-                                onClick={() => handleEditSynthese(synthese)}
-                                className="text-blue-600 hover:text-blue-800"
-                                title="Modifier"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteSynthese(synthese)}
-                                className="text-red-600 hover:text-red-800"
-                                title="Supprimer"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
-                        </div>
+                <div className="space-y-5">
+                  {groupByType(syntheses, (s) => s.elements_synthese?.type_element).map(({ type, items }) => (
+                    <div key={type || 'autres'}>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+                        {(TYPE_META[type] || DEFAULT_TYPE_META).label}{items.length > 1 ? 's' : ''}
+                      </p>
+                      <div className="space-y-3">
+                        {items.map((synthese) => (
+                          <SyntheseEntryCard
+                            key={synthese.id}
+                            nom={synthese.elements_synthese?.nom}
+                            description={synthese.elements_synthese?.description}
+                            type={synthese.elements_synthese?.type_element}
+                            commentaires={synthese.commentaires}
+                            createdAt={synthese.created_at}
+                            onEdit={!isTerminated ? () => handleEditSynthese(synthese) : undefined}
+                            onDelete={!isTerminated ? () => handleDeleteSynthese(synthese) : undefined}
+                          />
+                        ))}
                       </div>
-                      {synthese.commentaires && (
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                          {synthese.commentaires}
-                        </p>
-                      )}
                     </div>
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-8 bg-gray-50 rounded-lg">
                   <FileText className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">Aucun élément de synthèse manuel</h3>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">Aucun élément de synthèse</h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    Cliquez sur &quot;Ajouter manuel&quot; pour ajouter des éléments spécifiques à la synthèse.
+                    Cliquez sur &quot;Ajouter manuel&quot; ou &quot;Sauvegarder synthèse&quot; pour en ajouter.
                   </p>
                 </div>
               )}
             </>
           )}
-    
+
           {/* Vue historique complet */}
           {syntheseMode === 'history' && (
             <>
@@ -533,7 +534,7 @@ export default function SyntheseTab(
                           <div className="flex-1 border-t-2 border-gray-300"></div>
                         </div>
                       )}
-    
+
                       {/* Header de consultation */}
                       <div className={`rounded-lg border-2 ${
                         consultation.is_current
@@ -569,41 +570,18 @@ export default function SyntheseTab(
                           )}
                         </div>
                       </div>
-    
+
                       {/* Synthèses de cette consultation */}
                       <div className="space-y-3 pl-8">
                         {consultation.syntheses.map((synthese) => (
-                          <div key={synthese.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <h5 className="font-medium text-gray-900 mb-1">
-                                  {synthese.element_nom}
-                                </h5>
-                                {synthese.element_description && (
-                                  <p className="text-xs text-gray-500 mb-2">
-                                    {synthese.element_description}
-                                  </p>
-                                )}
-                                {synthese.commentaires && (
-                                  <p className="text-sm text-gray-700 whitespace-pre-wrap mt-2">
-                                    {synthese.commentaires}
-                                  </p>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 ml-4">
-                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                  synthese.element_categorie === 'generale' ? 'bg-blue-100 text-blue-700' :
-                                  synthese.element_categorie === 'urgence' ? 'bg-red-100 text-red-700' :
-                                  'bg-gray-100 text-gray-700'
-                                }`}>
-                                  {synthese.element_type || 'observation'}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="mt-2 text-xs text-gray-400">
-                              Ajouté le {new Date(synthese.created_at).toLocaleDateString('fr-FR')} à {new Date(synthese.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                          </div>
+                          <SyntheseEntryCard
+                            key={synthese.id}
+                            nom={synthese.element_nom}
+                            description={synthese.element_description}
+                            type={synthese.element_type}
+                            commentaires={synthese.commentaires}
+                            createdAt={synthese.created_at}
+                          />
                         ))}
                       </div>
                     </div>
