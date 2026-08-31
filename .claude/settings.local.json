@@ -37,7 +37,13 @@
       "Bash(curl -s http://localhost:3000/src/pages/administration/GestionUtilisateurs.jsx -o /dev/null -w \"%{http_code}\\\\n\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:3000/src/pages/administration/GestionUtilisateurs.jsx\")",
       "Bash(curl -s \"http://localhost:3000/src/pages/administration/GestionUtilisateurs.jsx\")",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(gh repo *)",
+      "Bash(gh search *)",
+      "Bash(gh api *)",
+      "Bash(git remote *)",
+      "Bash(git fetch *)",
+      "Bash(git stash *)"
     ]
   },
   "enabledMcpjsonServers": [
