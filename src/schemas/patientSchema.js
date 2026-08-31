@@ -1,7 +1,7 @@
 import { z } from 'zod';
+import { isValidTelephoneSN } from '../utils/phone';
 
 // Alignés sur les contraintes de la table public.patients (supabase/migrations)
-const PHONE_REGEX = /^[0-9\s+\-()]{10,}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CODE_REGEX = /^[A-Za-z0-9\s\-/]*$/;
 
@@ -35,8 +35,16 @@ const optionalPhone = (label) =>
     .string()
     .trim()
     .max(30, `${label} ne doit pas dépasser 30 caractères`)
-    .refine((v) => v === '' || PHONE_REGEX.test(v.replace(/\s/g, '')), 'Format de téléphone invalide')
+    .refine((v) => v === '' || isValidTelephoneSN(v), `${label} doit être au format 77 777 77 77`)
     .optional();
+
+const requiredPhone = (label) =>
+  z
+    .string()
+    .trim()
+    .min(1, `${label} est obligatoire`)
+    .max(30, `${label} ne doit pas dépasser 30 caractères`)
+    .refine((v) => isValidTelephoneSN(v), `${label} doit être au format 77 777 77 77`);
 
 const optionalCode = (label, max = 50) =>
   z
@@ -57,7 +65,7 @@ export const patientSchema = z.object({
     .max(100, 'Le prénom ne doit pas dépasser 100 caractères'),
   date_naissance: dateNaissanceSchema,
   sexe: z.union([z.literal('M'), z.literal('F'), z.literal('')]).optional(),
-  telephone: optionalPhone('Le téléphone'),
+  telephone: requiredPhone('Le téléphone'),
   telephone_contact: optionalPhone('Le téléphone de contact'),
   email: z
     .string()
@@ -110,8 +118,17 @@ export function getDateNaissanceError(value) {
 // avant l'insertion/mise à jour pour que "non renseigné" ne casse jamais l'unicité.
 const NULLABLE_UNIQUE_FIELDS = ['numero_secu', 'numero_ipm', 'email'];
 
+// nom_assurance / numero_assurance ne sont pas des colonnes de public.patients
+// (supprimées par la migration 20250109000001 ; la couverture assurance passe par
+// assurance_id, une FK vers la table assurances) — les envoyer fait échouer l'appel
+// Supabase avec PGRST204 ("column not found in schema cache").
+const NON_EXISTENT_COLUMNS = ['nom_assurance', 'numero_assurance'];
+
 export function normalizePatientPayload(data) {
   const normalized = { ...data };
+  for (const field of NON_EXISTENT_COLUMNS) {
+    delete normalized[field];
+  }
   for (const field of NULLABLE_UNIQUE_FIELDS) {
     if (typeof normalized[field] === 'string') {
       const trimmed = normalized[field].trim();
@@ -119,4 +136,25 @@ export function normalizePatientPayload(data) {
     }
   }
   return normalized;
+}
+
+// Index uniques (par tenant) posés sur public.patients — voir les migrations
+// 20260805000000 (numero_secu, email) et 20260831000000 (telephone).
+const UNIQUE_INDEX_MESSAGES = {
+  idx_patients_tenant_telephone: 'Ce numéro de téléphone est déjà utilisé par un autre patient.',
+  idx_patients_tenant_email: 'Cet email est déjà utilisé par un autre patient.',
+  idx_patients_tenant_numero_secu: 'Ce numéro FNR est déjà utilisé par un autre patient.',
+  idx_patients_tenant_numero_dossier: 'Ce numéro de dossier est déjà utilisé.',
+};
+
+// Traduit une violation de contrainte unique Postgres (code 23505) sur public.patients
+// en message lisible. Retourne null si l'erreur n'est pas une de ces violations connues,
+// pour laisser l'appelant retomber sur son message générique.
+export function getPatientUniqueConstraintMessage(error) {
+  if (error?.code !== '23505') return null;
+  const message = error.message || '';
+  for (const [indexName, friendlyMessage] of Object.entries(UNIQUE_INDEX_MESSAGES)) {
+    if (message.includes(indexName)) return friendlyMessage;
+  }
+  return 'Une valeur saisie est déjà utilisée par un autre patient.';
 }

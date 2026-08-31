@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { patientService } from '../../lib/services';
-import { validatePatientForm, getDateNaissanceError, normalizePatientPayload } from '../../schemas/patientSchema';
+import { validatePatientForm, getDateNaissanceError, normalizePatientPayload, getPatientUniqueConstraintMessage } from '../../schemas/patientSchema';
+import { formatTelephoneSN, TELEPHONE_PLACEHOLDER } from '../../utils/phone';
 import Dropdown from '../../components/common/Dropdown';
 import { 
   ArrowLeft,
@@ -34,6 +35,7 @@ const PatientEditPage = () => {
     profession: '',
     situation_familiale: '',
     numero_ipm: '',
+    groupe_sanguin: '',
     mutuelle: '',
     numero_mutuelle: '',
     nom_assurance: '',
@@ -88,11 +90,13 @@ const PatientEditPage = () => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
+    const isPhoneField = name === 'telephone' || name === 'telephone_contact';
+    const nextValue = isPhoneField ? formatTelephoneSN(value) : value;
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox' ? checked : nextValue
     }));
-    
+
     // Validation en temps réel pour la date de naissance
     if (name === 'date_naissance') {
       validateDateNaissanceRealTime(value);
@@ -182,10 +186,13 @@ const PatientEditPage = () => {
       });
     } catch (error) {
       console.error('❌ [PatientEdit] Erreur lors de la sauvegarde:', error);
-      
+
+      const uniqueConstraintMessage = getPatientUniqueConstraintMessage(error);
       // Vérifier si c'est l'erreur spécifique de modification du numéro de dossier
       const errorMessage = error.message || error.details || error.hint || String(error);
-      if (errorMessage.includes('impossible de modifier le numéro de dossier')) {
+      if (uniqueConstraintMessage) {
+        setError(uniqueConstraintMessage);
+      } else if (errorMessage.includes('impossible de modifier le numéro de dossier')) {
         setError('Désolé, il est impossible de modifier le numéro de dossier.');
       } else {
         setError('Erreur lors de la sauvegarde: ' + errorMessage);
@@ -385,9 +392,15 @@ const PatientEditPage = () => {
                   value={formData.telephone}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  placeholder="+221 XX XXX XX XX"
+                  maxLength={11}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent ${
+                    fieldErrors.telephone ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder={TELEPHONE_PLACEHOLDER}
                 />
+                {fieldErrors.telephone && (
+                  <p className="text-red-500 text-xs mt-1">{fieldErrors.telephone}</p>
+                )}
               </div>
 
               <div>
@@ -462,8 +475,9 @@ const PatientEditPage = () => {
                   name="telephone_contact"
                   value={formData.telephone_contact}
                   onChange={handleInputChange}
+                  maxLength={11}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  placeholder="+221 XX XXX XX XX"
+                  placeholder={TELEPHONE_PLACEHOLDER}
                 />
               </div>
 
@@ -501,6 +515,27 @@ const PatientEditPage = () => {
                 <p className="text-xs text-gray-500 mt-1">
                   Généré automatiquement — non modifiable
                 </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Groupe sanguin</label>
+                <Dropdown
+                  value={formData.groupe_sanguin}
+                  onChange={(value) => handleInputChange({ target: { name: 'groupe_sanguin', value } })}
+                  options={[
+                    { value: '', label: 'Sélectionner' },
+                    { value: 'A+', label: 'A+' },
+                    { value: 'A-', label: 'A-' },
+                    { value: 'B+', label: 'B+' },
+                    { value: 'B-', label: 'B-' },
+                    { value: 'AB+', label: 'AB+' },
+                    { value: 'AB-', label: 'AB-' },
+                    { value: 'O+', label: 'O+' },
+                    { value: 'O-', label: 'O-' },
+                  ]}
+                  size="md"
+                  className="w-full"
+                />
               </div>
 
               {/* Radio buttons pour type de couverture */}

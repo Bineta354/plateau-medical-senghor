@@ -24,9 +24,11 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import { getPatientUniqueConstraintMessage } from '../schemas/patientSchema';
 import PatientPostCreateMenu from '../components/common/PatientPostCreateMenu';
 import KpiCard from '../components/common/KpiCard';
 import Dropdown from '../components/common/Dropdown';
+import { formatTelephoneSN, isValidTelephoneSN, TELEPHONE_PLACEHOLDER } from '../utils/phone';
 
 const PatientsPage = () => {
   console.log('🔄 [PatientsFinal] Chargement de la page Patients - VERSION FINALE');
@@ -76,6 +78,7 @@ const PatientsPage = () => {
     profession: '',
     situation_familiale: '',
     numero_ipm: '',
+    groupe_sanguin: '',
     medecin_traitant: '',
     mutuelle: '',
     numero_mutuelle: '',
@@ -165,6 +168,7 @@ const PatientsPage = () => {
             profession: patient.profession || '',
             situation_familiale: patient.situation_familiale || '',
             numero_ipm: patient.numero_ipm || '',
+            groupe_sanguin: patient.groupe_sanguin || '',
             medecin_traitant: patient.medecin_traitant || '',
             mutuelle: patient.mutuelle || '',
             numero_mutuelle: patient.numero_mutuelle || '',
@@ -335,6 +339,7 @@ const PatientsPage = () => {
       profession: patient.profession || '',
       situation_familiale: patient.situation_familiale || '',
       numero_ipm: patient.numero_ipm || '',
+      groupe_sanguin: patient.groupe_sanguin || '',
       medecin_traitant: patient.medecin_traitant || '',
       mutuelle: patient.mutuelle || '',
       numero_mutuelle: patient.numero_mutuelle || '',
@@ -373,9 +378,10 @@ const PatientsPage = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    const isPhoneField = name === 'telephone' || name === 'telephone_contact';
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: isPhoneField ? formatTelephoneSN(value) : value
     }));
   };
 
@@ -399,13 +405,31 @@ const PatientsPage = () => {
       }
     }
 
+    if (!isValidTelephoneSN(formData.telephone)) {
+      unifiedNotificationService.error('Le téléphone doit être au format 77 777 77 77');
+      return;
+    }
+    if (formData.telephone_contact && !isValidTelephoneSN(formData.telephone_contact)) {
+      unifiedNotificationService.error('Le téléphone de contact doit être au format 77 777 77 77');
+      return;
+    }
+
+    // nom_assurance / numero_assurance ne sont pas des colonnes de public.patients
+    // (supprimées par la migration 20250109000001) — ne pas les envoyer à Supabase.
+    const { nom_assurance, numero_assurance, ...patientPayload } = formData;
+    // date_naissance est une colonne "date" : une chaîne vide fait échouer l'insert/update
+    // avec 22007 ("invalid input syntax for type date"), il faut envoyer null.
+    if (patientPayload.date_naissance === '') {
+      patientPayload.date_naissance = null;
+    }
+
     try {
       if (editingPatientId) {
         const { error } = await supabase
           .from('patients')
-          .update(formData)
+          .update(patientPayload)
           .eq('id', editingPatientId);
-        
+
         if (error) throw error;
         unifiedNotificationService.success('Patient modifié avec succès');
         setShowForm(false);
@@ -419,7 +443,7 @@ const PatientsPage = () => {
 
         const { data: newPatient, error } = await supabase
           .from('patients')
-          .insert([{ ...formData, tenant_id: userProfile?.tenant_id }])
+          .insert([{ ...patientPayload, tenant_id: userProfile?.tenant_id }])
           .select()
           .single();
         
@@ -441,7 +465,7 @@ const PatientsPage = () => {
       fetchPatients();
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
-      unifiedNotificationService.error('Erreur lors de la sauvegarde du patient');
+      unifiedNotificationService.error(getPatientUniqueConstraintMessage(error) || 'Erreur lors de la sauvegarde du patient');
     }
   };
 
@@ -469,6 +493,7 @@ const PatientsPage = () => {
       profession: '',
       situation_familiale: '',
       numero_ipm: '',
+      groupe_sanguin: '',
       medecin_traitant: '',
       mutuelle: '',
       numero_mutuelle: '',
@@ -502,6 +527,7 @@ const PatientsPage = () => {
       profession: '',
       situation_familiale: '',
       numero_ipm: '',
+      groupe_sanguin: '',
       medecin_traitant: '',
       mutuelle: '',
       numero_mutuelle: '',
@@ -660,7 +686,28 @@ const PatientsPage = () => {
                       value={formData.telephone}
                       onChange={handleInputChange}
                       required
+                      maxLength={11}
+                      placeholder={TELEPHONE_PLACEHOLDER}
                       className="input-field text-xs py-1.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-0.5">Groupe sanguin</label>
+                    <Dropdown
+                      value={formData.groupe_sanguin}
+                      onChange={(value) => handleInputChange({ target: { name: 'groupe_sanguin', value } })}
+                      options={[
+                        { value: '', label: '-' },
+                        { value: 'A+', label: 'A+' },
+                        { value: 'A-', label: 'A-' },
+                        { value: 'B+', label: 'B+' },
+                        { value: 'B-', label: 'B-' },
+                        { value: 'AB+', label: 'AB+' },
+                        { value: 'AB-', label: 'AB-' },
+                        { value: 'O+', label: 'O+' },
+                        { value: 'O-', label: 'O-' },
+                      ]}
+                      size="sm"
                     />
                   </div>
                   <div>
@@ -782,8 +829,9 @@ const PatientsPage = () => {
                       name="numero_assurance"
                       value={formData.numero_assurance}
                       onChange={handleInputChange}
-                      className="input-field text-xs py-1.5"
-                      placeholder="Numéro de police"
+                      disabled={!formData.assurance_id}
+                      className="input-field text-xs py-1.5 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                      placeholder={formData.assurance_id ? 'Numéro de police' : 'Sélectionner une assurance'}
                     />
                   </div>
                   <div>
@@ -813,6 +861,8 @@ const PatientsPage = () => {
                       name="telephone_contact"
                       value={formData.telephone_contact}
                       onChange={handleInputChange}
+                      maxLength={11}
+                      placeholder={TELEPHONE_PLACEHOLDER}
                       className="input-field text-xs py-1.5"
                     />
                   </div>

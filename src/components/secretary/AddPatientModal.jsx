@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAlert } from '../../contexts/AlertContext';
 import { generateNumeroDossier, validateBirthDate } from '../../services/patientService';
-import { validatePatientForm, getDateNaissanceError, normalizePatientPayload } from '../../schemas/patientSchema';
+import { validatePatientForm, getDateNaissanceError, normalizePatientPayload, getPatientUniqueConstraintMessage } from '../../schemas/patientSchema';
 import SearchableSelect from '../common/SearchableSelect';
 import Dropdown from '../common/Dropdown';
 import CreateRdvModal from '../doctor/CreateRdvModal';
@@ -263,7 +263,7 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
       setStep(3);
     } catch (error) {
       console.error('Erreur lors de la création du patient:', error);
-      showError('Erreur lors de la création du patient: ' + error.message);
+      showError(getPatientUniqueConstraintMessage(error) || ('Erreur lors de la création du patient: ' + error.message));
     } finally {
       setLoading(false);
     }

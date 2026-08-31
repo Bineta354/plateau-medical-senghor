@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import SearchableSelect from '../../components/common/SearchableSelect';
 import Dropdown from '../../components/common/Dropdown';
 import { generateNumeroDossier, validateBirthDate } from '../../services/patientService';
-import { validatePatientForm, getDateNaissanceError, normalizePatientPayload } from '../../schemas/patientSchema';
+import { validatePatientForm, getDateNaissanceError, normalizePatientPayload, getPatientUniqueConstraintMessage } from '../../schemas/patientSchema';
 import { 
   ArrowLeft,
   Save,
@@ -294,7 +294,7 @@ const PatientCreatePage = () => {
       
     } catch (error) {
       console.error('❌ [PatientCreate] Exception capturée:', error);
-      setError('Erreur lors de la création du patient: ' + error.message);
+      setError(getPatientUniqueConstraintMessage(error) || ('Erreur lors de la création du patient: ' + error.message));
     } finally {
       setLoading(false);
       console.log('🔵 [PatientCreate] Fin du processus de création');
