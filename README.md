@@ -176,7 +176,7 @@ src/
 - ✅ Statistiques en temps réel
 - ✅ Graphiques financiers
 
-### 📈 **Statistiques**
+### 📈 **Statistiques**   
 
 - ✅ Statistiques de consultation
 - ✅ Statistiques financières
