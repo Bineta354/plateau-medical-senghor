@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isValidTelephoneSN } from '../utils/phone';
+import { isValidTelephoneSN, normalizeTelephoneSN } from '../utils/phone';
 
 // Alignés sur les contraintes de la table public.patients (supabase/migrations)
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -133,6 +133,11 @@ export function normalizePatientPayload(data) {
     if (typeof normalized[field] === 'string') {
       const trimmed = normalized[field].trim();
       normalized[field] = trimmed === '' ? null : trimmed;
+    }
+  }
+  for (const field of ['telephone', 'telephone_contact']) {
+    if (typeof normalized[field] === 'string' && normalized[field].trim() !== '') {
+      normalized[field] = normalizeTelephoneSN(normalized[field]);
     }
   }
   return normalized;

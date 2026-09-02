@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { generateNumeroDossier } from '../../services/patientService';
 import { validatePatientForm, getDateNaissanceError, normalizePatientPayload } from '../../schemas/patientSchema';
+import { formatTelephoneSN } from '../../utils/phone';
 
 const PatientForm = ({ 
   initialData = null,
@@ -148,10 +149,11 @@ const PatientForm = ({
   };
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    const nextValue = ['telephone', 'telephone_contact'].includes(field) ? formatTelephoneSN(value) : value;
+    setFormData(prev => ({ ...prev, [field]: nextValue }));
     // Validation en temps réel pour la date de naissance
     if (field === 'date_naissance') {
-      validateDateNaissanceRealTime(value);
+      validateDateNaissanceRealTime(nextValue);
     } else {
       // Effacer l'erreur quand l'utilisateur commence à taper
       if (errors[field]) {

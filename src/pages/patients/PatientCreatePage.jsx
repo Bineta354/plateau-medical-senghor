@@ -5,6 +5,7 @@ import SearchableSelect from '../../components/common/SearchableSelect';
 import Dropdown from '../../components/common/Dropdown';
 import { generateNumeroDossier, validateBirthDate } from '../../services/patientService';
 import { validatePatientForm, getDateNaissanceError, normalizePatientPayload, getPatientUniqueConstraintMessage } from '../../schemas/patientSchema';
+import { formatTelephoneSN } from '../../utils/phone';
 import { 
   ArrowLeft,
   Save,
@@ -149,9 +150,10 @@ const PatientCreatePage = () => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
+    const nextValue = ['telephone', 'telephone_contact'].includes(name) ? formatTelephoneSN(value) : value;
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox' ? checked : nextValue
     }));
     
     // Validation en temps réel pour la date de naissance
@@ -503,7 +505,7 @@ const PatientCreatePage = () => {
                   onChange={handleInputChange}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
-                  placeholder="+221 77 123 45 67"
+                  placeholder="77 123 45 67 ou +221 77 123 45 67"
                 />
               </div>
 
