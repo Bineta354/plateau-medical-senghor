@@ -24,7 +24,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import { getPatientUniqueConstraintMessage, normalizePatientPayload } from '../schemas/patientSchema';
+import { getPatientUniqueConstraintMessage, normalizePatientPayload, validatePatientAssurance } from '../schemas/patientSchema';
 import PatientPostCreateMenu from '../components/common/PatientPostCreateMenu';
 import KpiCard from '../components/common/KpiCard';
 import Dropdown from '../components/common/Dropdown';
@@ -85,6 +85,9 @@ const PatientsPage = () => {
     assurance_id: null,
     nom_assurance: '',
     numero_assurance: '',
+    assurance_numero: '',
+    assurance_date_debut: '',
+    assurance_date_fin: '',
     personne_contact: '',
     telephone_contact: '',
     lien_contact: '',
@@ -175,6 +178,9 @@ const PatientsPage = () => {
             assurance_id: patient.assurance_id || null,
             nom_assurance: patient.nom_assurance || '',
             numero_assurance: patient.numero_assurance || '',
+            assurance_numero: patient.assurance_numero || '',
+            assurance_date_debut: patient.assurance_date_debut || '',
+            assurance_date_fin: patient.assurance_date_fin || '',
             personne_contact: patient.personne_contact || '',
             telephone_contact: patient.telephone_contact || '',
             lien_contact: patient.lien_contact || '',
@@ -416,11 +422,17 @@ const PatientsPage = () => {
 
     // nom_assurance / numero_assurance ne sont pas des colonnes de public.patients
     // (supprimées par la migration 20250109000001) — ne pas les envoyer à Supabase.
-    const { nom_assurance, numero_assurance, ...patientPayload } = formData;
+    const { nom_assurance, ...patientPayload } = formData;
     // date_naissance est une colonne "date" : une chaîne vide fait échouer l'insert/update
     // avec 22007 ("invalid input syntax for type date"), il faut envoyer null.
     if (patientPayload.date_naissance === '') {
       patientPayload.date_naissance = null;
+    }
+
+    const assuranceError = validatePatientAssurance(patientPayload);
+    if (assuranceError) {
+      unifiedNotificationService.warning(assuranceError);
+      return;
     }
 
     const normalizedPatientPayload = normalizePatientPayload(patientPayload);
@@ -502,6 +514,9 @@ const PatientsPage = () => {
       assurance_id: null,
       nom_assurance: '',
       numero_assurance: '',
+      assurance_numero: '',
+      assurance_date_debut: '',
+      assurance_date_fin: '',
       personne_contact: '',
       telephone_contact: '',
       lien_contact: '',
@@ -536,6 +551,9 @@ const PatientsPage = () => {
       assurance_id: null,
       nom_assurance: '',
       numero_assurance: '',
+      assurance_numero: '',
+      assurance_date_debut: '',
+      assurance_date_fin: '',
       personne_contact: '',
       telephone_contact: '',
       lien_contact: '',
@@ -834,6 +852,29 @@ const PatientsPage = () => {
                       disabled={!formData.assurance_id}
                       className="input-field text-xs py-1.5 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                       placeholder={formData.assurance_id ? 'Numéro de police' : 'Sélectionner une assurance'}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-0.5">Début couverture</label>
+                    <input
+                      type="date"
+                      name="assurance_date_debut"
+                      value={formData.assurance_date_debut}
+                      onChange={handleInputChange}
+                      disabled={!formData.assurance_id}
+                      className="input-field text-xs py-1.5 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-0.5">Fin couverture *</label>
+                    <input
+                      type="date"
+                      name="assurance_date_fin"
+                      value={formData.assurance_date_fin}
+                      min={formData.assurance_date_debut || undefined}
+                      onChange={handleInputChange}
+                      disabled={!formData.assurance_id}
+                      className="input-field text-xs py-1.5 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                     />
                   </div>
                   <div>

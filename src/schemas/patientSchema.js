@@ -140,7 +140,24 @@ export function normalizePatientPayload(data) {
       normalized[field] = normalizeTelephoneSN(normalized[field]);
     }
   }
+  if (normalized.assurance_numero == null && typeof normalized.numero_assurance === 'string') {
+    const numeroAssurance = normalized.numero_assurance.trim();
+    normalized.assurance_numero = numeroAssurance === '' ? null : numeroAssurance;
+  }
+  delete normalized.numero_assurance;
+  delete normalized.nom_assurance;
   return normalized;
+}
+
+export function validatePatientAssurance({ assurance_id, assurance_date_debut, assurance_date_fin } = {}) {
+  if (!assurance_id) return null;
+  if (!assurance_date_fin) return 'La date de fin de couverture est obligatoire.';
+
+  if (assurance_date_debut && assurance_date_fin < assurance_date_debut) {
+    return 'La date de fin de couverture doit être supérieure ou égale à la date de début.';
+  }
+
+  return null;
 }
 
 // Index uniques (par tenant) posés sur public.patients — voir les migrations
