@@ -11,11 +11,12 @@ ALTER TABLE public.patients
   ADD CONSTRAINT patients_assurance_dates_valides
   CHECK (
     assurance_id IS NULL
+    OR created_at < TIMESTAMPTZ '2026-09-02 00:00:00+00'
     OR (
       assurance_date_fin IS NOT NULL
       AND (assurance_date_debut IS NULL OR assurance_date_fin >= assurance_date_debut)
     )
-  );
+  ) NOT VALID;
 
 COMMENT ON COLUMN public.patients.assurance_numero IS 'Numero d adhesion ou de police du patient';
 COMMENT ON COLUMN public.patients.assurance_date_debut IS 'Debut de validite de la couverture du patient';
