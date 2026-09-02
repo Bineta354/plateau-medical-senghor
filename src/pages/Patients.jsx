@@ -686,7 +686,7 @@ const PatientsPage = () => {
                       value={formData.telephone}
                       onChange={handleInputChange}
                       required
-                      maxLength={11}
+                      maxLength={12}
                       placeholder={TELEPHONE_PLACEHOLDER}
                       className="input-field text-xs py-1.5"
                     />
