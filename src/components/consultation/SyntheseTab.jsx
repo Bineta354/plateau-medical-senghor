@@ -699,9 +699,11 @@ export default function SyntheseTab(
                                 )}
                               </div>
                             </div>
-                            <span className="text-gray-500">
-                              {(expandedConsultations[consultation.consultation_id] ?? true) ? '−' : '+'}
-                            </span>
+                            {(expandedConsultations[consultation.consultation_id] ?? true) ? (
+                              <ChevronUp className="h-5 w-5 text-gray-600" />
+                            ) : (
+                              <ChevronDown className="h-5 w-5 text-gray-600" />
+                            )}
                           </button>
                           {consultation.is_current && (
                             <span className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-full whitespace-nowrap">
