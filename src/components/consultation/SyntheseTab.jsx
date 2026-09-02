@@ -106,6 +106,36 @@ export default function SyntheseTab(
   const [showSyntheseModal, setShowSyntheseModal] = useState(false)
   const [editingSynthese, setEditingSynthese] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [expandedConsultations, setExpandedConsultations] = useState({});
+
+  const formatConsultationDateTime = (value) => {
+    if (!value) return 'Date inconnue';
+    const dateValue = String(value);
+    const hasExplicitTime = /T\d{2}:\d{2}(:\d{2})?/.test(dateValue) || /\s\d{2}:\d{2}(:\d{2})?/.test(dateValue);
+
+    if (!hasExplicitTime) {
+      return new Date(dateValue).toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+    }
+
+    return new Date(dateValue).toLocaleString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const toggleConsultation = (consultationId) => {
+    setExpandedConsultations((prev) => ({
+      ...prev,
+      [consultationId]: !(prev[consultationId] ?? true)
+    }));
+  };
   const handleAddSynthese = () => {
     setEditingSynthese(null);
     setShowSyntheseModal(true);
@@ -643,61 +673,65 @@ export default function SyntheseTab(
                           ? 'border-blue-500 bg-blue-50'
                           : 'border-gray-300 bg-white'
                       } p-4 mb-3`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Calendar className={`w-5 h-5 ${
-                              consultation.is_current ? 'text-blue-600' : 'text-gray-600'
-                            }`} />
-                            <div>
-                              <h4 className={`font-semibold ${
-                                consultation.is_current ? 'text-blue-900' : 'text-gray-900'
-                              }`}>
-                                {new Date(consultation.date_consultation).toLocaleDateString('fr-FR', {
-                                  day: 'numeric',
-                                  month: 'long',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </h4>
-                              <p className="text-sm text-gray-600">
-                                Dr {consultation.medecin_prenom || 'Non renseigné'} {consultation.medecin_nom || ''}
-                              </p>
-                              {consultation.motif_consultation && (
-                                <p className="mt-1 text-sm text-gray-500">
-                                  <span className="font-medium">Motif :</span> {consultation.motif_consultation}
+                        <div className="flex items-center justify-between gap-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleConsultation(consultation.consultation_id)}
+                            className="flex flex-1 items-center justify-between gap-3 text-left"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Calendar className={`w-5 h-5 ${
+                                consultation.is_current ? 'text-blue-600' : 'text-gray-600'
+                              }`} />
+                              <div>
+                                <h4 className={`font-semibold ${
+                                  consultation.is_current ? 'text-blue-900' : 'text-gray-900'
+                                }`}>
+                                  {formatConsultationDateTime(consultation.date_consultation)}
+                                </h4>
+                                <p className="text-sm text-gray-600">
+                                  Dr {consultation.medecin_prenom || 'Non renseigné'} {consultation.medecin_nom || ''}
                                 </p>
-                              )}
+                                {consultation.motif_consultation && (
+                                  <p className="mt-1 text-sm text-gray-500">
+                                    <span className="font-medium">Motif :</span> {consultation.motif_consultation}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          </div>
+                            <span className="text-gray-500">
+                              {(expandedConsultations[consultation.consultation_id] ?? true) ? '−' : '+'}
+                            </span>
+                          </button>
                           {consultation.is_current && (
-                            <span className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-full">
+                            <span className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-full whitespace-nowrap">
                               Consultation actuelle
                             </span>
                           )}
                         </div>
                       </div>
 
-                      {/* Synthèses de cette consultation */}
-                      <div className="space-y-4 pl-8">
-                        <ConsultationHistoryDetails observations={consultation.observations} />
+                      {(expandedConsultations[consultation.consultation_id] ?? true) && (
+                        <div className="space-y-4 pl-8">
+                          <ConsultationHistoryDetails observations={consultation.observations} />
 
-                        {consultation.syntheses.length > 0 && (
-                          <div className="space-y-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Synthèse enregistrée</p>
-                            {consultation.syntheses.map((synthese) => (
-                              <SyntheseEntryCard
-                                key={synthese.id}
-                                nom={synthese.element_nom}
-                                description={synthese.element_description}
-                                type={synthese.element_type}
-                                commentaires={synthese.commentaires}
-                                createdAt={synthese.created_at}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                          {consultation.syntheses.length > 0 && (
+                            <div className="space-y-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Synthèse enregistrée</p>
+                              {consultation.syntheses.map((synthese) => (
+                                <SyntheseEntryCard
+                                  key={synthese.id}
+                                  nom={synthese.element_nom}
+                                  description={synthese.element_description}
+                                  type={synthese.element_type}
+                                  commentaires={synthese.commentaires}
+                                  createdAt={synthese.created_at}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
