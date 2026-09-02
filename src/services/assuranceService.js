@@ -26,6 +26,29 @@ export async function listAssurances({ fields = 'id, nom, taux_remboursement' } 
   return data || [];
 }
 
+export function validateAssuranceDates({ date_debut, date_fin } = {}) {
+  if (!date_fin || String(date_fin).trim() === '') {
+    return 'La date de fin d’assurance est obligatoire.';
+  }
+
+  if (!date_debut || String(date_debut).trim() === '') {
+    return 'La date de début d’assurance est obligatoire.';
+  }
+
+  const debut = new Date(`${date_debut}T00:00:00`);
+  const fin = new Date(`${date_fin}T00:00:00`);
+
+  if (Number.isNaN(debut.getTime()) || Number.isNaN(fin.getTime())) {
+    return 'Dates de couverture invalides.';
+  }
+
+  if (fin < debut) {
+    return 'La date de fin doit être supérieure ou égale à la date de début.';
+  }
+
+  return null;
+}
+
 /**
  * Détail d'une assurance par id.
  *

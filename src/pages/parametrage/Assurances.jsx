@@ -4,6 +4,7 @@ import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import Dropdown from '../../components/common/Dropdown';
 import { unifiedNotificationService } from '../../services/unifiedNotificationService';
+import { validateAssuranceDates } from '../../services/assuranceService';
 import { Plus, Search, Shield, Edit2, Trash2 } from 'lucide-react';
 
 const TYPES_ASSURANCE = {
@@ -14,7 +15,16 @@ const TYPES_ASSURANCE = {
 };
 const TYPE_KEYS = Object.keys(TYPES_ASSURANCE);
 
-const EMPTY_FORM = { nom: '', description: '', type_assurance: 'mutuelle', taux_remboursement: 0, ordre_affichage: 0, actif: true };
+const EMPTY_FORM = {
+  nom: '',
+  description: '',
+  type_assurance: 'mutuelle',
+  taux_remboursement: 0,
+  ordre_affichage: 0,
+  date_debut: '',
+  date_fin: '',
+  actif: true,
+};
 
 const Assurances = () => {
   const [assurances, setAssurances] = useState([]);
@@ -72,6 +82,8 @@ const Assurances = () => {
       type_assurance: assurance.type_assurance,
       taux_remboursement: assurance.taux_remboursement,
       ordre_affichage: assurance.ordre_affichage,
+      date_debut: assurance.date_debut || '',
+      date_fin: assurance.date_fin || '',
       actif: assurance.actif,
     });
     setIsModalOpen(true);
@@ -87,6 +99,16 @@ const Assurances = () => {
     e.preventDefault();
     if (!formData.nom.trim() || saving) return;
 
+    const dateError = validateAssuranceDates({
+      date_debut: formData.date_debut,
+      date_fin: formData.date_fin,
+    });
+
+    if (dateError) {
+      unifiedNotificationService.warning(dateError);
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -95,6 +117,8 @@ const Assurances = () => {
         type_assurance: formData.type_assurance,
         taux_remboursement: parseFloat(formData.taux_remboursement) || 0,
         ordre_affichage: parseInt(formData.ordre_affichage, 10) || 0,
+        date_debut: formData.date_debut || null,
+        date_fin: formData.date_fin || null,
         actif: formData.actif,
       };
 
@@ -321,6 +345,29 @@ const Assurances = () => {
                 step="0.01"
                 value={formData.taux_remboursement}
                 onChange={(e) => setFormData((prev) => ({ ...prev, taux_remboursement: e.target.value }))}
+                className="w-full border border-gray-200 rounded-[10px] px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Date de début</label>
+              <input
+                type="date"
+                value={formData.date_debut}
+                onChange={(e) => setFormData((prev) => ({ ...prev, date_debut: e.target.value }))}
+                className="w-full border border-gray-200 rounded-[10px] px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Date de fin *</label>
+              <input
+                type="date"
+                required
+                value={formData.date_fin}
+                min={formData.date_debut || undefined}
+                onChange={(e) => setFormData((prev) => ({ ...prev, date_fin: e.target.value }))}
                 className="w-full border border-gray-200 rounded-[10px] px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
               />
             </div>
