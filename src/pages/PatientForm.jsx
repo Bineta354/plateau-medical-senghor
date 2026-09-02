@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { unifiedNotificationService } from '../services/unifiedNotificationService';
+import { formatTelephoneSN } from '../utils/phone';
 
 const PatientForm = () => {
   const navigate = useNavigate();
@@ -65,7 +66,7 @@ const PatientForm = () => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: ['telephone', 'telephone_contact'].includes(name) ? formatTelephoneSN(value) : value
     }));
   };
 
