@@ -180,7 +180,27 @@ const FichePatientOnly = () => {
         .single();
 
       if (patientError) throw patientError;
-      setSelectedPatient(patient);
+
+      let assurance = null;
+      if (patient.assurance_id) {
+        const { data: assuranceData, error: assuranceError } = await supabase
+          .from('assurances')
+          .select('id, nom, type_assurance, taux_remboursement, description')
+          .eq('id', patient.assurance_id)
+          .maybeSingle();
+
+        if (assuranceError) {
+          console.warn('[FichePatientOnly] Erreur assurance:', assuranceError.message);
+        } else {
+          assurance = assuranceData;
+        }
+      }
+
+      setSelectedPatient({
+        ...patient,
+        assurances: assurance,
+        assurance: assurance?.nom || null,
+      });
 
       // Charger l'historique des consultations
       const { data: consultationsData, error: consultationsError } = await supabase
