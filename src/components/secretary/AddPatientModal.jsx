@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useAlert } from '../../contexts/AlertContext';
 import { generateNumeroDossier, validateBirthDate } from '../../services/patientService';
 import { validatePatientForm, getDateNaissanceError, normalizePatientPayload, getPatientUniqueConstraintMessage } from '../../schemas/patientSchema';
+import { formatTelephoneSN } from '../../utils/phone';
 import SearchableSelect from '../common/SearchableSelect';
 import Dropdown from '../common/Dropdown';
 import CreateRdvModal from '../doctor/CreateRdvModal';
@@ -585,8 +586,9 @@ const AddPatientModal = ({ doctors, onClose, onPatientAdded }) => {
                           <input
                             type="tel"
                             value={newPatient.telephone}
-                            onChange={(e) => setNewPatient({...newPatient, telephone: e.target.value})}
+                            onChange={(e) => setNewPatient({...newPatient, telephone: formatTelephoneSN(e.target.value)})}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-medical-primary focus:border-transparent"
+                            placeholder="77 123 45 67"
                           />
                         </div>
                         <div>
