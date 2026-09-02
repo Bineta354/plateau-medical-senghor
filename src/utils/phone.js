@@ -5,14 +5,14 @@ export const TELEPHONE_PLACEHOLDER = '77 777 77 77';
 
 export function normalizeTelephoneSN(value) {
   const digits = (value || '').replace(/\D/g, '');
-  return digits.startsWith('221') && digits.length === 12 ? digits.slice(3) : digits;
+  return digits.startsWith('221') ? digits.slice(3, 12) : digits.slice(0, 9);
 }
 
 /**
  * Reformate une saisie en cours (mask) au format "77 777 77 77" pendant que l'utilisateur tape.
  */
 export function formatTelephoneSN(value) {
-  const digits = normalizeTelephoneSN(value).slice(0, 9);
+  const digits = normalizeTelephoneSN(value);
   const groups = [digits.slice(0, 2), digits.slice(2, 5), digits.slice(5, 7), digits.slice(7, 9)];
   return groups.filter(Boolean).join(' ');
 }
