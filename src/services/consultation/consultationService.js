@@ -368,36 +368,55 @@ export const getSyntheseHistorique = async (patientId, currentConsultationId = n
   if (!patientId) return [];
   const { data: consultations, error: consultationsError } = await supabase
     .from('consultations')
-    .select('id, date_consultation, users:medecin_id (prenom, nom)')
+    .select('id, date_consultation, motif_consultation, statut, type_consultation, users:medecin_id (prenom, nom)')
     .eq('patient_id', patientId)
-    .order('date_consultation', { ascending: false })
-    .limit(20);
+    .order('date_consultation', { ascending: false });
   if (consultationsError) {
     console.error('Erreur getSyntheseHistorique (consultations):', consultationsError);
     return [];
   }
   const consultationIds = (consultations || []).map((c) => c.id);
   if (consultationIds.length === 0) return [];
-  const { data, error } = await supabase
-    .from('syntheses_consultation')
-    .select(`
-      id,
-      consultation_id,
-      commentaires,
-      created_at,
-      elements_synthese (nom, description, categorie, type_element)
-    `)
-    .in('consultation_id', consultationIds)
-    .order('created_at', { ascending: false });
-  if (error) {
-    console.error('Erreur getSyntheseHistorique (syntheses):', error);
+  const [synthesesResult, constantesResult, signesResult, autresSignesResult, examensResult, diagnosticsResult, ordonnancesResult, antecedentsResult] = await Promise.all([
+    supabase.from('syntheses_consultation').select('id, consultation_id, commentaires, created_at, elements_synthese (nom, description, categorie, type_element)').in('consultation_id', consultationIds).order('created_at', { ascending: false }),
+    supabase.from('constantes_consultation').select('id, consultation_id, valeur_mesuree, unite, commentaires, created_at, constantes (nom, unite)').in('consultation_id', consultationIds).order('created_at', { ascending: true }),
+    supabase.from('signes_cliniques_consultation').select('id, consultation_id, intensite, localisation, commentaires, created_at, signes_cliniques (nom)').in('consultation_id', consultationIds).order('created_at', { ascending: true }),
+    supabase.from('autres_signes_physiques').select('id, consultation_id, description, categorie, created_at').in('consultation_id', consultationIds).order('created_at', { ascending: true }),
+    supabase.from('examens_appareils').select('id, consultation_id, resultat_examen, anomalies_detectees, recommandations, created_at, appareils (nom)').in('consultation_id', consultationIds).order('created_at', { ascending: true }),
+    supabase.from('diagnostics_consultation').select('id, consultation_id, certitude, commentaires, created_at, diagnostics (nom)').in('consultation_id', consultationIds).order('created_at', { ascending: true }),
+    supabase.from('ordonnances').select('id, consultation_id, numero_ordonnance, instructions_generales, created_at, lignes_ordonnance (id, posologie, duree_traitement, medicaments (nom))').in('consultation_id', consultationIds).order('created_at', { ascending: true }),
+    supabase.from('antecedents_patients').select('id, consultation_id, commentaires, date_decouverte, antecedents (nom)').in('consultation_id', consultationIds).order('created_at', { ascending: true }),
+  ]);
+
+  const results = [synthesesResult, constantesResult, signesResult, autresSignesResult, examensResult, diagnosticsResult, ordonnancesResult, antecedentsResult];
+  if (results.some(({ error }) => error)) {
+    results.forEach(({ error }) => error && console.error('Erreur getSyntheseHistorique:', error));
     return [];
   }
 
-  const syntheseParConsultation = {};
-  (data || []).forEach((s) => {
-    if (!syntheseParConsultation[s.consultation_id]) syntheseParConsultation[s.consultation_id] = [];
-    syntheseParConsultation[s.consultation_id].push({
+  const groupByConsultation = (rows) => (rows || []).reduce((groups, row) => {
+    (groups[row.consultation_id] ||= []).push(row);
+    return groups;
+  }, {});
+  const synthesesByConsultation = groupByConsultation(synthesesResult.data);
+  const constantesByConsultation = groupByConsultation(constantesResult.data);
+  const signesByConsultation = groupByConsultation(signesResult.data);
+  const autresSignesByConsultation = groupByConsultation(autresSignesResult.data);
+  const examensByConsultation = groupByConsultation(examensResult.data);
+  const diagnosticsByConsultation = groupByConsultation(diagnosticsResult.data);
+  const ordonnancesByConsultation = groupByConsultation(ordonnancesResult.data);
+  const antecedentsByConsultation = groupByConsultation(antecedentsResult.data);
+
+  return consultations.map((consultation) => ({
+    consultation_id: consultation.id,
+    date_consultation: consultation.date_consultation,
+    motif_consultation: consultation.motif_consultation,
+    statut: consultation.statut,
+    type_consultation: consultation.type_consultation,
+    medecin_prenom: consultation.users?.prenom,
+    medecin_nom: consultation.users?.nom,
+    is_current: currentConsultationId != null && String(consultation.id) === String(currentConsultationId),
+    syntheses: (synthesesByConsultation[consultation.id] || []).map((s) => ({
       id: s.id,
       element_nom: s.elements_synthese?.nom,
       element_description: s.elements_synthese?.description,
@@ -405,19 +424,17 @@ export const getSyntheseHistorique = async (patientId, currentConsultationId = n
       element_type: s.elements_synthese?.type_element,
       commentaires: s.commentaires,
       created_at: s.created_at,
-    });
-  });
-
-  return consultations
-    .filter((c) => syntheseParConsultation[c.id]?.length)
-    .map((c) => ({
-      consultation_id: c.id,
-      date_consultation: c.date_consultation,
-      medecin_prenom: c.users?.prenom,
-      medecin_nom: c.users?.nom,
-      is_current: currentConsultationId != null && String(c.id) === String(currentConsultationId),
-      syntheses: syntheseParConsultation[c.id],
-    }));
+    })),
+    observations: {
+      antecedents: antecedentsByConsultation[consultation.id] || [],
+      constantes: constantesByConsultation[consultation.id] || [],
+      signesCliniques: signesByConsultation[consultation.id] || [],
+      autresSignes: autresSignesByConsultation[consultation.id] || [],
+      examensAppareils: examensByConsultation[consultation.id] || [],
+      diagnostics: diagnosticsByConsultation[consultation.id] || [],
+      ordonnances: ordonnancesByConsultation[consultation.id] || [],
+    },
+  }));
 };
 
 export const toggleAntecedentStatus = async (antecedentPatientId, currentActif) => {

@@ -140,34 +140,15 @@ export const generateSynthesisPDF = async (
             <head>
                 <title>Synthèse de consultation - ${patient?.prenom} ${patient?.nom}</title>
                 <style>
-                body { 
-                    font-family: Arial, sans-serif; 
-                    margin: 20px; 
-                    line-height: 1.6;
-                    color: #333;
-                }
-                h1 { 
-                    color: #2563eb; 
-                    border-bottom: 2px solid #2563eb; 
-                    padding-bottom: 10px;
-                }
-                .header {
-                    background-color: #f8fafc;
-                    padding: 15px;
-                    border-radius: 8px;
-                    margin-bottom: 20px;
-                }
-                .footer {
-                    margin-top: 30px;
-                    padding-top: 15px;
-                    border-top: 1px solid #e5e7eb;
-                    font-size: 12px;
-                    color: #6b7280;
-                    text-align: center;
-                }
-                @media print {
-                    body { margin: 0; }
-                }
+                @page { size: A4; margin: 16mm; }
+                * { box-sizing: border-box; }
+                body { color: #1e293b; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.55; margin: 0; }
+                h1 { color: #0f766e; font-size: 21px; letter-spacing: .7px; margin: 0 0 16px; padding-bottom: 10px; text-align: center; text-transform: uppercase; border-bottom: 3px solid #0f766e; }
+                .header { background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 9px; display: grid; grid-template-columns: 1fr 1fr; gap: 7px 18px; margin-bottom: 16px; padding: 13px 15px; }
+                .header strong { color: #0f766e; font-size: 10px; letter-spacing: .3px; text-transform: uppercase; }
+                pre { background: #fff; border: 1px solid #e2e8f0; border-radius: 9px; color: #334155; font-size: 11px; line-height: 1.6; margin: 0; padding: 14px; }
+                .footer { border-top: 1px solid #cbd5e1; color: #64748b; font-size: 9px; margin-top: 22px; padding-top: 9px; text-align: center; }
+                @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
                 </style>
             </head>
             <body>

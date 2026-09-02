@@ -8,6 +8,77 @@ import { useAuth } from '../../contexts/AuthContext';
 import SyntheseModal from './modals/SyntheseModal';
 import SyntheseEntryCard, { TYPE_META, DEFAULT_TYPE_META, groupByType } from './SyntheseEntryCard';
 
+const HistorySection = ({ title, children }) => (
+  <section className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+    <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">{title}</h5>
+    <div className="space-y-1.5 text-sm text-slate-700">{children}</div>
+  </section>
+);
+
+HistorySection.propTypes = {
+  title: PropTypes.string.isRequired,
+  children: PropTypes.node.isRequired,
+};
+
+const ConsultationHistoryDetails = ({ observations }) => {
+  const details = observations || {};
+  const hasDetails = Object.values(details).some((items) => items?.length > 0);
+  if (!hasDetails) return <p className="px-1 text-sm italic text-gray-500">Aucune observation clinique saisie pour cette consultation.</p>;
+
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      {details.constantes?.length > 0 && (
+        <HistorySection title="Constantes vitales">
+          {details.constantes.map((item) => (
+            <p key={item.id}><span className="font-medium">{item.constantes?.nom} :</span> {item.valeur_mesuree} {item.unite || item.constantes?.unite || ''}</p>
+          ))}
+        </HistorySection>
+      )}
+      {(details.signesCliniques?.length > 0 || details.autresSignes?.length > 0) && (
+        <HistorySection title="Observations cliniques">
+          {details.signesCliniques?.map((item) => (
+            <p key={item.id}><span className="font-medium">{item.signes_cliniques?.nom}</span>{item.intensite ? ` — ${item.intensite}` : ''}{item.localisation ? `, ${item.localisation}` : ''}{item.commentaires ? ` : ${item.commentaires}` : ''}</p>
+          ))}
+          {details.autresSignes?.map((item) => <p key={item.id}>{item.description}</p>)}
+        </HistorySection>
+      )}
+      {details.examensAppareils?.length > 0 && (
+        <HistorySection title="Examens d'appareils">
+          {details.examensAppareils.map((item) => (
+            <p key={item.id}><span className="font-medium">{item.appareils?.nom} :</span> {item.resultat_examen}{item.anomalies_detectees ? ` — Anomalies : ${item.anomalies_detectees}` : ''}</p>
+          ))}
+        </HistorySection>
+      )}
+      {details.diagnostics?.length > 0 && (
+        <HistorySection title="Diagnostics">
+          {details.diagnostics.map((item) => (
+            <p key={item.id}><span className="font-medium">{item.diagnostics?.nom}</span>{item.certitude ? ` (${item.certitude})` : ''}{item.commentaires ? ` : ${item.commentaires}` : ''}</p>
+          ))}
+        </HistorySection>
+      )}
+      {details.ordonnances?.length > 0 && (
+        <HistorySection title="Prescriptions">
+          {details.ordonnances.map((item) => (
+            <div key={item.id}>
+              <p className="font-medium">Ordonnance {item.numero_ordonnance || ''}</p>
+              {item.lignes_ordonnance?.map((ligne) => <p key={ligne.id} className="pl-2">• {ligne.medicaments?.nom}{ligne.posologie ? ` — ${ligne.posologie}` : ''}</p>)}
+            </div>
+          ))}
+        </HistorySection>
+      )}
+      {details.antecedents?.length > 0 && (
+        <HistorySection title="Antécédents ajoutés">
+          {details.antecedents.map((item) => <p key={item.id}>{item.antecedents?.nom}{item.commentaires ? ` : ${item.commentaires}` : ''}</p>)}
+        </HistorySection>
+      )}
+    </div>
+  );
+};
+
+ConsultationHistoryDetails.propTypes = {
+  observations: PropTypes.object,
+};
+
 export default function SyntheseTab(
   {
     id,
@@ -63,6 +134,10 @@ export default function SyntheseTab(
   // de tout regrouper sous un seul élément — le type_element est une valeur fixe (contrainte
   // CHECK en base), donc fiable même si le cabinet a renommé ses éléments de synthèse.
   const generateAutoSynthesis = async () => {
+    if (isTerminated) {
+      showWarning('La consultation est terminée : sa synthèse ne peut plus être modifiée.');
+      return;
+    }
     try {
       const textsByType = { observation: '', prescription: '', recommandation: '' };
 
@@ -152,6 +227,29 @@ export default function SyntheseTab(
           };
         });
 
+      // Une nouvelle génération remplace uniquement les anciennes synthèses
+      // automatiques. Les éléments ajoutés manuellement restent intacts.
+      const { data: existingRows, error: existingError } = await supabase
+        .from('syntheses_consultation')
+        .select('id, commentaires')
+        .eq('consultation_id', parseInt(id));
+      if (existingError) throw existingError;
+
+      const autoRows = (existingRows || []).filter((row) =>
+        row.commentaires?.startsWith('[Synthèse automatique générée le ')
+      );
+      if (autoRows.length > 0) {
+        const shouldReplace = window.confirm(
+          'Une synthèse automatique existe déjà. Voulez-vous la remplacer avec les données actuelles ?'
+        );
+        if (!shouldReplace) return;
+        const { error: deleteError } = await supabase
+          .from('syntheses_consultation')
+          .delete()
+          .in('id', autoRows.map((row) => row.id));
+        if (deleteError) throw deleteError;
+      }
+
       const { error } = await supabase
         .from('syntheses_consultation')
         .insert(rows);
@@ -194,11 +292,15 @@ export default function SyntheseTab(
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-900">Synthèse de la consultation</h2>
           <div className="flex gap-3">
-            <button 
-              onClick={() => {
-                generateAutoSynthesis();
-              }}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center text-sm"
+            <button
+              onClick={generateAutoSynthesis}
+              disabled={isTerminated}
+              title={isTerminated ? 'La consultation est terminée' : undefined}
+              className={`px-4 py-2 rounded-lg flex items-center text-sm ${
+                isTerminated
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-purple-600 text-white hover:bg-purple-700'
+              }`}
             >
               <Brain className="w-4 h-4 mr-2" />
               Sauvegarder synthèse
@@ -559,8 +661,13 @@ export default function SyntheseTab(
                                 })}
                               </h4>
                               <p className="text-sm text-gray-600">
-                                Dr {consultation.medecin_prenom} {consultation.medecin_nom}
+                                Dr {consultation.medecin_prenom || 'Non renseigné'} {consultation.medecin_nom || ''}
                               </p>
+                              {consultation.motif_consultation && (
+                                <p className="mt-1 text-sm text-gray-500">
+                                  <span className="font-medium">Motif :</span> {consultation.motif_consultation}
+                                </p>
+                              )}
                             </div>
                           </div>
                           {consultation.is_current && (
@@ -572,17 +679,24 @@ export default function SyntheseTab(
                       </div>
 
                       {/* Synthèses de cette consultation */}
-                      <div className="space-y-3 pl-8">
-                        {consultation.syntheses.map((synthese) => (
-                          <SyntheseEntryCard
-                            key={synthese.id}
-                            nom={synthese.element_nom}
-                            description={synthese.element_description}
-                            type={synthese.element_type}
-                            commentaires={synthese.commentaires}
-                            createdAt={synthese.created_at}
-                          />
-                        ))}
+                      <div className="space-y-4 pl-8">
+                        <ConsultationHistoryDetails observations={consultation.observations} />
+
+                        {consultation.syntheses.length > 0 && (
+                          <div className="space-y-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Synthèse enregistrée</p>
+                            {consultation.syntheses.map((synthese) => (
+                              <SyntheseEntryCard
+                                key={synthese.id}
+                                nom={synthese.element_nom}
+                                description={synthese.element_description}
+                                type={synthese.element_type}
+                                commentaires={synthese.commentaires}
+                                createdAt={synthese.created_at}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
