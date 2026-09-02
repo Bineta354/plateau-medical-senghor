@@ -24,7 +24,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import { getPatientUniqueConstraintMessage } from '../schemas/patientSchema';
+import { getPatientUniqueConstraintMessage, normalizePatientPayload } from '../schemas/patientSchema';
 import PatientPostCreateMenu from '../components/common/PatientPostCreateMenu';
 import KpiCard from '../components/common/KpiCard';
 import Dropdown from '../components/common/Dropdown';
@@ -423,11 +423,13 @@ const PatientsPage = () => {
       patientPayload.date_naissance = null;
     }
 
+    const normalizedPatientPayload = normalizePatientPayload(patientPayload);
+
     try {
       if (editingPatientId) {
         const { error } = await supabase
           .from('patients')
-          .update(patientPayload)
+          .update(normalizedPatientPayload)
           .eq('id', editingPatientId);
 
         if (error) throw error;
@@ -443,7 +445,7 @@ const PatientsPage = () => {
 
         const { data: newPatient, error } = await supabase
           .from('patients')
-          .insert([{ ...patientPayload, tenant_id: userProfile?.tenant_id }])
+          .insert([{ ...normalizedPatientPayload, tenant_id: userProfile?.tenant_id }])
           .select()
           .single();
         
