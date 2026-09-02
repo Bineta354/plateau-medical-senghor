@@ -317,7 +317,7 @@ export const patientService = {
       .from('patients')
       .select(`
         *,
-        assurances (
+        assurances!fk_patients_assurance (
           id,
           nom,
           type_assurance,
@@ -337,7 +337,7 @@ export const patientService = {
   async getAllWithAssurance() {
     const { data, error } = await supabase
       .from('patients')
-      .select('id, nom, prenom, assurance_id, assurances ( id, nom, taux_remboursement )')
+      .select('id, nom, prenom, assurance_id, assurances!fk_patients_assurance ( id, nom, taux_remboursement )')
       .order('nom', { ascending: true })
     if (error) throw error
     return data || []
