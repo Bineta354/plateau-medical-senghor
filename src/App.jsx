@@ -838,7 +838,7 @@ const AppContent = () => {
         } />
         
         <Route path="/consultation/:id" element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={[ROLES.DOCTOR, ROLES.SECRETARY, ROLES.ADMIN]}>
             <LazyPageWrapper Component={ConsultationDetail} message="Chargement détails consultation..." />
           </ProtectedRoute>
         } />

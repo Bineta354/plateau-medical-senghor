@@ -434,8 +434,8 @@ const PatientDetailsPage = () => {
                     <span className="text-sm font-bold text-green-600">{patient.assurances.taux_remboursement}%</span>
                   </div>
                 )}
-                {patient.numero_assurance && (
-                  <p className="text-xs text-slate-500 mt-1.5">N° {patient.numero_assurance}</p>
+                {patient.assurance_numero && (
+                  <p className="text-xs text-slate-500 mt-1.5">N° {patient.assurance_numero}</p>
                 )}
               </>
             ) : typeCouverture === 'legacy' ? (
