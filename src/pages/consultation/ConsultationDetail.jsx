@@ -85,6 +85,18 @@ const ConsultationDetail = () => {
     refetchFunctions
   } = useConsultationData(id);
 
+  // heure_debut_consultation / heure_fin_consultation n'existent pas en base : le début est
+  // dérivé de created_at (consultation en cours, ouverte il y a moins de 12 h — sinon une
+  // vieille consultation restée ouverte afficherait un chrono aberrant) et la fin de updated_at.
+  const rawStartedAt = consultation?.heure_debut_consultation || (consultation?.statut === 'en_cours' ? consultation?.created_at : null);
+  const consultationStartedAt = rawStartedAt && Date.now() - new Date(rawStartedAt).getTime() < 12 * 60 * 60 * 1000 ? rawStartedAt : null;
+  // date_consultation est une date sans heure : on affiche l'heure de création du même jour.
+  const consultationDisplayDate =
+    consultation?.date_consultation && String(consultation.date_consultation).length === 10 && consultation?.created_at?.startsWith(consultation.date_consultation)
+      ? consultation.created_at
+      : consultation?.date_consultation;
+  const consultationEndedAt = consultation?.heure_fin_consultation || (consultation?.statut === 'terminee' ? consultation?.updated_at : null);
+
   const [activeTab, setActiveTab] = useState('examen'); // Examen général par défaut (obligatoire)
   const [syntheseMode, setSyntheseMode] = useState('current'); // 'current' ou 'history'
 
@@ -178,21 +190,21 @@ const ConsultationDetail = () => {
   }, [patient?.id, consultation?.id, consultation?.dental_state]);
 
   useEffect(() => {
-    if (consultation?.heure_debut_consultation) {
+    if (consultationStartedAt) {
       setConsultationStarted(true);
-      const startTime = new Date(consultation.heure_debut_consultation);
+      const startTime = new Date(consultationStartedAt);
       const now = new Date();
       const elapsed = Math.floor((now - startTime) / 1000 / 60);
       setElapsedTime(elapsed);
     }
-  }, [consultation]);
+  }, [consultation, consultationStartedAt]);
 
 
   // Timer pour afficher le temps écoulé en temps réel
   useEffect(() => {
-    if (consultationStarted && consultation?.heure_debut_consultation && !consultation?.heure_fin_consultation) {
+    if (consultationStarted && consultationStartedAt && !consultationEndedAt) {
       const timer = setInterval(() => {
-        const startTime = new Date(consultation.heure_debut_consultation);
+        const startTime = new Date(consultationStartedAt);
         const currentTime = new Date();
         const elapsedMinutes = Math.floor((currentTime - startTime) / 1000 / 60); // en minutes
         setElapsedTime(elapsedMinutes);
@@ -200,7 +212,7 @@ const ConsultationDetail = () => {
 
       return () => clearInterval(timer);
     }
-  }, [consultationStarted, consultation?.heure_debut_consultation, consultation?.heure_fin_consultation]);
+  }, [consultationStarted, consultationStartedAt, consultationEndedAt]);
 
   // Gérer l'onglet depuis les paramètres URL
   useEffect(() => {
@@ -597,7 +609,7 @@ const ConsultationDetail = () => {
               {patient?.sexe && ` ${patient.sexe}`}
             </p>
             <p className="text-gray-500 text-sm mt-1">
-              {formatDate(consultation.date_consultation)} •
+              {formatDate(consultationDisplayDate)} •
               <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(consultation.statut)}`}>
                 {getStatusIcon(consultation.statut)}
                 <span className="ml-1 capitalize">
@@ -614,7 +626,7 @@ const ConsultationDetail = () => {
         </div>
 
         <div className="mt-3 flex items-center justify-end gap-2 flex-wrap">
-          {consultationStarted && consultation?.heure_debut_consultation && !consultation?.heure_fin_consultation && (
+          {consultationStarted && consultationStartedAt && !consultationEndedAt && (
             <div className="flex items-center px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 text-sm border border-blue-200">
               <Clock className="w-4 h-4 mr-1" />
               <span>
@@ -675,8 +687,8 @@ const ConsultationDetail = () => {
           <div>
             <p className="text-amber-800 font-medium">Consultation terminée — Lecture seule</p>
             <p className="text-amber-600 text-sm">
-              {consultation?.heure_fin_consultation 
-                ? `Terminée le ${new Date(consultation.heure_fin_consultation).toLocaleDateString('fr-FR', { 
+              {consultationEndedAt 
+                ? `Terminée le ${new Date(consultationEndedAt).toLocaleDateString('fr-FR', { 
                     day: '2-digit', 
                     month: '2-digit', 
                     year: 'numeric',

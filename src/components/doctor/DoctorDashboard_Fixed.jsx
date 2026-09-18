@@ -821,7 +821,7 @@ const DoctorDashboard = () => {
                               // Récupérer l'item waiting_queue
                               const { data: wq, error: wqErr } = await supabase
                                 .from('waiting_queue')
-                                .select('patient_id, medecin_id, priority')
+                                .select('patient_id, medecin_id, priority, appointment_id, motif_consultation')
                                 .eq('id', waitingQueueId)
                                 .single();
                               
@@ -836,7 +836,7 @@ const DoctorDashboard = () => {
                                 startOfDay.setHours(0,0,0,0);
                                 const { data: existing, error: findErr } = await supabase
                                   .from('consultations')
-                                  .select('id')
+                                  .select('id, appointment_id, motif_consultation')
                                   .eq('patient_id', wq.patient_id)
                                   .eq('medecin_id', wq.medecin_id)
                                   .gte('date_consultation', startOfDay.toISOString())
@@ -846,6 +846,19 @@ const DoctorDashboard = () => {
                                 
                                 if (findErr) throw findErr;
                                 consultationId = existing && existing.length > 0 ? existing[0].id : null;
+
+                                // Consultation déjà créée sans RDV/motif : on les rattache maintenant.
+                                if (consultationId && (!existing[0].appointment_id || !existing[0].motif_consultation)) {
+                                  const motifRdv = currentPatient?.rdv_motif || currentPatient?.motif_consultation || wq.motif_consultation || null;
+                                  await supabase
+                                    .from('consultations')
+                                    .update({
+                                      appointment_id: existing[0].appointment_id || wq.appointment_id || null,
+                                      motif_consultation: existing[0].motif_consultation || motifRdv,
+                                      motif: existing[0].motif_consultation || motifRdv
+                                    })
+                                    .eq('id', consultationId);
+                                }
                                 
                                 // Créer une consultation si elle n'existe pas
                                 if (!consultationId) {
@@ -855,6 +868,10 @@ const DoctorDashboard = () => {
                                       patient_id: wq.patient_id,
                                       medecin_id: wq.medecin_id,
                                       date_consultation: new Date().toISOString(),
+                                      // Rattache le RDV (pour le clore en fin de consultation) et reprend son motif
+                                      appointment_id: wq.appointment_id || null,
+                                      motif_consultation: currentPatient?.rdv_motif || currentPatient?.motif_consultation || wq.motif_consultation || null,
+                                      motif: currentPatient?.rdv_motif || currentPatient?.motif_consultation || wq.motif_consultation || null,
                                       statut: 'en_cours',
                                       niveau_urgence: currentPatient?.priority || wq.priority || 'normale'
                                     })
