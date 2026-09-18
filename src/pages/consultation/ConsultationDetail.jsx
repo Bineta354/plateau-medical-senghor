@@ -14,6 +14,7 @@ import { useAlert } from '../../contexts/AlertContext';
 import { useAuth } from '../../contexts/AuthContext';
 import ConsultationDentalChart from '../../components/consultation/ConsultationDentalChart';
 import PatientDocumentsViewer from '../../components/doctor/PatientDocumentsViewer';
+import PatientDocumentUploader from '../../components/secretary/PatientDocumentUploader';
 import DevisModal from '../../components/consultation/modals/DevisModal';
 import {
   ArrowLeft,
@@ -98,6 +99,8 @@ const ConsultationDetail = () => {
     setActiveTab(tabId);
   };
   const [showDocumentsModal, setShowDocumentsModal] = useState(false);
+  const [showDocumentUploader, setShowDocumentUploader] = useState(false);
+  const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0);
   const [documentsStatus, setDocumentsStatus] = useState('none'); // 'none', 'new_today', 'old_only'
   const [antecedentsStatus, setAntecedentsStatus] = useState('none'); // 'none', 'new_today', 'old_only'
   const [showDevisModal, setShowDevisModal] = useState(false);
@@ -458,7 +461,10 @@ const ConsultationDetail = () => {
     }
   };
 
+  const [patientModalTab, setPatientModalTab] = useState('antecedents');
+
   const handleOpenPatientModal = () => {
+    setPatientModalTab('antecedents');
     setShowPatientModal(true);
   };
 
@@ -582,7 +588,7 @@ const ConsultationDetail = () => {
           Retour aux consultations
         </button>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between flex-wrap gap-2">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
               Consultation - {patient?.prenom} {patient?.nom}
@@ -603,67 +609,64 @@ const ConsultationDetail = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleOpenPatientModal}
-              className="flex items-center px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-              title="Voir le dossier patient"
-            >
-              <User className="w-4 h-4 mr-2" />
-              Dossier patient
-            </button>
-          </div>
-
           <div className="text-right">
             <p className="text-sm text-gray-600">Motif de consultation</p>
             <p className="text-gray-900 font-medium">{getConsultationMotif(consultation) || 'Aucun motif spécifié'}</p>
-            <div className="mt-3 flex items-center justify-end gap-2 flex-wrap">
-              {consultationStarted && consultation?.heure_debut_consultation && !consultation?.heure_fin_consultation && (
-                <div className="flex items-center px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 text-sm border border-blue-200">
-                  <Clock className="w-4 h-4 mr-1" />
-                  <span>
-                    Temps écoulé: {elapsedTime !== null ? `${elapsedTime} min` : 'Calcul...'}
-                  </span>
-                </div>
-              )}
-
-              <button
-                onClick={() => setShowDocumentsModal(true)}
-                className={`inline-flex items-center px-3 py-1.5 rounded-md text-white text-sm transition-colors ${documentsStatus === 'none'
-                  ? 'bg-gray-500 hover:bg-gray-600'
-                  : documentsStatus === 'new_today'
-                    ? 'bg-green-600 hover:bg-green-700'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-              >
-                <FileImage className="w-4 h-4 mr-1" /> Documents
-              </button>
-
-              <button
-                onClick={() => setShowDevisModal(true)}
-                className="inline-flex items-center px-3 py-1.5 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 transition-colors"
-              >
-                <FileText className="w-4 h-4 mr-1" /> Faire un devis
-              </button>
-
-              {fromWorkflow && (
-                <>
-                  <button
-                    onClick={handlePrintReport}
-                    className="inline-flex items-center px-3 py-1.5 rounded-md bg-gray-200 text-gray-800 text-sm hover:bg-gray-300"
-                  >
-                    <Printer className="w-4 h-4 mr-1" /> Imprimer
-                  </button>
-                  <button
-                    onClick={handleFinishWorkflow}
-                    className="inline-flex items-center px-3 py-1.5 rounded-md bg-red-600 text-white text-sm hover:bg-red-700"
-                  >
-                    <CheckCircle className="w-4 h-4 mr-1" /> Terminer consultation
-                  </button>
-                </>
-              )}
-            </div>
           </div>
+        </div>
+
+        <div className="mt-3 flex items-center justify-end gap-2 flex-wrap">
+          {consultationStarted && consultation?.heure_debut_consultation && !consultation?.heure_fin_consultation && (
+            <div className="flex items-center px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 text-sm border border-blue-200">
+              <Clock className="w-4 h-4 mr-1" />
+              <span>
+                Temps écoulé: {elapsedTime !== null ? `${elapsedTime} min` : 'Calcul...'}
+              </span>
+            </div>
+          )}
+
+          <button
+            onClick={handleOpenPatientModal}
+            className="inline-flex items-center px-3 py-1.5 rounded-md bg-blue-600 text-white text-sm hover:bg-blue-700 transition-colors"
+            title="Voir le dossier patient"
+          >
+            <User className="w-4 h-4 mr-1" />
+            Dossier patient
+          </button>
+
+          <button
+            onClick={() => setShowDocumentsModal(true)}
+            className={`inline-flex items-center px-3 py-1.5 rounded-md text-white text-sm transition-colors ${documentsStatus === 'none'
+              ? 'bg-gray-500 hover:bg-gray-600'
+              : documentsStatus === 'new_today'
+                ? 'bg-green-600 hover:bg-green-700'
+                : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+          >
+            <FileImage className="w-4 h-4 mr-1" /> Documents
+          </button>
+
+          <button
+            onClick={() => setShowDevisModal(true)}
+            className="inline-flex items-center px-3 py-1.5 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 transition-colors"
+          >
+            <FileText className="w-4 h-4 mr-1" /> Faire un devis
+          </button>
+
+          <button
+            onClick={handlePrintReport}
+            className="inline-flex items-center px-3 py-1.5 rounded-md bg-slate-800 text-white text-sm hover:bg-slate-900"
+          >
+            <Printer className="w-4 h-4 mr-1" /> Imprimer
+          </button>
+          {!isTerminated && (
+            <button
+              onClick={handleFinishWorkflow}
+              className="inline-flex items-center px-3 py-1.5 rounded-md bg-red-600 text-white text-sm hover:bg-red-700"
+            >
+              <CheckCircle className="w-4 h-4 mr-1" /> Terminer consultation
+            </button>
+          )}
         </div>
       </div>
 
@@ -904,12 +907,30 @@ const ConsultationDetail = () => {
             </div>
             <div className="flex-1 overflow-auto p-6">
               <PatientDocumentsViewer
+                key={documentsRefreshKey}
                 patient={patient}
                 consultationId={consultation?.id || null}
+                showUploadButton={!isTerminated}
+                onUploadClick={() => {
+                  setShowDocumentsModal(false);
+                  setShowDocumentUploader(true);
+                }}
               />
             </div>
           </div>
         </div>
+      )}
+      {showDocumentUploader && (
+        <PatientDocumentUploader
+          patient={patient}
+          consultationId={consultation?.id || null}
+          onClose={() => setShowDocumentUploader(false)}
+          onUploadSuccess={() => {
+            setShowDocumentUploader(false);
+            setShowDocumentsModal(true);
+            setDocumentsRefreshKey((k) => k + 1);
+          }}
+        />
       )}
       {showDevisModal && (
         <DevisModal
@@ -1107,51 +1128,71 @@ const ConsultationDetail = () => {
               <section className="flex-1 min-w-0 flex flex-col min-h-0">
                 <div className="border-b border-gray-200 px-6 flex-shrink-0">
                   <nav className="flex gap-7 flex-wrap mb-[-1px]">
-                    <button
-                      onClick={() => {
-                        setActiveTab('antecedents');
-                        handleClosePatientModal();
-                      }}
-                      className="py-2 px-1 border-b-2 font-medium text-sm flex items-center border-blue-500 text-blue-600"
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      Antécédents
-                    </button>
-                    <button
-                      onClick={() => {
-                        setActiveTab('constantes');
-                        handleClosePatientModal();
-                      }}
-                      className="py-2 px-1 border-b-2 font-medium text-sm flex items-center border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    >
-                      <Activity className="w-4 h-4 mr-2" />
-                      Constantes
-                    </button>
-                    <button
-                      onClick={() => {
-                        setActiveTab('examen');
-                        handleClosePatientModal();
-                      }}
-                      className="py-2 px-1 border-b-2 font-medium text-sm flex items-center border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    >
-                      <Eye className="w-4 h-4 mr-2" />
-                      Examen
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowDocumentsModal(true);
-                        handleClosePatientModal();
-                      }}
-                      className="py-2 px-1 border-b-2 font-medium text-sm flex items-center border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    >
-                      <ImageIcon className="w-4 h-4 mr-2" />
-                      Documents
-                    </button>
+                    {[
+                      { id: 'antecedents', label: 'Antécédents', icon: FileText },
+                      { id: 'constantes', label: 'Constantes', icon: Activity },
+                      { id: 'examen', label: 'Examen', icon: Eye },
+                      { id: 'documents', label: 'Documents', icon: ImageIcon }
+                    ].map(({ id, label, icon: Icon }) => (
+                      <button
+                        key={id}
+                        onClick={() => setPatientModalTab(id)}
+                        className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${
+                          patientModalTab === id
+                            ? 'border-blue-500 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4 mr-2" />
+                        {label}
+                      </button>
+                    ))}
                   </nav>
                 </div>
 
                 <div className="flex-1 min-h-0 overflow-y-auto p-6">
-                  <p className="text-slate-500">Cliquez sur un onglet pour voir les détails du patient dans la consultation</p>
+                  {patientModalTab === 'antecedents' && (
+                    <AntecedentsMedicaux
+                      antecedents={antecedents}
+                      fetchAntecedents={refetchFunctions.refetchAntecedents}
+                      antecedentsRef={referenceData.antecedentsRef}
+                      patient={patient}
+                      isTerminated={true}
+                    />
+                  )}
+                  {patientModalTab === 'constantes' && (
+                    <ConstantesTab
+                      consultationId={id}
+                      activeTab="constantes"
+                      showAddModal={false}
+                      onCloseAddModal={() => {}}
+                      onOpenAddModal={() => {}}
+                      isTerminated={true}
+                    />
+                  )}
+                  {patientModalTab === 'examen' && (
+                    <ExamenMedicaux
+                      fetchSignesCliniques={refetchFunctions.refetchSignesCliniques}
+                      signesCliniques={signesCliniques}
+                      autresSignes={autresSignes}
+                      signesCliniquesRef={referenceData.signesCliniquesRef}
+                      fetchAutresSignesCliniques={refetchFunctions.refetchAutresSignes}
+                      id={consultation.id}
+                      isTerminated={true}
+                    />
+                  )}
+                  {patientModalTab === 'documents' && (
+                    <PatientDocumentsViewer
+                      key={documentsRefreshKey}
+                      patient={patient}
+                      consultationId={consultation?.id || null}
+                      showUploadButton={!isTerminated}
+                      onUploadClick={() => {
+                        setShowPatientModal(false);
+                        setShowDocumentUploader(true);
+                      }}
+                    />
+                  )}
                 </div>
               </section>
             </div>
