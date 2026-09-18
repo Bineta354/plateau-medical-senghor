@@ -122,7 +122,7 @@ const Dashboard = () => {
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(subscription);
     };
   }, [patients, fetchedMedecins]);
 

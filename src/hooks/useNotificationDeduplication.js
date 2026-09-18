@@ -256,7 +256,7 @@ export const useNotificationDeduplication = (options = {}) => {
     return () => {
       console.log(`🔌 [${componentName}] Nettoyage subscription`);
       if (subscriptionRef.current) {
-        subscriptionRef.current.unsubscribe();
+        supabase.removeChannel(subscriptionRef.current);
       }
     };
   }, [userProfile?.id, enableRealtime, componentName, fetchNotifications]);
@@ -266,7 +266,7 @@ export const useNotificationDeduplication = (options = {}) => {
     return () => {
       isMountedRef.current = false;
       if (subscriptionRef.current) {
-        subscriptionRef.current.unsubscribe();
+        supabase.removeChannel(subscriptionRef.current);
       }
     };
   }, []);

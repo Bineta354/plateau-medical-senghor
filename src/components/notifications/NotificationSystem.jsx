@@ -198,7 +198,7 @@ const NotificationSystem = () => {
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(subscription);
     };
   }, [userProfile?.id]);
 

@@ -269,7 +269,7 @@ export const useNotifications = () => {
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(subscription);
     };
   }, [userProfile?.id, userProfile?.role, fetchNotifications, requestNotificationPermission]);
 
