@@ -6,6 +6,11 @@ import { getDossierMedical } from '../../services/consultation/dossierMedicalSer
 import { getReferenceData } from '../../services/consultation/referenceDataService';
 import documentUploadService from '../../services/documentUploadService';
 import { unifiedNotificationService } from '../../services/unifiedNotificationService';
+import { supabase } from '../../lib/supabase';
+import { NewAppointmentModal } from '../../components/rendez-vous/NewAppointmentModal';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { buildAllergiesList } from '../../utils/patientAllergies';
 import AntecedentsMedicaux from '../../components/consultation/AntecedentsMedicaux';
 import PatientDocumentsViewer from '../../components/doctor/PatientDocumentsViewer';
 import PatientDocumentUploader from '../../components/secretary/PatientDocumentUploader';
@@ -42,6 +47,11 @@ const PatientDetailsPage = () => {
   const [traitementsCours, setTraitementsCours] = useState([]);
   const [latestConstantes, setLatestConstantes] = useState([]);
   const [nextAppointment, setNextAppointment] = useState(null);
+  const [totalConsultations, setTotalConsultations] = useState(0);
+  const [recentDocuments, setRecentDocuments] = useState([]);
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState(null);
+  const { dialogState, showConfirm, closeDialog } = useConfirmDialog();
   const [showUploader, setShowUploader] = useState(false);
   const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -118,6 +128,22 @@ const PatientDetailsPage = () => {
     setAntecedents(await consultationService.getAntecedents(patientId));
   };
 
+  const applyNextAppointment = (appointmentsData) => {
+    const now = new Date();
+    const upcoming = (appointmentsData || [])
+      .filter((a) => a.statut !== 'annule' && new Date(a.date_heure) >= now)
+      .sort((a, b) => new Date(a.date_heure) - new Date(b.date_heure));
+    setNextAppointment(upcoming[0] || null);
+  };
+
+  const reloadAppointments = async () => {
+    try {
+      applyNextAppointment(await appointmentService.getByPatient(id));
+    } catch (error) {
+      console.error('Erreur lors du rechargement des rendez-vous:', error);
+    }
+  };
+
   const loadDossierMedical = async (patientId) => {
     try {
       // 0 : aucune consultation à exclure ici (getDossierMedical est aussi
@@ -133,12 +159,14 @@ const PatientDetailsPage = () => {
       setAntecedentsRef(refData?.antecedentsRef || []);
       setConsultationsPassees(dossier?.consultationsPassees || []);
       setTraitementsCours(dossier?.traitementsCours || []);
+      setRecentDocuments((dossier?.documentsPatient || []).slice(0, 3));
+      applyNextAppointment(appointmentsData);
 
-      const now = new Date();
-      const upcoming = (appointmentsData || [])
-        .filter((a) => a.statut !== 'annule' && new Date(a.date_heure) >= now)
-        .sort((a, b) => new Date(a.date_heure) - new Date(b.date_heure));
-      setNextAppointment(upcoming[0] || null);
+      const { count } = await supabase
+        .from('consultations')
+        .select('id', { count: 'exact', head: true })
+        .eq('patient_id', patientId);
+      setTotalConsultations(count ?? (dossier?.consultationsPassees?.length || 0));
 
       const latestConsultationId = dossier?.consultationsPassees?.[0]?.id;
       if (latestConsultationId) {
@@ -160,7 +188,35 @@ const PatientDetailsPage = () => {
   };
 
   const handleNewAppointment = () => {
-    navigate(`/appointments?patientId=${id}`);
+    setEditingAppointment(null);
+    setShowAppointmentModal(true);
+  };
+
+  const handleMoveAppointment = () => {
+    setEditingAppointment(nextAppointment);
+    setShowAppointmentModal(true);
+  };
+
+  const handleCancelAppointment = async () => {
+    if (!nextAppointment) return;
+    const confirmed = await showConfirm({
+      title: 'Annuler le rendez-vous ?',
+      message: `Le rendez-vous du ${new Date(nextAppointment.date_heure).toLocaleDateString('fr-FR')} à ${new Date(nextAppointment.date_heure).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} sera annulé.`,
+      type: 'warning',
+      confirmText: 'Oui, annuler',
+      cancelText: 'Non, conserver'
+    });
+    if (!confirmed) return;
+    const { error } = await supabase
+      .from('appointments')
+      .update({ statut: 'annule', updated_at: new Date().toISOString() })
+      .eq('id', nextAppointment.id);
+    if (error) {
+      unifiedNotificationService.error("Erreur lors de l'annulation du rendez-vous");
+      return;
+    }
+    unifiedNotificationService.success('Rendez-vous annulé');
+    reloadAppointments();
   };
 
   // Ouvre la page Consultations avec ce patient préselectionné et le modal de
@@ -271,6 +327,35 @@ const PatientDetailsPage = () => {
   const dernierTraitementMedicament = dernierTraitement?.lignes_ordonnance?.[0];
   const derniereConsultation = consultationsPassees[0];
 
+  const allergiesList = buildAllergiesList(patient, antecedents);
+
+  const bloodGroupMatch = /^(AB|A|B|O)\s*([+-])$/i.exec((patient?.groupe_sanguin || '').trim());
+
+  const patientDepuis = patient?.created_at
+    ? new Date(patient.created_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+    : null;
+
+  const activityItems = [
+    ...consultationsPassees.slice(0, 3).map((c) => ({
+      date: c.date_consultation,
+      label: c.statut === 'en_cours' ? 'Consultation ouverte' : 'Consultation terminée',
+      detail: c.medecin ? `Dr ${c.medecin.nom}` : null,
+      dot: c.statut === 'en_cours' ? 'bg-blue-500' : 'bg-slate-300'
+    })),
+    ...recentDocuments.map((d) => ({
+      date: d.created_at,
+      label: `Document ajouté : ${d.nom_fichier}`,
+      detail: null,
+      dot: 'bg-green-600'
+    })),
+    ...(patient?.created_at
+      ? [{ date: patient.created_at, label: 'Dossier créé', detail: null, dot: 'bg-slate-300' }]
+      : [])
+  ]
+    .filter((i) => i.date)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 5);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto">
@@ -284,7 +369,10 @@ const PatientDetailsPage = () => {
         </div>
 
         {/* Patient Header Card */}
-        <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 text-white p-7 mb-4">
+        <div
+          className="relative rounded-2xl overflow-hidden text-white p-7 mb-4"
+          style={{ background: 'linear-gradient(115deg, #132036 0%, #1e293b 45%, #0f3a52 100%)' }}
+        >
           <div className="flex items-start gap-7 flex-wrap">
             {/* Photo patient — patients.photo_url, uploadée vers le bucket Storage
                 `patient-photos` (voir supabase/create_patient_photos_bucket.sql). */}
@@ -323,9 +411,21 @@ const PatientDetailsPage = () => {
             {/* Patient Info */}
             <div className="flex-1 min-w-72">
               <div className="flex items-center gap-2.5 flex-wrap mb-1.5">
-                <span className="px-2.5 py-1 rounded-full bg-white/10 text-slate-200 text-xs font-medium">
-                  Dossier créé le {formatDate(patient?.created_at)}
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-xs font-semibold ${
+                    patient?.actif === false
+                      ? 'bg-slate-400/20 border-slate-300/40 text-slate-200'
+                      : 'bg-green-500/20 border-green-300/50 text-green-200'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${patient?.actif === false ? 'bg-slate-300' : 'bg-green-400'}`} />
+                  {patient?.actif === false ? 'Dossier inactif' : 'Dossier actif'}
                 </span>
+                {patientDepuis && (
+                  <span className="px-2.5 py-1 rounded-full bg-white/10 text-slate-200 text-xs font-medium">
+                    {patient?.sexe === 'F' ? 'Patiente' : 'Patient'} depuis {patientDepuis}
+                  </span>
+                )}
               </div>
               <h1 className="text-4xl font-extrabold tracking-tight mb-4">{patient?.prenom} {patient?.nom}</h1>
               <div className="flex gap-7 flex-wrap">
@@ -382,20 +482,38 @@ const PatientDetailsPage = () => {
         </div>
 
         {/* Quick Info Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mb-6">
+        <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <p className="text-xs tracking-widest uppercase text-slate-400 font-semibold">Groupe sanguin</p>
-            <p className="text-2xl font-extrabold text-slate-900 mt-1.5">{patient?.groupe_sanguin || 'Non renseigné'}</p>
+            <p className="text-3xl font-extrabold text-slate-900 mt-1.5 leading-tight">
+              {bloodGroupMatch ? (
+                <>
+                  {bloodGroupMatch[1].toUpperCase()}
+                  <span className="text-red-600">{bloodGroupMatch[2]}</span>
+                </>
+              ) : (
+                patient?.groupe_sanguin || <span className="text-xl">Non renseigné</span>
+              )}
+            </p>
           </div>
 
-          <div className={`rounded-xl p-4 border ${patient?.allergies ? 'bg-red-50 border-red-300' : 'bg-white border-gray-200'}`}>
-            <p className={`text-xs tracking-widest uppercase font-bold flex items-center gap-1.5 ${patient?.allergies ? 'text-red-700' : 'text-slate-400'}`}>
+          <div className={`rounded-xl p-4 border ${allergiesList.length > 0 ? 'bg-red-50 border-red-300' : 'bg-white border-gray-200'}`}>
+            <p className={`text-xs tracking-widest uppercase font-bold flex items-center gap-1.5 ${allergiesList.length > 0 ? 'text-red-700' : 'text-slate-400'}`}>
               <AlertCircle className="w-3.5 h-3.5" />
-              Allergies
+              {allergiesList.length > 1 ? `${allergiesList.length} allergies` : 'Allergies'}
             </p>
-            <p className={`text-sm font-semibold mt-1.5 leading-relaxed ${patient?.allergies ? 'text-red-900' : 'text-slate-500'}`}>
-              {patient?.allergies || 'Aucune allergie connue'}
-            </p>
+            {allergiesList.length > 0 ? (
+              <div className="mt-1.5 space-y-1.5">
+                {allergiesList.map((a) => (
+                  <div key={a.label}>
+                    <p className="text-[15px] font-bold text-red-900 leading-snug">{a.label}</p>
+                    {a.detail && <p className="text-xs text-red-700">{a.detail}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm font-semibold mt-1.5 leading-relaxed text-slate-500">Aucune allergie connue</p>
+            )}
           </div>
 
           <div className="bg-white border border-gray-200 rounded-xl p-4">
@@ -447,6 +565,15 @@ const PatientDetailsPage = () => {
             ) : (
               <p className="text-sm text-slate-500 mt-1.5">Aucune couverture santé enregistrée</p>
             )}
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <p className="text-xs tracking-widest uppercase text-slate-400 font-semibold">Suivi</p>
+            <p className="text-3xl font-extrabold text-slate-900 mt-1.5 leading-tight">{totalConsultations}</p>
+            <p className="text-xs text-slate-500 mt-1">
+              {totalConsultations > 1 ? 'consultations' : 'consultation'}
+              {derniereConsultation?.date_consultation && ` • dernière le ${formatDate(derniereConsultation.date_consultation)}`}
+            </p>
           </div>
         </div>
 
@@ -636,12 +763,20 @@ const PatientDetailsPage = () => {
                     {nextAppointment.motif || 'Consultation'}
                     {nextAppointment.medecin && ` • Dr ${nextAppointment.medecin.prenom} ${nextAppointment.medecin.nom}`}
                   </p>
-                  <button
-                    onClick={handleNewAppointment}
-                    className="w-full mt-3.5 py-2 border-0 rounded-lg bg-white text-slate-900 text-sm font-semibold cursor-pointer hover:bg-slate-100"
-                  >
-                    Gérer le rendez-vous
-                  </button>
+                  <div className="flex gap-2 mt-3.5">
+                    <button
+                      onClick={handleMoveAppointment}
+                      className="flex-1 py-2 border-0 rounded-lg bg-white text-slate-900 text-[13px] font-semibold cursor-pointer hover:bg-slate-100"
+                    >
+                      Déplacer
+                    </button>
+                    <button
+                      onClick={handleCancelAppointment}
+                      className="flex-1 py-2 rounded-lg border border-white/25 bg-transparent text-white text-[13px] font-medium cursor-pointer hover:bg-white/10"
+                    >
+                      Annuler
+                    </button>
+                  </div>
                 </>
               ) : (
                 <>
@@ -669,6 +804,29 @@ const PatientDetailsPage = () => {
               )}
             </div>
 
+            {/* Activité récente — construite depuis les vraies données (consultations, documents, création) */}
+            <div className="bg-white border border-gray-200 rounded-xl p-4.5">
+              <h3 className="text-sm font-bold tracking-widest uppercase text-slate-400 mb-3.5">Activité récente</h3>
+              {activityItems.length > 0 ? (
+                <div className="flex flex-col gap-3.5">
+                  {activityItems.map((item, index) => (
+                    <div key={`${item.label}-${index}`} className="flex gap-2.5">
+                      <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${item.dot}`} />
+                      <div className="min-w-0">
+                        <p className="text-[13px] text-slate-900 break-words">{item.label}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {formatDate(item.date)}
+                          {item.detail ? ` — ${item.detail}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">Aucune activité enregistrée.</p>
+              )}
+            </div>
+
             {/* Footer */}
             <p className="text-xs text-slate-400 text-center">
               Créé le {formatDate(patient?.created_at)} • Modifié le {formatDate(patient?.updated_at)}
@@ -676,6 +834,30 @@ const PatientDetailsPage = () => {
           </aside>
         </div>
       </div>
+
+      <NewAppointmentModal
+        isOpen={showAppointmentModal}
+        onClose={() => {
+          setShowAppointmentModal(false);
+          setEditingAppointment(null);
+        }}
+        editingAppointment={editingAppointment}
+        preselectedPatientId={patient?.id || null}
+        onSaved={reloadAppointments}
+      />
+
+      <ConfirmDialog
+        isOpen={dialogState.isOpen}
+        onClose={closeDialog}
+        onConfirm={dialogState.onConfirm}
+        onCancel={dialogState.onCancel}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+        confirmText={dialogState.confirmText}
+        cancelText={dialogState.cancelText}
+        showCancel={dialogState.showCancel}
+      />
 
       {showUploader && (
         <PatientDocumentUploader
