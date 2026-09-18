@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useConsultationsPage } from '../../hooks/consultation/useConsultationsPage';
 import { getConsultationMotif, getConsultationTypeLabel } from '../../utils/consultationUtils';
 import KpiCard from '../../components/common/KpiCard';
@@ -73,6 +74,18 @@ const Consultations = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, urgenceFilter, typeFilter]);
+
+  // Arrivée depuis la fiche patient (bouton "Démarrer une consultation") : préremplir
+  // le patient et ouvrir directement le modal de création, même schéma que
+  // PriseRendezVousPage.jsx pour ?patientId= depuis "Prise RDV".
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const preselectedPatientId = searchParams.get('patientId');
+    if (preselectedPatientId) {
+      setSelectedPatient(preselectedPatientId);
+      setShowModal(true);
+    }
+  }, [searchParams, setSelectedPatient, setShowModal]);
 
   const getStatusIcon = (status) => {
     switch (status) {

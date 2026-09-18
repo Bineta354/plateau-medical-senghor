@@ -33,3 +33,6 @@ fix_*.py
 .env.ngor
 .jest-cache
 coverage
+
+# Design mockup references (not project source, may contain sample patient data)
+Devin_pages_reference/

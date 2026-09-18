@@ -97,7 +97,8 @@ export const getDossierMedical = async (patientId, currentConsultationId) => {
                         numero_ordonnance,
                         date_prescription,
                         statut,
-                        instructions_generales
+                        instructions_generales,
+                        lignes_ordonnance ( posologie, duree_traitement, medicament:medicaments(nom, dosage) )
                     `)
                     .in('consultation_id', consultationIds)
                     .eq('statut', 'active')

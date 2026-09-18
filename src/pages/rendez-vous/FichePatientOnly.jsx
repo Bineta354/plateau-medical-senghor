@@ -371,8 +371,12 @@ const FichePatientOnly = () => {
             <div className="bg-white rounded-3xl shadow-sm border border-gray-200 p-7">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
                 <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-medical-primary to-medical-secondary text-white flex items-center justify-center text-xl font-semibold flex-shrink-0 shadow-[0_8px_24px_rgb(var(--medical-primary-rgb)/0.35)]">
-                    {(selectedPatient.prenom?.[0] || '').toUpperCase()}{(selectedPatient.nom?.[0] || '').toUpperCase()}
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-medical-primary to-medical-secondary text-white flex items-center justify-center text-xl font-semibold flex-shrink-0 shadow-[0_8px_24px_rgb(var(--medical-primary-rgb)/0.35)] overflow-hidden">
+                    {selectedPatient.photo_url ? (
+                      <img src={selectedPatient.photo_url} alt={`${selectedPatient.prenom} ${selectedPatient.nom}`} className="w-full h-full object-cover" />
+                    ) : (
+                      <>{(selectedPatient.prenom?.[0] || '').toUpperCase()}{(selectedPatient.nom?.[0] || '').toUpperCase()}</>
+                    )}
                   </div>
                   <div className="min-w-0">
                     <h1 className="text-2xl font-semibold text-gray-900 tracking-tight truncate">

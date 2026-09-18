@@ -33,7 +33,8 @@ import {
   FileImage,
   X,
   Smile,
-  Lock
+  Lock,
+  Image as ImageIcon
 } from 'lucide-react';
 import { generateCertificatsPDF, generateSingleCertificatPDF } from '../../services/impression/certificatPdf';
 import { printConsultationReport } from '../../services/impression/rapportConsultationPrint';
@@ -117,6 +118,7 @@ const ConsultationDetail = () => {
   const [consultationStarted, setConsultationStarted] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(null);
   const [fallbackDentalState, setFallbackDentalState] = useState(null);
+  const [showPatientModal, setShowPatientModal] = useState(false);
 
   useEffect(() => {
     const fetchMedecinInfo = async () => {
@@ -456,6 +458,14 @@ const ConsultationDetail = () => {
     }
   };
 
+  const handleOpenPatientModal = () => {
+    setShowPatientModal(true);
+  };
+
+  const handleClosePatientModal = () => {
+    setShowPatientModal(false);
+  };
+
   const calculateAge = (dateNaissance) => {
     if (!dateNaissance) return null;
     const today = new Date();
@@ -591,6 +601,17 @@ const ConsultationDetail = () => {
                 </span>
               </span>
             </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleOpenPatientModal}
+              className="flex items-center px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+              title="Voir le dossier patient"
+            >
+              <User className="w-4 h-4 mr-2" />
+              Dossier patient
+            </button>
           </div>
 
           <div className="text-right">
@@ -1005,6 +1026,134 @@ const ConsultationDetail = () => {
                   Envoyer à la secrétaire
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Patient Modal */}
+      {showPatientModal && patient && (
+        <div className="fixed inset-2.5 z-50 flex">
+          <div 
+            className="fixed inset-0 bg-black/50" 
+            onClick={handleClosePatientModal}
+          ></div>
+          <div className="relative flex-1 bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between gap-4 p-4 border-b border-gray-200 flex-shrink-0">
+              <div className="min-w-0">
+                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <User className="text-blue-600" />
+                  Dossier patient
+                </h2>
+                <p className="text-sm text-slate-600 mt-1">{patient.prenom} {patient.nom}</p>
+              </div>
+              <button
+                onClick={handleClosePatientModal}
+                title="Fermer"
+                className="p-2 border-0 bg-transparent rounded-lg cursor-pointer text-slate-400 hover:bg-slate-100"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="flex min-h-0">
+              {/* Modal Sidebar */}
+              <aside className="flex-0 w-1/3 min-w-64 border-r border-gray-200 bg-slate-50 p-6 overflow-y-auto">
+                <div className="w-full max-w-48 aspect-[4/5] rounded-xl border border-gray-200 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden flex items-center justify-center mb-4">
+                  {patient.photo_url ? (
+                    <img src={patient.photo_url} alt={`${patient.prenom} ${patient.nom}`} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xs font-mono text-slate-500 bg-white/85 px-2 py-1 rounded">
+                      Aucune photo
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-xl font-bold text-slate-900">{patient.prenom} {patient.nom}</h3>
+                <p className="text-sm text-slate-600 mt-1">{calculateAge(patient.date_naissance)} • {patient.sexe === 'M' ? 'Masculin' : 'Féminin'}</p>
+                <p className="text-sm text-slate-600 mt-0.5">Dossier: {patient.numero_dossier}</p>
+
+                <div className="mt-6 pt-5 border-t border-gray-200 flex flex-col gap-3">
+                  <div className="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium text-slate-600">Groupe sanguin</span>
+                    <span className="text-xl font-bold text-slate-900">{patient.groupe_sanguin || 'Non renseigné'}</span>
+                  </div>
+
+                  <div className={`rounded-lg p-4 border ${patient.allergies ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertCircle className={`w-5 h-5 ${patient.allergies ? 'text-red-600' : 'text-slate-400'}`} />
+                      <span className={`text-sm font-semibold uppercase tracking-wider ${patient.allergies ? 'text-red-800' : 'text-slate-500'}`}>Allergies</span>
+                    </div>
+                    <p className={`text-sm leading-relaxed ${patient.allergies ? 'text-red-800' : 'text-slate-500'}`}>
+                      {patient.allergies || 'Aucune allergie connue'}
+                    </p>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-lg p-3">
+                    <p className="text-sm font-medium text-slate-600">Traitement en cours</p>
+                    {dossierMedical.traitementsCours?.[0] ? (
+                      <p className="text-sm text-slate-900 mt-0.5">
+                        {dossierMedical.traitementsCours[0].lignes_ordonnance?.[0]?.medicament?.nom || dossierMedical.traitementsCours[0].numero_ordonnance || 'Ordonnance active'}
+                        {dossierMedical.traitementsCours[0].lignes_ordonnance?.[0]?.posologie && ` — ${dossierMedical.traitementsCours[0].lignes_ordonnance[0].posologie}`}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-slate-500 mt-0.5">Aucun traitement actif</p>
+                    )}
+                  </div>
+                </div>
+              </aside>
+
+              {/* Modal Content */}
+              <section className="flex-1 min-w-0 flex flex-col min-h-0">
+                <div className="border-b border-gray-200 px-6 flex-shrink-0">
+                  <nav className="flex gap-7 flex-wrap mb-[-1px]">
+                    <button
+                      onClick={() => {
+                        setActiveTab('antecedents');
+                        handleClosePatientModal();
+                      }}
+                      className="py-2 px-1 border-b-2 font-medium text-sm flex items-center border-blue-500 text-blue-600"
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      Antécédents
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('constantes');
+                        handleClosePatientModal();
+                      }}
+                      className="py-2 px-1 border-b-2 font-medium text-sm flex items-center border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    >
+                      <Activity className="w-4 h-4 mr-2" />
+                      Constantes
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('examen');
+                        handleClosePatientModal();
+                      }}
+                      className="py-2 px-1 border-b-2 font-medium text-sm flex items-center border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      Examen
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowDocumentsModal(true);
+                        handleClosePatientModal();
+                      }}
+                      className="py-2 px-1 border-b-2 font-medium text-sm flex items-center border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    >
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      Documents
+                    </button>
+                  </nav>
+                </div>
+
+                <div className="flex-1 min-h-0 overflow-y-auto p-6">
+                  <p className="text-slate-500">Cliquez sur un onglet pour voir les détails du patient dans la consultation</p>
+                </div>
+              </section>
             </div>
           </div>
         </div>

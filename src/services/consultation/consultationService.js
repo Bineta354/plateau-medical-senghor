@@ -81,7 +81,7 @@ export const getConsultation = async (id) => {
     .from('consultations')
     .select(`
       *,
-      patients:patient_id(id, nom, prenom, numero_dossier, date_naissance, sexe),
+      patients:patient_id(id, nom, prenom, numero_dossier, date_naissance, sexe, groupe_sanguin, allergies, photo_url),
       users:medecin_id(nom, prenom)
     `)
     .eq('id', id)
