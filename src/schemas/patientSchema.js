@@ -129,6 +129,9 @@ export function normalizePatientPayload(data) {
   for (const field of NON_EXISTENT_COLUMNS) {
     delete normalized[field];
   }
+  for (const field of ['assurance_date_debut', 'assurance_date_fin']) {
+    if (normalized[field] === '') normalized[field] = null;
+  }
   for (const field of NULLABLE_UNIQUE_FIELDS) {
     if (typeof normalized[field] === 'string') {
       const trimmed = normalized[field].trim();

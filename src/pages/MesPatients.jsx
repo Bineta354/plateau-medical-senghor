@@ -121,7 +121,7 @@ const MesPatientsPage = () => {
     };
 
     const handleViewPatient = (patient) => {
-      navigate(`/rendez-vous/fiche-patient?id=${patient.id}`);
+      navigate(`/patients/details/${patient.id}`);
     };
 
     const handleEditPatient = (patient) => {

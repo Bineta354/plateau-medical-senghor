@@ -326,8 +326,7 @@ const PatientsPage = () => {
   };
 
   const handleViewPatient = (patient) => {
-    // Utiliser la route fiche-patient qui est accessible aux médecins
-    navigate(`/rendez-vous/fiche-patient?id=${patient.id}`);
+    navigate(`/patients/details/${patient.id}`);
   };
 
   const handleEditPatient = (patient) => {
@@ -846,8 +845,8 @@ const PatientsPage = () => {
                     <label className="block text-xs font-medium text-gray-700 mb-0.5">Numéro Assurance</label>
                     <input
                       type="text"
-                      name="numero_assurance"
-                      value={formData.numero_assurance}
+                      name="assurance_numero"
+                      value={formData.assurance_numero}
                       onChange={handleInputChange}
                       disabled={!formData.assurance_id}
                       className="input-field text-xs py-1.5 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"

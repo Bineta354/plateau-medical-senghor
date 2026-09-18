@@ -156,7 +156,7 @@ const PatientDetailsPage = () => {
   };
 
   const handleEdit = () => {
-    navigate(`/patients/edit/${id}`);
+    navigate(`/patients?id=${id}&edit=true`);
   };
 
   const handleNewAppointment = () => {
@@ -171,10 +171,18 @@ const PatientDetailsPage = () => {
   };
 
   const getTabStyle = (tabName) => {
-    const baseStyle = 'padding:10px 2px;border:0;background:transparent;font-size:14px;cursor:pointer;font-family:inherit;border-bottom:2px solid ';
+    const baseStyle = {
+      padding: '10px 2px',
+      border: 0,
+      background: 'transparent',
+      fontSize: '14px',
+      cursor: 'pointer',
+      fontFamily: 'inherit',
+      borderBottom: '2px solid'
+    };
     return activeTab === tabName
-      ? baseStyle + '#0f172a;color:#0f172a;font-weight:700'
-      : baseStyle + 'transparent;color:#94a3b8;font-weight:500';
+      ? { ...baseStyle, borderBottomColor: '#0f172a', color: '#0f172a', fontWeight: 700 }
+      : { ...baseStyle, borderBottomColor: 'transparent', color: '#94a3b8', fontWeight: 500 };
   };
 
   const getConsultationStatusStyle = (statut) => {

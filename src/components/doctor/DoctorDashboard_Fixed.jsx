@@ -801,7 +801,7 @@ const DoctorDashboard = () => {
 
                     {currentPatient.patient_id && (
                       <button
-                        onClick={() => navigate(`/rendez-vous/fiche-patient?id=${currentPatient.patient_id}`)}
+                        onClick={() => navigate(`/patients/details/${currentPatient.patient_id}`)}
                         className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200 transition-colors"
                       >
                         <FolderOpen className="w-3.5 h-3.5" />
