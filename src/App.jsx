@@ -64,11 +64,11 @@ const SmartDashboard = () => {
 };
 
 const RootRedirect = () => {
-  const { isLoading } = useAuth();
+  const { isLoading, isAuthenticated } = useAuth();
   if (isLoading) {
     return <LoadingSpinner message="Chargement..." />;
   }
-  return <Navigate to="/login" replace />;
+  return <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />;
 };
 
 // ============================================================================

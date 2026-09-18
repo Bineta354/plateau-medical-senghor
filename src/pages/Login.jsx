@@ -20,8 +20,17 @@ const Login = () => {
   const usernameInputRef = useRef(null);
   const suggestionsRef = useRef(null);
 
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading: isAuthLoading, userProfile } = useAuth();
   const navigate = useNavigate();
+
+  // Si une session valide est déjà restaurée (ex: retour sur /login après un
+  // lien profond non reconnu), repartir directement vers l'espace de travail
+  // au lieu de laisser l'utilisateur en face du formulaire de connexion.
+  useEffect(() => {
+    if (isAuthLoading || !isAuthenticated) return;
+    const role = userProfile?.role;
+    navigate(role === 'admin' ? '/cabinet-welcome' : '/dashboard', { replace: true });
+  }, [isAuthLoading, isAuthenticated, userProfile, navigate]);
 
   // Shortcut to toggle quick login
   useEffect(() => {
