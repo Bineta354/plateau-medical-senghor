@@ -225,14 +225,16 @@ const profileError = null;
         return { success: false, error: error.message };
       }
 
-      // Charger le profil pour récupérer le tenant_id
+      // Charger le profil pour récupérer le tenant_id (et le rôle, renvoyé
+      // ci-dessous pour que l'appelant n'ait pas besoin d'un second appel
+      // réseau juste pour savoir où rediriger — voir Login.jsx).
       const profile = await loadUserProfile(data.user);
       if (profile?.tenant_id) {
         localStorage.setItem('lastTenantId', profile.tenant_id);
       }
 
       const isTemporaryPassword = password === 'temp123456';
-      return { success: true, user: data.user, isTemporaryPassword };
+      return { success: true, user: data.user, profile, isTemporaryPassword };
     } catch (error) {
       return { success: false, error: error.message };
     } finally {

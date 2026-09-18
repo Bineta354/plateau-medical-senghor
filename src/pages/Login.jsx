@@ -195,34 +195,18 @@ const Login = () => {
             try { localStorage.removeItem('hasTemporaryPassword'); } catch (e) {}
             setSuccess('Connexion réussie ! Redirection...');
 
-            // Récupérer le role de l'utilisateur
-            const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+            // Le rôle vient du profil déjà chargé par login() (AuthContext.loadUserProfile) —
+            // ne pas refaire un appel réseau séparé (ex. search_usernames) juste pour ça :
+            // s'il échoue, l'utilisateur reste bloqué sur /login malgré une connexion réussie.
+            const userRole = result.profile?.role;
 
-const roleRes = await fetch(
-  `${SUPABASE_URL}/rest/v1/rpc/search_usernames`,
-  {
-    method: 'POST',
-    headers: {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ search_term: username })
-  }
-);
-const roleData = await roleRes.json();
-const userRole = Array.isArray(roleData) && roleData.length > 0
-  ? roleData.find(u => u.username === username)?.role
-  : null;
-
-setTimeout(() => {
-  if (userRole === 'admin') {
-    navigate('/cabinet-welcome');
-  } else {
-    navigate('/dashboard');
-  }
-}, 1000);
+            setTimeout(() => {
+              if (userRole === 'admin') {
+                navigate('/cabinet-welcome');
+              } else {
+                navigate('/dashboard');
+              }
+            }, 1000);
           }
       } else {
         setError(result.error);
