@@ -151,12 +151,18 @@ const MedecinsForm = () => {
 
     try {
       if (isEditMode) {
-        const { error } = await supabase
+        const { data: updated, error } = await supabase
           .from('users')
           .update(formData)
-          .eq('id', medecinId);
+          .eq('id', medecinId)
+          .select('id');
 
         if (error) throw error;
+        // Une mise à jour refusée par les règles de sécurité (RLS) ne renvoie aucune
+        // erreur mais ne modifie aucune ligne : sans ce contrôle, on affichait « succès ».
+        if (!updated || updated.length === 0) {
+          throw new Error("modification refusée par la base (droits insuffisants sur cet utilisateur)");
+        }
         unifiedNotificationService.success('Médecin modifié avec succès');
       } else {
         const { error } = await supabase
