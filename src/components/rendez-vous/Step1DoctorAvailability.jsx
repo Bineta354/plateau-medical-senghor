@@ -121,6 +121,8 @@ export const Step1DoctorAvailability = ({
                     ? 'border-orange-400 bg-orange-100 text-orange-700 cursor-not-allowed ring-2 ring-orange-300'
                     : slot.isOccupied
                       ? 'border-red-200 bg-red-50 text-red-400 cursor-not-allowed line-through'
+                      : slot.isPast
+                        ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through'
                       : isWithinDuration
                         ? 'border-medical-primary bg-medical-primary text-white shadow-sm'
                         : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-medical-primary hover:bg-white';
@@ -128,9 +130,9 @@ export const Step1DoctorAvailability = ({
                     <button
                       key={`${slot.iso}-${slot.time}`}
                       type="button"
-                      disabled={slot.isOccupied}
+                      disabled={slot.isOccupied || slot.isPast}
                       onClick={() => {
-                        if (slot.isOccupied) return;
+                        if (slot.isOccupied || slot.isPast) return;
                         setManualTime(slot.time);
                         setFormData((prev) => ({
                           ...prev,
@@ -138,7 +140,7 @@ export const Step1DoctorAvailability = ({
                         }));
                       }}
                       className={`rounded-md px-3 py-1.5 text-xs font-medium border transition-colors ${classes}`}
-                      title={isDurationConflict ? `Chevauchement : ce créneau est occupé et couvert par la durée de ${formData.duree} min` : ''}
+                      title={isDurationConflict ? `Chevauchement : ce créneau est occupé et couvert par la durée de ${formData.duree} min` : slot.isOccupied ? 'Créneau déjà pris' : slot.isPast ? 'Créneau passé' : ''}
                     >
                       {slot.time}
                     </button>

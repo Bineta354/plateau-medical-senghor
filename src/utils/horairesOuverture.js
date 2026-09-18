@@ -80,6 +80,7 @@ export const generateDoctorTimeSlotsForDay = ({
       time: `${slotDate.getHours().toString().padStart(2, '0')}:${slotDate.getMinutes().toString().padStart(2, '0')}`,
       iso: slotDate.toISOString(),
       isOccupied,
+      isPast: slotDate.getTime() < Date.now(),
     });
 
     cursor.setMinutes(cursor.getMinutes() + stepMinutes);
