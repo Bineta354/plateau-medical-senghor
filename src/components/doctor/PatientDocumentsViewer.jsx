@@ -23,15 +23,15 @@ import {
 } from 'lucide-react';
 
 const DOCUMENT_TYPE_LABELS = {
-  analyse: { label: 'Analyse médicale', icon: FileText, color: 'blue' },
-  radio: { label: 'Radiographie', icon: FileImage, color: 'purple' },
-  echographie: { label: 'Échographie', icon: FileImage, color: 'green' },
-  scanner: { label: 'Scanner', icon: FileImage, color: 'indigo' },
-  irm: { label: 'IRM', icon: FileImage, color: 'pink' },
-  ordonnance_externe: { label: 'Ordonnance externe', icon: FileText, color: 'orange' },
-  certificat_medical: { label: 'Certificat médical', icon: FileText, color: 'teal' },
-  compte_rendu: { label: 'Compte rendu', icon: FileText, color: 'cyan' },
-  autre: { label: 'Autre', icon: File, color: 'gray' }
+  analyse: { label: 'Analyse médicale', icon: FileText, badge: 'bg-blue-600' },
+  radio: { label: 'Radiographie', icon: FileImage, badge: 'bg-purple-600' },
+  echographie: { label: 'Échographie', icon: FileImage, badge: 'bg-green-600' },
+  scanner: { label: 'Scanner', icon: FileImage, badge: 'bg-indigo-600' },
+  irm: { label: 'IRM', icon: FileImage, badge: 'bg-pink-600' },
+  ordonnance_externe: { label: 'Ordonnance externe', icon: FileText, badge: 'bg-orange-500' },
+  certificat_medical: { label: 'Certificat médical', icon: FileText, badge: 'bg-teal-600' },
+  compte_rendu: { label: 'Compte rendu', icon: FileText, badge: 'bg-cyan-600' },
+  autre: { label: 'Autre', icon: File, badge: 'bg-gray-500' }
 };
 
 const PatientDocumentsViewer = ({ patient, consultationId = null, showUploadButton = false, onUploadClick }) => {
@@ -45,6 +45,7 @@ const PatientDocumentsViewer = ({ patient, consultationId = null, showUploadButt
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [rotation, setRotation] = useState(0);
+  const [thumbnails, setThumbnails] = useState({});
 
   useEffect(() => {
     if (patient?.id) {
@@ -154,6 +155,24 @@ const PatientDocumentsViewer = ({ patient, consultationId = null, showUploadButt
 
       console.log('💾 [PatientDocumentsViewer] Documents formatés et stockés:', formattedData.length);
       setDocuments(formattedData);
+
+      // Vignettes : URLs signées pour les images (le bucket n'est pas public). Un échec
+      // n'est pas bloquant : la carte retombe sur l'aperçu générique.
+      const imagePaths = formattedData
+        .filter((doc) => getMimeType(doc).startsWith('image/') && doc.url_fichier)
+        .map((doc) => doc.url_fichier);
+      if (imagePaths.length > 0) {
+        const { data: signed } = await supabase.storage
+          .from('patient-documents')
+          .createSignedUrls(imagePaths, 3600);
+        const map = {};
+        (signed || []).forEach((entry) => {
+          if (entry?.signedUrl && entry.path) map[entry.path] = entry.signedUrl;
+        });
+        setThumbnails(map);
+      } else {
+        setThumbnails({});
+      }
     } catch (error) {
       console.error('❌ [PatientDocumentsViewer] Erreur lors du chargement des documents:', error);
     } finally {
@@ -422,85 +441,81 @@ const PatientDocumentsViewer = ({ patient, consultationId = null, showUploadButt
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredDocuments.map(doc => {
               const typeInfo = DOCUMENT_TYPE_LABELS[doc.type_document] || DOCUMENT_TYPE_LABELS.autre;
-              const Icon = typeInfo.icon;
               const mimeType = getMimeType(doc);
               const isImage = mimeType.startsWith('image/');
               const isPdf = mimeType === 'application/pdf';
+              const thumbUrl = thumbnails[doc.url_fichier];
+              const linkedToConsultation = consultationId && doc.consultation_id && String(doc.consultation_id) === String(consultationId);
 
               return (
                 <div
                   key={doc.id}
-                  className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                  className="bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col hover:shadow-md transition-shadow"
                 >
-                  {/* Header de la carte */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className={`p-2 rounded-lg bg-${typeInfo.color}-100`}>
-                      <Icon className={`text-${typeInfo.color}-600`} size={24} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {consultationId && doc.consultation_id && String(doc.consultation_id) === String(consultationId) && (
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700" title="Document lié à cette consultation">
+                  <button
+                    type="button"
+                    onClick={() => handlePreview(doc)}
+                    title="Voir en grand"
+                    className="relative block w-full aspect-[4/3] border-0 p-0 cursor-pointer overflow-hidden bg-slate-100"
+                  >
+                    {isImage && thumbUrl ? (
+                      <img src={thumbUrl} alt={doc.nom_fichier} className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center text-slate-300">
+                        {isImage ? <FileImage size={56} /> : <FileText size={56} />}
+                      </span>
+                    )}
+                    <span className="absolute top-2 left-2 flex gap-1.5 flex-wrap">
+                      {linkedToConsultation && (
+                        <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-green-600 text-white" title="Document lié à cette consultation">
                           Cette consultation
                         </span>
                       )}
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full bg-${typeInfo.color}-100 text-${typeInfo.color}-700`}>
+                      <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full text-white ${typeInfo.badge}`}>
                         {typeInfo.label}
                       </span>
-                    </div>
-                  </div>
+                    </span>
+                    <span className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full bg-gray-900/75 text-white text-[11px] font-medium">
+                      {isPdf ? 'PDF' : isImage ? <><ZoomIn size={12} /> Agrandir</> : 'Fichier'}
+                    </span>
+                  </button>
 
-                  {/* Nom du fichier */}
-                  <h4 className="font-semibold text-gray-800 mb-2 truncate" title={doc.nom_fichier}>
-                    {doc.nom_fichier}
-                  </h4>
-
-                  {/* Informations */}
-                  <div className="space-y-2 text-sm text-gray-600 mb-3">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} />
-                      <span>{formatDate(doc.date_document)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <User size={14} />
-                      <span>
-                        {doc.uploaded_by_nom} {doc.uploaded_by_prenom}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {formatFileSize(doc.taille_fichier)}
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  {doc.notes && (
-                    <p className="text-sm text-gray-600 mb-3 line-clamp-2 italic">
-                      "{doc.notes}"
+                  <div className="p-3.5 flex flex-col gap-2 flex-1">
+                    <h4 className="font-semibold text-gray-800 text-[15px] truncate" title={doc.nom_fichier}>
+                      {doc.nom_fichier}
+                    </h4>
+                    <p className="text-[13px] text-gray-500">
+                      {formatDate(doc.date_document || doc.created_at)}
+                      {(doc.uploaded_by_nom || doc.uploaded_by_prenom) && ` • ${[doc.uploaded_by_prenom, doc.uploaded_by_nom].filter(Boolean).join(' ')}`}
+                      {doc.taille_fichier ? ` • ${formatFileSize(doc.taille_fichier)}` : ''}
                     </p>
-                  )}
+                    {doc.notes && (
+                      <p className="text-[13px] text-gray-600 italic line-clamp-2">"{doc.notes}"</p>
+                    )}
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 pt-3 border-t border-gray-200">
-                    <button
-                      onClick={() => handlePreview(doc)}
-                      className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium text-sm flex items-center justify-center gap-1"
-                    >
-                      <Eye size={16} />
-                      Voir
-                    </button>
-                    <button
-                      onClick={() => handleDownload(doc)}
-                      className="flex-1 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors font-medium text-sm flex items-center justify-center gap-1"
-                    >
-                      <Download size={16} />
-                      Télécharger
-                    </button>
-                    <button
-                      onClick={() => handleDelete(doc.id)}
-                      className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                      title="Supprimer"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex items-center gap-1.5 mt-auto pt-3 border-t border-gray-100">
+                      <button
+                        onClick={() => handlePreview(doc)}
+                        className="flex-1 px-2.5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-[13px] flex items-center justify-center gap-1"
+                      >
+                        <Eye size={15} />
+                        Voir
+                      </button>
+                      <button
+                        onClick={() => handleDownload(doc)}
+                        className="px-2.5 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
+                        title="Télécharger"
+                      >
+                        <Download size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(doc.id)}
+                        className="px-2.5 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                        title="Supprimer"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
