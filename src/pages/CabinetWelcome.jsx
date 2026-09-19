@@ -83,9 +83,14 @@ const CabinetWelcome = () => {
       'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
     };
 
+    // Le personnel passe par une fonction SECURITY DEFINER : la table users n'est plus lisible sans connexion
     const [cabinetRes, usersRes] = await Promise.all([
       fetch(`${SUPABASE_URL}/rest/v1/tenants?id=eq.${tenantId}&select=*`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/users?tenant_id=eq.${tenantId}&actif=eq.true&select=id,username,nom,prenom,role,photo_url&order=role`, { headers })
+      fetch(`${SUPABASE_URL}/rest/v1/rpc/get_cabinet_staff`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_tenant_id: tenantId })
+      })
     ]);
 
     const cabinetData = await cabinetRes.json();
